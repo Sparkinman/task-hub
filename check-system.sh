@@ -85,9 +85,9 @@ fi
 free_mb=$(df -Pm / 2>/dev/null | awk 'NR==2 {print $4}')
 if [ -n "$free_mb" ]; then
   if [ "$free_mb" -ge 3000 ]; then
-    ok "Free disk: ${free_mb} MB (the image is about 650 MB)"
+    ok "Free disk: ${free_mb} MB (Task Hub needs about 700 MB)"
   elif [ "$free_mb" -ge 1500 ]; then
-    warn "Free disk: ${free_mb} MB. The image alone is about 650 MB."
+    warn "Free disk: ${free_mb} MB. The image alone unpacks to about 650 MB."
   else
     bad "Free disk: ${free_mb} MB. Not enough room for the image."
   fi

@@ -65,7 +65,8 @@ Both systems, same command:
 docker compose up -d
 ```
 
-The first run downloads about 650 MB and takes a few minutes. It finishes by
+The first run downloads about 150 MB, which unpacks to about 650 MB on disk,
+and takes a few minutes. It finishes by
 saying `Container taskhub Started`.
 
 Check on it:

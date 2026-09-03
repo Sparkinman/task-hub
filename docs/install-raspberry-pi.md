@@ -141,7 +141,7 @@ This computer
 
 Room to run
   OK    Memory: 3794 MB (Task Hub peaks at about 230 MB)
-  OK    Free disk: 27100 MB (the image is about 650 MB)
+  OK    Free disk: 27100 MB (Task Hub needs about 700 MB)
 
 Docker
   TODO  Not installed. On Linux and Raspberry Pi OS:
@@ -249,8 +249,8 @@ Now start it:
 docker compose up -d
 ```
 
-The first time, this downloads about 650 MB, which takes a few minutes on a
-normal connection. It prints download progress, then `Container taskhub
+The first time, this downloads about 150 MB and unpacks it to about 650 MB on
+the card, which takes a few minutes on a normal connection. It prints download progress, then `Container taskhub
 Started`.
 
 Check on it:
