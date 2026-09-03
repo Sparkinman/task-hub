@@ -1,0 +1,229 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+{% import "partials/disconnect.html" as dc %}
+{% from "partials/account_name.html" import account_name %}
+{% from "partials/mapping_form.html" import mapping_form %}
+
+{% block title %}Google · {{ app_name }}{% endblock %}
+{% block page_title %}Google{% endblock %}
+{% block page_subtitle %}<div class="subtitle">Google Tasks and Google Calendar</div>{% endblock %}
+{% block page_actions %}
+  {# Right here, because the next thing anyone wants after changing what syncs
+     where is to watch it actually happen. #}
+  <form method="post" action="/sync/run">
+    <button type="submit" class="btn btn-primary">
+      {{ ico.icon('refresh') }} Sync now
+    </button>
+  </form>
+  <a class="btn" href="/docs/google" target="_blank" rel="noopener">{{ ico.icon('book') }} Setup guide</a>
+  <a class="btn btn-ghost" href="/services">All services</a>
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+<div class="alert alert-info mb-5">
+  <span class="alert-icon" aria-hidden="true">i</span>
+  <div class="grow">
+    <div class="alert-title">First time? Follow the walkthrough</div>
+    The <a href="/docs/google" target="_blank" rel="noopener"><span class="strong">complete Google setup guide</span></a>
+    names every button to click, in order, from an empty Google account to a
+    working sync — including exactly where each value below gets pasted.
+    Steps&nbsp;1–27 happen in the Google Cloud Console; this page is
+    steps&nbsp;28 onwards.
+  </div>
+</div>
+
+{# --- Step 1: the Google Cloud project ---------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Step 1 · Your Google Cloud credentials</div>
+      <div class="card-hint">
+        Done once. The same credentials serve all {{ max_slots }} account slots.
+        <a href="/docs/google" target="_blank" rel="noopener">Guide, parts B–D →</a>
+      </div>
+    </div>
+    {% if configured %}<span class="pill pill-success">Configured</span>{% endif %}
+  </div>
+
+  <div class="card-body stack">
+    {% if redirect_problem %}
+      <div class="alert alert-error">
+        <span class="alert-icon" aria-hidden="true">!</span>
+        <div class="grow">
+          <div class="alert-title">Google will not accept this address</div>
+          {{ redirect_problem }}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="field">
+      <label for="redirect-uri">Authorised redirect URI</label>
+      <div class="copy-field">
+        <input type="text" id="redirect-uri" readonly value="{{ redirect_uri }}">
+        <button type="button" class="btn" data-copy="#redirect-uri">Copy</button>
+      </div>
+      <span class="field-hint">
+        <span class="strong">Copy this, then paste it into Google:</span>
+        Google Auth Platform → <span class="strong">Clients</span> → your client →
+        <span class="strong">Authorised redirect URIs</span> → <span class="strong">+ ADD URI</span>.
+        Google matches it character for character — one extra trailing slash is
+        enough to fail. It is built from the address you are viewing this page
+        on, so if you later reach Task Hub at a different address, add that one
+        to Google as well.
+      </span>
+    </div>
+
+    <form method="post" action="/services/google/credentials" class="stack">
+      <div class="field">
+        <label for="client_id">Client ID</label>
+        <input type="text" id="client_id" name="client_id" required
+               placeholder="000000000000-xxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+               value="{{ client_id }}">
+      </div>
+      <div class="field">
+        <label for="client_secret">Client Secret</label>
+        <input type="password" id="client_secret" name="client_secret" required
+               placeholder="{{ 'Saved — type a new one to replace it' if configured else 'GOCSPX-...' }}"
+               autocomplete="off">
+        <span class="field-hint">
+          Stored encrypted. It is never shown again after saving.
+        </span>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn btn-primary">Save credentials</button>
+        {% if configured %}
+          <button type="submit" class="btn btn-danger" formaction="/services/google/credentials/clear"
+                  formnovalidate>Remove</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+{# --- Step 2: connect accounts ------------------------------------------ #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Step 2 · Connect your Google accounts</div>
+      <div class="card-hint">
+        {{ accounts|length }} of {{ max_slots }} slots in use.
+        <a href="/docs/google" target="_blank" rel="noopener">Guide, part E →</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body stack">
+    {% if not configured %}
+      <div class="alert alert-info">
+        <span class="alert-icon" aria-hidden="true">i</span>
+        <div class="grow">Save your Client ID and Secret above first.</div>
+      </div>
+    {% else %}
+
+      {% for account in accounts %}
+        {% set lists = lists_by_account.get(account.id, []) %}
+        {% set task_lists = lists | selectattr('kind.value', 'equalto', 'tasks') | list %}
+        {% set cal_lists  = lists | selectattr('kind.value', 'equalto', 'calendar') | list %}
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="row-wrap">
+                <span class="slot-number">{{ account.slot }}</span>
+                {{ account_name(account, 'google', 'Google') }}
+                {% set status = account.status.value %}
+                <span class="pill {{ 'pill-success' if status == 'connected' else ('pill-danger' if status in ['error','needs_auth'] else '') }}">
+                  {{ status.replace('_',' ')|title }}
+                </span>
+              </div>
+              <div class="card-hint">
+                {% if account.last_sync_at %}
+                  Last synced {{ account.last_sync_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                {% else %}Never synced{% endif %}
+                · {{ task_lists|length }} task list(s), {{ cal_lists|length }} calendar(s)
+              </div>
+              {% if account.status_detail %}
+                <div class="tiny" style="color: var(--danger);">{{ account.status_detail }}</div>
+              {% endif %}
+            </div>
+            <div class="row">
+              <form method="post" action="/services/google/{{ account.slot }}/discover">
+                <button type="submit" class="btn btn-sm">{{ ico.icon('refresh') }} Refresh lists</button>
+              </form>
+              <a class="btn btn-sm" href="/services/google/connect/{{ account.slot }}">Reconnect</a>
+              {{ dc.disconnect_button(
+                   "/services/google/" ~ account.slot ~ "/disconnect",
+                   account.label or "this Google account",
+                   cleanup.get(account.id),
+                   "disconnect-google-" ~ account.slot,
+                   icon=ico.icon('trash'),
+                   extra_note="To revoke access entirely, also remove Task Hub at myaccount.google.com/permissions.") }}
+            </div>
+          </div>
+
+          <div class="card-body">
+            {% if not lists %}
+              <p class="muted">
+                Press <span class="strong">Refresh lists</span> above to fetch this
+                account's task lists and calendars from Google.
+              </p>
+            {% else %}
+              {{ mapping_form(account, 'Google', task_lists, cal_lists,
+                              collections, dropdowns, kind_enabled,
+                              advanced_mode=advanced_mode) }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+
+      {% if free_slots %}
+        <div class="slot-row is-empty">
+          <span class="slot-number">{{ free_slots[0] }}</span>
+          <div class="grow">
+            <div class="strong">Add a Google account</div>
+            <div class="tiny muted">
+              Signs you in at Google and asks permission for Tasks and Calendar.
+              Expect an "unverified app" warning — click Advanced, then
+              "Go to Task Hub (unsafe)".
+            </div>
+          </div>
+          <a class="btn btn-primary btn-sm" href="/services/google/connect/{{ free_slots[0] }}">
+            {{ ico.icon('link') }} Connect
+          </a>
+        </div>
+      {% endif %}
+
+      <div class="alert alert-warning">
+        <span class="alert-icon" aria-hidden="true">▲</span>
+        <div class="grow">
+          <div class="alert-title">Expect an "unverified app" warning</div>
+          Because this is your own private Google project, Google shows a screen
+          saying the app is not verified. That is normal and expected — you are
+          the developer and the only user. Click <span class="strong">Advanced</span>,
+          then <span class="strong">Go to Task Hub (unsafe)</span>. Verification
+          only matters for apps distributed to strangers.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{# --- Limitations -------------------------------------------------------- #}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">What Google can and cannot store</div>
+      <div class="card-hint">Limits of Google's API, not of Task Hub.</div>
+    </div>
+  </div>
+  <div class="card-body">
+    <ul style="padding-left:1.15em; margin:0;" class="stack-sm">
+      {% for caveat in definition.caveats %}<li>{{ caveat }}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+
+{% endblock %}

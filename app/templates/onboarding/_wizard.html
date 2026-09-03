@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ step.title }} · Setup · {{ app_name }}{% endblock %}
+
+{% block body %}
+<div class="wizard">
+  <div class="wizard-inner">
+
+    <div class="wizard-brand">
+      <img class="brand-mark brand-mark-lg" src="/static/img/logo.svg" alt="" aria-hidden="true">
+      <span>Task Hub setup</span>
+    </div>
+
+    <ol class="steps" aria-label="Setup progress">
+      {% for s in steps %}
+        {% set state = 'is-done' if loop.index0 < step_index else ('is-current' if loop.index0 == step_index else '') %}
+        <li class="step-node {{ state }}">
+          <span class="step-bar"></span>
+          <span class="step-name">{{ s.title }}</span>
+        </li>
+      {% endfor %}
+    </ol>
+
+    <div class="wizard-card">
+      <div class="wizard-head">
+        <div class="wizard-eyebrow">Step {{ step_number }} of {{ step_total }}</div>
+        <h1>{% block wizard_title %}{{ step.title }}{% endblock %}</h1>
+        <p class="lede">{% block wizard_lede %}{{ step.blurb }}{% endblock %}</p>
+      </div>
+
+      {% if errors %}
+        <div style="padding: 0 var(--gap-5); margin-top: var(--gap-4);">
+          <div class="alert alert-error">
+            <span class="alert-icon" aria-hidden="true">!</span>
+            <div class="grow">
+              <div class="alert-title">Please fix the following</div>
+              <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {% block wizard_form %}{% endblock %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

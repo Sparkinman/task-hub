@@ -1,0 +1,26 @@
+# Task Hub, built from the source code instead of downloaded.
+#
+# Use this if you have changed the code, or if you would rather build the image
+# yourself than trust a published one. Everything else behaves identically.
+#
+#   Copy this file to the top of the project as docker-compose.yml, then:
+#   docker compose up -d --build
+#
+# Expect the first build to take 10-20 minutes on a Raspberry Pi and a minute
+# or two on a desktop. Later builds are much faster.
+
+services:
+  taskhub:
+    build: .
+    image: task-hub:local
+    container_name: taskhub
+    restart: unless-stopped
+    ports:
+      - "${TASKHUB_HTTP_PORT:-8080}:8080"
+    volumes:
+      - taskhub-data:/data
+    environment:
+      TZ: "${TZ:-Etc/UTC}"
+
+volumes:
+  taskhub-data:

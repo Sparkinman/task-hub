@@ -1,0 +1,53 @@
+{% extends "onboarding/_wizard.html" %}
+
+{% block wizard_title %}Create your sign-in{% endblock %}
+{% block wizard_lede %}
+  This is the username and password for this web page. Task Hub is designed to
+  be reachable from outside your home network, so choose a real password rather
+  than something you would use on a private device.
+{% endblock %}
+
+{% block wizard_form %}
+<form method="post" action="/setup/account">
+  <div class="wizard-body">
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" required autofocus
+             autocomplete="username" minlength="3" maxlength="64"
+             pattern="[A-Za-z0-9._\-]{3,64}"
+             value="{{ username|default('') }}">
+      <span class="field-hint">3–64 characters. Letters, numbers, dots, dashes and underscores.</span>
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required minlength="8"
+             autocomplete="new-password" data-password-pair>
+      <span class="field-hint">At least 8 characters.</span>
+    </div>
+
+    <div class="field">
+      <label for="password_confirm">Confirm password</label>
+      <input type="password" id="password_confirm" name="password_confirm" required
+             minlength="8" autocomplete="new-password" data-password-pair>
+    </div>
+
+    <div class="alert alert-warning mt-4">
+      <span class="alert-icon" aria-hidden="true">▲</span>
+      <div class="grow">
+        <div class="alert-title">There is no password reset</div>
+        Task Hub has no email server, so it cannot send you a reset link. Store
+        this password in your password manager now. If it is lost, the only way
+        back in is to delete the data volume and start over.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wizard-foot">
+    <span class="small muted">You will be signed in straight away.</span>
+    <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+  </div>
+</form>
+{% endblock %}

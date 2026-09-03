@@ -1,0 +1,58 @@
+# Task Hub
+#
+#   Start it:     docker compose up -d
+#   Open it:      http://<this machine's address>:8080
+#   Watch it:     docker compose logs -f
+#   Update it:    docker compose pull && docker compose up -d
+#   Stop it:      docker compose down
+#
+# Nothing in this file needs editing to make Task Hub work. It finds out its own
+# address from whatever address you open it on, so the same file is correct
+# whether you reach it on your home network, over Tailscale, through a
+# Cloudflare tunnel or behind your own reverse proxy.
+#
+# Your data lives in the named volume "taskhub-data" and survives updates,
+# rebuilds and `docker compose down`. It is destroyed only by the explicit
+# `docker compose down -v`.
+
+services:
+  taskhub:
+    # Published for both Intel and ARM, so this same line is correct on a
+    # Raspberry Pi, a NAS, a Mac and a Windows machine -- Docker picks the
+    # right one. The identical image also lives at
+    # ghcr.io/sparkinman/task-hub:latest if you prefer GitHub's registry.
+    image: pauldmcneil/task-hub:latest
+    container_name: taskhub
+    restart: unless-stopped
+
+    ports:
+      # Left side is the port on this machine, right side is inside the
+      # container and never changes. If something already uses 8080 -- a QNAP
+      # NAS does, for instance -- put TASKHUB_HTTP_PORT=9090 in a file named
+      # .env beside this one rather than editing here.
+      - "${TASKHUB_HTTP_PORT:-8080}:8080"
+
+    volumes:
+      - taskhub-data:/data
+
+    environment:
+      # Used for reminder times and "due today" until the setup wizard asks you
+      # for a timezone, after which the wizard's answer is what counts.
+      TZ: "${TZ:-Etc/UTC}"
+
+    # Docker keeps container logs for ever by default, which on a Raspberry Pi
+    # means a log file quietly filling the SD card months from now. Thirty
+    # megabytes is far more history than anyone reads.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # The image checks its own health, so `docker compose ps` says "healthy" or
+    # "unhealthy" rather than only "running". Docker reports an unhealthy
+    # container but does not restart it; `restart: unless-stopped` above covers
+    # the separate case of it stopping outright.
+
+volumes:
+  taskhub-data:

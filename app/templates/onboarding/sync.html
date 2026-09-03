@@ -1,0 +1,58 @@
+{% extends "onboarding/_wizard.html" %}
+
+{% block wizard_title %}How often to sync{% endblock %}
+{% block wizard_lede %}
+  Task Hub checks each connected service on a schedule and reconciles anything
+  that changed. You can always run a sync by hand from the Overview page.
+{% endblock %}
+
+{% block wizard_form %}
+<form method="post" action="/setup/sync">
+  <div class="wizard-body">
+
+    <div class="field">
+      <label for="interval_minutes">Sync every</label>
+      <div class="row">
+        <input type="number" id="interval_minutes" name="interval_minutes"
+               min="{{ minimum }}" max="1440" step="1" required autofocus
+               value="{{ interval|default(15) }}" style="max-width: 120px;">
+        <span class="muted">minutes</span>
+      </div>
+      <span class="field-hint">
+        Minimum {{ minimum }} minutes. Most people are well served by 15.
+      </span>
+    </div>
+
+    <div class="field">
+      <label class="check">
+        <input type="checkbox" name="sync_enabled" value="1" checked>
+        <span>
+          <span class="check-label">Sync automatically</span>
+          <span class="check-hint">
+            Turn this off to sync only when you press the button yourself.
+          </span>
+        </span>
+      </label>
+    </div>
+
+    <div class="alert alert-warning mt-4">
+      <span class="alert-icon" aria-hidden="true">▲</span>
+      <div class="grow">
+        <div class="alert-title">Why {{ minimum }} minutes is the floor</div>
+        Every service limits how often it will answer. Polling harder than they
+        allow earns HTTP 429 "too many requests" responses, and Task Hub then
+        has to back off and wait — so syncing too often makes your tasks arrive
+        <em>later</em>, not sooner. With several accounts connected, each pass
+        makes a lot of calls, which is why this floor is enforced rather than
+        merely suggested.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wizard-foot">
+    <a class="btn btn-ghost" href="/setup/collections">Back</a>
+    <button type="submit" class="btn btn-primary btn-lg">Finish setup</button>
+  </div>
+</form>
+{% endblock %}

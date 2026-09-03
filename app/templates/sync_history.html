@@ -1,0 +1,111 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Sync history · {{ app_name }}{% endblock %}
+{% block page_title %}Sync history{% endblock %}
+{% block page_actions %}
+  <a class="btn btn-ghost" href="/sync">Sync groups</a>
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+{% if not runs %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">↻</div>
+    <h3>No syncs have run yet</h3>
+    <p>Create a sync group and press Sync now.</p>
+    <a class="btn btn-primary mt-4" href="/sync">Sync groups</a>
+  </div>
+{% else %}
+  <div class="doc-layout">
+    <nav class="doc-nav" aria-label="Sync runs">
+      {% for run in runs %}
+        <a href="/sync/history?run_id={{ run.id }}"
+           class="{{ 'active' if selected and run.id == selected.id }}">
+          <span class="row">
+            <span class="badge badge-{{ 'green' if run.outcome.value == 'success' else ('red' if run.outcome.value == 'failed' else 'yellow') }}">
+              <span class="badge-dot" aria-hidden="true"></span>
+            </span>
+            {{ run.started_at.strftime('%m-%d %H:%M') }}
+          </span>
+        </a>
+      {% endfor %}
+    </nav>
+
+    <div>
+      {% if selected %}
+        <div class="card mb-5">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                {{ selected.started_at.strftime('%Y-%m-%d %H:%M UTC') }}
+              </div>
+              <div class="card-hint">
+                Triggered {{ selected.trigger }}
+                {% if selected.finished_at %}
+                  · took {{ ((selected.finished_at - selected.started_at).total_seconds())|round(1) }}s
+                {% endif %}
+              </div>
+            </div>
+            <span class="pill {{ 'pill-success' if selected.outcome.value == 'success' else ('pill-danger' if selected.outcome.value == 'failed' else 'pill-warning') }}">
+              {{ selected.outcome.value|title }}
+            </span>
+          </div>
+          <div class="card-body">
+            <div class="grid grid-4">
+              <div><div class="stat-label">Pulled</div><div class="stat-value">{{ selected.items_pulled }}</div></div>
+              <div><div class="stat-label">Pushed</div><div class="stat-value">{{ selected.items_pushed }}</div></div>
+              <div><div class="stat-label">Skipped</div><div class="stat-value">{{ selected.items_skipped }}</div></div>
+              <div class="{{ 'stat is-danger' if selected.errors }}">
+                <div class="stat-label">Errors</div><div class="stat-value">{{ selected.errors }}</div>
+              </div>
+            </div>
+            {% if selected.items_skipped %}
+              <p class="small muted mt-4">
+                "Skipped" counts items already identical at the far end. A high
+                number here is good — it means Task Hub is not rewriting things
+                that have not changed.
+              </p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">Details</div></div>
+          {% if entries %}
+            <div class="table-wrap">
+              <table class="data">
+                <thead><tr><th>Time</th><th>Service</th><th>Message</th></tr></thead>
+                <tbody>
+                  {% for entry in entries %}
+                    <tr>
+                      <td class="mono nowrap">{{ entry.at.strftime('%H:%M:%S') }}</td>
+                      <td>
+                        {% if entry.service %}
+                          {% set badge = badge_for(entry.service) %}
+                          <span class="badge badge-{{ badge.colour }}">
+                            <span class="badge-dot" aria-hidden="true"></span>{{ entry.service }}
+                          </span>
+                        {% endif %}
+                      </td>
+                      <td class="{{ 'strong' if entry.level == 'error' }}"
+                          style="{{ 'color: var(--danger);' if entry.level == 'error' else ('color: var(--warning);' if entry.level == 'warning' else '') }}">
+                        {{ entry.message }}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="card-body muted">Nothing was logged for this run.</div>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

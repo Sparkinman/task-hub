@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ asset_version }}">
+  <script>
+    /* Applied before the first paint so the page never flashes the wrong
+       theme. The saved value is preferred over the server's because it is
+       what this particular browser was last told to use. */
+    (function () {
+      var theme = "{{ theme|default('system') }}";
+      try {
+        var saved = localStorage.getItem("taskhub-theme");
+        if (saved) theme = saved;
+      } catch (e) {}
+      if (theme === "light" || theme === "dark") {
+        document.documentElement.setAttribute("data-theme", theme);
+      }
+    })();
+  </script>
+</head>
+<body>
+  {% if flashes %}
+    <div class="flash-stack" role="status" aria-live="polite">
+      {% for flash in flashes %}
+        <div class="alert alert-{{ flash.category }}">
+          <span class="alert-icon" aria-hidden="true">
+            {%- if flash.category == 'success' %}✓
+            {%- elif flash.category == 'error' %}!
+            {%- elif flash.category == 'warning' %}▲
+            {%- else %}i{% endif -%}
+          </span>
+          <div class="grow">{{ flash.message }}</div>
+          <button type="button" class="flash-close" title="Dismiss"
+                  aria-label="Dismiss this message"
+                  onclick="this.parentNode.remove()">&times;</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% block body %}{% endblock %}
+
+  <script src="/static/js/app.js?v={{ asset_version }}" defer></script>
+</body>
+</html>

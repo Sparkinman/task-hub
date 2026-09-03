@@ -1,0 +1,575 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Calendar · {{ app_name }}{% endblock %}
+{% block page_title %}Calendar{% endblock %}
+{% block page_subtitle %}
+  {% if configured %}<div class="subtitle">{{ total }} item{{ '' if total == 1 else 's' }} in view</div>{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+  {% if configured and collections %}
+    <button class="btn btn-primary" data-open-modal="new-event-modal">
+      {{ ico.icon('plus') }} New event
+    </button>
+  {% endif %}
+{% endblock %}
+
+{# Every link keeps the current filters, and says so explicitly rather than
+   relying on defaults -- that is what stops the tasks toggle springing back. #}
+{% macro qs(v=None, a=None) -%}
+?view={{ v or view }}{% if a is not none %}&anchor={{ a }}{% elif anchor %}&anchor={{ anchor.isoformat() }}{% endif %}{% if selected_collection %}&collection={{ selected_collection }}{% endif %}&filters=1&show_tasks={{ '1' if show_tasks else '0' }}&hide_done={{ '1' if hide_done else '0' }}
+{%- endmacro %}
+
+{% macro state_fields() -%}
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="hidden" name="anchor" value="{{ anchor.isoformat() }}">
+  <input type="hidden" name="collection" value="{{ selected_collection }}">
+  <input type="hidden" name="show_tasks" value="{{ '1' if show_tasks else '0' }}">
+  <input type="hidden" name="hide_done" value="{{ '1' if hide_done else '0' }}">
+{%- endmacro %}
+
+{% macro task_json(e) -%}
+{{ {"uid": e.record.uid, "collection": e.collection.collection_id,
+    "title": e.record.title, "notes": e.record.notes or "",
+    "due_date": e.record.due_date.isoformat() if e.record.due_date else "",
+    "due_time": e.record.due_time.strftime("%H:%M") if e.record.due_time else "",
+    "priority": e.record.priority or 0, "done": e.done }|tojson }}
+{%- endmacro %}
+
+{# The classes that draw an item running over several days as one continuous
+   bar rather than as separate copies: square edges where it joins the next day,
+   rounded ones only at the two real ends. #}
+{% macro span_class(e) -%}
+{%- if e.spans %} is-span {{ 'span-start' if e.span_start }} {{ 'span-mid' if e.span_middle }} {{ 'span-end' if e.span_end }}{% endif %}
+{%- endmacro %}
+
+{# One entry. Tasks get a tick zone and an edit zone; events open the editor. #}
+{% macro entry(e) -%}
+  {% if e.kind == 'task' %}
+    <span class="cal-item is-task {{ 'is-done' if e.done }}{{ span_class(e) }}">
+      <button type="button" class="cal-tick"
+              data-toggle-task="/calendar/task/{{ e.collection.collection_id }}/{{ e.record.uid|urlencode }}/toggle"
+              title="Tick off “{{ e.record.title }}”"
+              aria-label="Tick off {{ e.record.title }}">✓</button>
+      <button type="button" class="cal-open"
+              data-open-modal="edit-task-modal" data-task='{{ task_json(e) }}'
+              title="{{ e.record.title }} — {% if e.spans %}{{ e.span_first.strftime('%-d %b') }} to {{ e.span_last.strftime('%-d %b') }}, due{% else %}due{% endif %}{% if e.record.due_time %} {{ e.record.due_time|fmt_time(time_format) }}{% endif %} · click to edit">
+        {% if not e.span_start %}<span class="cal-cont" aria-hidden="true">‹</span>{% endif %}
+        {% if e.time %}<span class="t">{{ e.time|fmt_time(time_format) }}</span>{% endif %}
+        <span class="s">{{ e.record.title }}</span>
+      </button>
+    </span>
+  {% else %}
+    <button type="button" class="cal-item {{ 'is-allday' if e.all_day }}{{ span_class(e) }}"
+            data-open-modal="edit-event-modal"
+            data-event='{{ {"uid": e.record.uid, "collection": e.collection.collection_id,
+                            "title": e.record.title, "notes": e.record.notes or "",
+                            "location": e.record.location or "",
+                            "start_date": e.record.start_date.isoformat() if e.record.start_date else "",
+                            "start_time": e.record.start_time.strftime("%H:%M") if e.record.start_time else "",
+                            "end_date": (e.record.end_date - one_day).isoformat() if (e.all_day and e.record.end_date) else (e.record.end_date.isoformat() if e.record.end_date else ""),
+                            "end_time": e.record.end_time.strftime("%H:%M") if e.record.end_time else "",
+                            "all_day": e.all_day, "recurring": e.recurring }|tojson }}'
+            title="{{ e.record.title }}{% if e.spans %} · {{ e.span_first.strftime('%-d %b') }} to {{ e.span_last.strftime('%-d %b') }}{% endif %}{% if e.record.location %} · {{ e.record.location }}{% endif %}">
+      {% if not e.span_start %}<span class="cal-cont" aria-hidden="true">‹</span>{% endif %}
+      {% if e.time %}<span class="t">{{ e.time|fmt_time(time_format) }}</span>{% endif %}
+      <span class="s">{{ e.record.title }}</span>
+    </button>
+  {% endif %}
+{%- endmacro %}
+
+{# The tasks panel beside the day and agenda views. #}
+{% macro tasks_panel() -%}
+  <aside class="cal-side">
+    <div class="cal-side-head">
+      <h2>Tasks</h2>
+      <span class="subtle small">{{ side_due_count }} due</span>
+    </div>
+
+    {% if task_collections %}
+      <form method="post" action="/calendar/task/create" class="quickadd">
+        {{ state_fields() }}
+        <input type="hidden" name="due_date" value="{{ anchor.isoformat() }}">
+        <div class="quickadd-row">
+          <input type="text" name="title" class="quickadd-title" required
+                 maxlength="500" placeholder="New task">
+          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+        </div>
+        <div class="quickadd-more">
+          <input type="time" name="due_time" title="Due time (optional)">
+          {% if task_collections|length > 1 %}
+            <select name="collection_id" required title="Which list">
+              {% for c in task_collections %}
+                <option value="{{ c.collection_id }}">{{ c.display_name }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <input type="hidden" name="collection_id" value="{{ task_collections[0].collection_id }}">
+          {% endif %}
+        </div>
+        <input type="text" name="notes" class="quickadd-notes" maxlength="1000"
+               placeholder="Description (optional)">
+      </form>
+    {% endif %}
+
+    <div class="cal-side-scroll">
+      {# Every day in the lookahead is listed, empty ones included -- a seven
+         day outlook with the quiet days removed is not an outlook. #}
+      {% for d in side_days %}
+        {% if true %}
+          <div class="tp-day {{ 'is-today' if d.is_today }}">
+            <div class="tp-day-head">
+              <span>{{ d.label }}</span>
+              <span class="subtle">{{ d.date.strftime('%-d %b') }}</span>
+            </div>
+            {% if not d.tasks %}
+              <div class="tp-empty">Nothing due.</div>
+            {% endif %}
+            {% for e in d.tasks %}
+              <div class="tp-task {{ 'is-done' if e.done }}">
+                <button type="button" class="tp-tick"
+                        data-toggle-task="/calendar/task/{{ e.collection.collection_id }}/{{ e.record.uid|urlencode }}/toggle"
+                        aria-label="Tick off {{ e.record.title }}"
+                        title="{{ 'Tick off' if e.span_end else 'Tick off — this task is due ' ~ e.record.due_date|fmt_date(date_format) }}">✓</button>
+                <button type="button" class="tp-body"
+                        data-open-modal="edit-task-modal" data-task='{{ task_json(e) }}'>
+                  <span class="tp-title">
+                    {% if not e.span_end %}<span class="tp-running" title="This day is part of a longer run">↔</span> {% endif %}
+                    {{ e.record.title }}
+                  </span>
+                  <span class="tp-meta">
+                    {% if not e.span_end %}
+                      <span class="tp-due-later">runs through · due
+                        {{ e.record.due_date|fmt_date(date_format) }}</span>
+                    {% endif %}
+                    {% if e.time %}<span class="tp-time">{{ e.time|fmt_time(time_format) }}</span>{% endif %}
+                    <span class="badge badge-{{ e.badge.colour }}">
+                      <span class="badge-dot" aria-hidden="true"></span>{{ e.badge.label }}
+                    </span>
+                    {% if task_collections|length > 1 %}
+                      <span class="subtle">{{ e.collection.display_name }}</span>
+                    {% endif %}
+                  </span>
+                </button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </aside>
+{%- endmacro %}
+
+{% block content %}
+
+{% if not configured %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">⚙</div>
+    <h3>Radicale is not configured</h3>
+    <a class="btn btn-primary mt-4" href="/radicale-admin">Configure Radicale</a>
+  </div>
+
+{% elif not collections %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">📅</div>
+    <h3>No calendars yet</h3>
+    <p>Create a calendar collection and your events will appear here.</p>
+    <a class="btn btn-primary mt-4" href="/radicale-admin">Create a calendar</a>
+  </div>
+
+{% else %}
+
+{% for error in errors %}
+  <div class="alert alert-error">
+    <span class="alert-icon" aria-hidden="true">!</span><div class="grow">{{ error }}</div>
+  </div>
+{% endfor %}
+
+<div class="cal-page">
+
+  <div class="cal-toolbar">
+    <div class="cal-nav">
+      <a class="btn btn-sm" href="/calendar{{ qs(a=prev_anchor) }}" aria-label="Previous">‹</a>
+      <a class="btn btn-sm" href="/calendar{{ qs(a=today_anchor) }}">Today</a>
+      <a class="btn btn-sm" href="/calendar{{ qs(a=next_anchor) }}" aria-label="Next">›</a>
+    </div>
+
+    <div class="cal-title">{{ heading }}</div>
+
+    <div class="segmented">
+      {% for v, label in [('month','Month'), ('week','Week'), ('day','Day'), ('agenda','Agenda')] %}
+        <input type="radio" id="cv-{{ v }}" {{ 'checked' if view == v }} readonly>
+        <label for="cv-{{ v }}" onclick="location.href='/calendar{{ qs(v=v) }}'">{{ label }}</label>
+      {% endfor %}
+    </div>
+
+    <div class="grow"></div>
+
+    <form method="get" action="/calendar" class="row-wrap" data-no-lock>
+      <input type="hidden" name="view" value="{{ view }}">
+      <input type="hidden" name="anchor" value="{{ anchor.isoformat() }}">
+      {# The marker that tells the server the boxes were actually submitted, so
+         an unticked box reads as "off" rather than as "not mentioned". #}
+      <input type="hidden" name="filters" value="1">
+      <select name="collection" data-autosubmit style="min-width:150px;">
+        <option value="">All calendars</option>
+        {% for c in collections %}
+          <option value="{{ c.collection_id }}" {{ 'selected' if c.collection_id == selected_collection }}>
+            {{ c.display_name }}
+          </option>
+        {% endfor %}
+      </select>
+      <label class="switch" title="Show tasks that are due, alongside events">
+        <input type="checkbox" name="show_tasks" value="1"
+               {{ 'checked' if show_tasks }} data-autosubmit>
+        <span class="switch-track"></span>
+        <span class="switch-label">Tasks</span>
+      </label>
+      <label class="check nowrap" style="margin:0;" title="Hide tasks you have already ticked off">
+        <input type="checkbox" name="hide_done" value="1"
+               {{ 'checked' if hide_done }} data-autosubmit>
+        <span class="check-label">Hide completed</span>
+      </label>
+      <noscript><button type="submit" class="btn btn-sm">Apply</button></noscript>
+    </form>
+  </div>
+
+  <div class="cal-body">
+
+    {# ---------- MONTH ---------- #}
+    {% if view == 'month' %}
+      <div class="cal-dow has-weeknums">
+        <div class="cal-wk-head" title="Week number">Wk</div>
+        {% for d in (['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] if week_starts_sunday
+                     else ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']) %}
+          <div>{{ d }}</div>
+        {% endfor %}
+      </div>
+      <div class="cal-month has-weeknums"
+           style="grid-template-rows: repeat({{ weeks|length }}, minmax(0,1fr));">
+        {% for wk in weeks %}
+          <a class="cal-wk" href="/calendar{{ qs(v='week', a=wk.anchor) }}"
+             title="Week {{ wk.iso }} — open the week view">{{ wk.iso }}</a>
+          {% for day in wk.days %}
+            <div class="cal-cell {{ 'is-today' if day.is_today }} {{ 'is-outside' if not day.in_focus }} {{ 'is-weekend' if day.is_weekend }}"
+                 data-goto="/calendar{{ qs(v='day', a=day.date.isoformat()) }}"
+                 title="Open {{ day.date.strftime('%A %-d %B') }}">
+              <div class="cal-daynum">
+                <a class="n" href="/calendar{{ qs(v='day', a=day.date.isoformat()) }}">{{ day.date.day }}</a>
+                {% if day.date.day == 1 %}<span>{{ day.date.strftime('%b') }}</span>{% endif %}
+              </div>
+              <div class="cal-items">
+                {% for e in day.entries[:4] %}{{ entry(e) }}{% endfor %}
+                {% if day.entries|length > 4 %}
+                  <a class="cal-more" href="/calendar{{ qs(v='day', a=day.date.isoformat()) }}">
+                    +{{ day.entries|length - 4 }} more
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+
+    {# ---------- WEEK ---------- #}
+    {% elif view == 'week' %}
+      {% set cols = grid|length %}
+      {% set tmpl = '56px repeat(' ~ cols ~ ', minmax(0,1fr))' %}
+      <div class="cal-daycol-head" style="grid-template-columns: {{ tmpl }};">
+        <div></div>
+        {% for day in grid %}
+          <div class="{{ 'is-today' if day.is_today }}">
+            <div>{{ day.date.strftime('%a') }}</div>
+            <div class="dn">
+              <a href="/calendar{{ qs(v='day', a=day.date.isoformat()) }}">{{ day.date.day }}</a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="cal-timed">
+        <div class="cal-allday-row" style="grid-template-columns: {{ tmpl }};">
+          <div class="lab">All day</div>
+          {% for day in grid %}
+            <div class="cal-allday-cell">
+              {% for e in day.entries if e.all_day %}{{ entry(e) }}{% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="cal-scroll">
+          <div class="cal-hours" style="grid-template-columns: {{ tmpl }};">
+            {% for hour in hours %}
+              <div class="cal-hour-label">{{ '%02d:00'|format(hour) }}</div>
+              {% for day in grid %}
+                <div class="cal-slot {{ 'is-today' if day.is_today }}"
+                     data-new-at="{{ day.date.isoformat() }}T{{ '%02d:00'|format(hour) }}"
+                     title="Click to add an event at {{ '%02d:00'|format(hour) }}">
+                  {% for e in day.entries if not e.all_day %}
+                    {% set h = e.time.hour if e.time else 0 %}
+                    {% if h == hour or (hour == day_start and h < day_start) or (hour == day_end and h > day_end) %}
+                      {{ entry(e) }}
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    {# ---------- DAY: timeline on the left, tasks on the right ---------- #}
+    {% elif view == 'day' %}
+      {% set day = grid[0] %}
+      <div class="cal-split {{ 'no-side' if not side_days }}">
+        <div class="cal-split-main">
+          <div class="cal-timed">
+            <div class="cal-allday-row" style="grid-template-columns: 56px minmax(0,1fr);">
+              <div class="lab">All day</div>
+              <div class="cal-allday-cell">
+                {% for e in day.entries if e.all_day and e.kind == 'event' %}{{ entry(e) }}{% endfor %}
+                {% if not day.entries|selectattr('all_day')|selectattr('kind','equalto','event')|list %}
+                  <span class="tp-empty">Nothing all day.</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="cal-scroll">
+              <div class="cal-hours" style="grid-template-columns: 56px minmax(0,1fr);">
+                {% for hour in hours %}
+                  <div class="cal-hour-label">{{ '%02d:00'|format(hour) }}</div>
+                  <div class="cal-slot {{ 'is-today' if day.is_today }}"
+                       data-new-at="{{ day.date.isoformat() }}T{{ '%02d:00'|format(hour) }}"
+                       title="Click to add an event at {{ '%02d:00'|format(hour) }}">
+                    {% for e in day.entries if not e.all_day and e.kind == 'event' %}
+                      {% set h = e.time.hour if e.time else 0 %}
+                      {% if h == hour or (hour == day_start and h < day_start) or (hour == day_end and h > day_end) %}
+                        {{ entry(e) }}
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% if side_days %}{{ tasks_panel() }}{% endif %}
+      </div>
+
+    {# ---------- AGENDA: list on the left, tasks on the right ---------- #}
+    {% else %}
+      <div class="cal-split {{ 'no-side' if not side_days }}">
+        <div class="cal-split-main">
+          <div class="cal-agenda">
+            {% if not grid %}
+              <div class="empty">
+                <div class="empty-icon" aria-hidden="true">📅</div>
+                <h3>Nothing scheduled</h3>
+                <p>No events or due tasks in the next two months.</p>
+              </div>
+            {% endif %}
+            {% for day in grid %}
+              <div class="cal-agenda-day {{ 'is-today' if day.is_today }}">
+                <div class="cal-agenda-date">
+                  <a class="d" href="/calendar{{ qs(v='day', a=day.date.isoformat()) }}">{{ day.date.day }}</a>
+                  <div class="m">{{ day.date.strftime('%a %b') }}</div>
+                </div>
+                <div class="cal-agenda-items">
+                  {% for e in day.entries %}{{ entry(e) }}{% endfor %}
+                  <button type="button" class="cal-agenda-add"
+                          data-new-at="{{ day.date.isoformat() }}T09:00">
+                    + Add an event on {{ day.date.strftime('%-d %b') }}
+                  </button>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% if side_days %}{{ tasks_panel() }}{% endif %}
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{# ---------- New event ---------- #}
+<dialog class="modal" id="new-event-modal">
+  <form method="post" action="/calendar/create">
+    {{ state_fields() }}
+    <div class="modal-header"><h2 class="card-title">New event</h2></div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="ev-title">Title</label>
+        <input type="text" id="ev-title" name="title" required maxlength="500" autofocus>
+      </div>
+      <div class="field">
+        <label for="ev-collection">Calendar</label>
+        <select id="ev-collection" name="collection_id" required>
+          {% for c in collections %}
+            <option value="{{ c.collection_id }}"
+                    {{ 'selected' if c.collection_id == selected_collection }}>{{ c.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label class="switch">
+          <input type="checkbox" name="all_day" value="1" data-allday-toggle="#new-times">
+          <span class="switch-track"></span><span class="switch-label">All day</span>
+        </label>
+      </div>
+      <div class="field-row mb-4">
+        <div class="field">
+          <label for="ev-start-date">Starts</label>
+          <input type="date" id="ev-start-date" name="start_date" required
+                 value="{{ anchor.isoformat() }}">
+        </div>
+        <div class="field" id="new-times">
+          <label for="ev-start-time">at</label>
+          <input type="time" id="ev-start-time" name="start_time" value="09:00"
+                 data-autoend="#ev-end-time">
+        </div>
+      </div>
+      <div class="field-row mb-4">
+        <div class="field">
+          <label for="ev-end-date">Ends</label>
+          <input type="date" id="ev-end-date" name="end_date" value="{{ anchor.isoformat() }}">
+        </div>
+        <div class="field">
+          <label for="ev-end-time">at</label>
+          <input type="time" id="ev-end-time" name="end_time" value="10:00">
+          <span class="field-hint">Follows the start by an hour until you change it.</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="ev-location">Location</label>
+        <input type="text" id="ev-location" name="location" maxlength="300">
+      </div>
+      <div class="field">
+        <label for="ev-notes">Notes</label>
+        <textarea id="ev-notes" name="notes" rows="3"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" data-close-modal>Cancel</button>
+      <button type="submit" class="btn btn-primary">Add event</button>
+    </div>
+  </form>
+</dialog>
+
+{# ---------- Edit event ---------- #}
+<dialog class="modal" id="edit-event-modal">
+  <form method="post" id="edit-event-form">
+    {{ state_fields() }}
+    <div class="modal-header"><h2 class="card-title">Edit event</h2></div>
+    <div class="modal-body">
+      <div class="alert alert-info hidden" id="edit-recurring-note">
+        <span class="alert-icon" aria-hidden="true">i</span>
+        <div class="grow small">
+          This event repeats. Editing here changes the whole series — the
+          repeat rule itself is kept as it is.
+        </div>
+      </div>
+      <div class="field">
+        <label for="ed-title">Title</label>
+        <input type="text" id="ed-title" name="title" required maxlength="500">
+      </div>
+      <div class="field">
+        <label class="switch">
+          <input type="checkbox" id="ed-allday" name="all_day" value="1"
+                 data-allday-toggle="#edit-times">
+          <span class="switch-track"></span><span class="switch-label">All day</span>
+        </label>
+      </div>
+      <div class="field-row mb-4">
+        <div class="field">
+          <label for="ed-start-date">Starts</label>
+          <input type="date" id="ed-start-date" name="start_date" required>
+        </div>
+        <div class="field" id="edit-times">
+          <label for="ed-start-time">at</label>
+          <input type="time" id="ed-start-time" name="start_time">
+        </div>
+      </div>
+      <div class="field-row mb-4">
+        <div class="field">
+          <label for="ed-end-date">Ends</label>
+          <input type="date" id="ed-end-date" name="end_date">
+        </div>
+        <div class="field">
+          <label for="ed-end-time">at</label>
+          <input type="time" id="ed-end-time" name="end_time">
+        </div>
+      </div>
+      <div class="field">
+        <label for="ed-location">Location</label>
+        <input type="text" id="ed-location" name="location" maxlength="300">
+      </div>
+      <div class="field">
+        <label for="ed-notes">Notes</label>
+        <textarea id="ed-notes" name="notes" rows="3"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="submit" class="btn btn-danger" id="edit-delete-btn"
+              formnovalidate data-confirm-delete="event">Delete</button>
+      <div class="grow"></div>
+      <button type="button" class="btn" data-close-modal>Cancel</button>
+      <button type="submit" class="btn btn-primary">Save changes</button>
+    </div>
+  </form>
+</dialog>
+
+{# ---------- Edit task ---------- #}
+<dialog class="modal" id="edit-task-modal">
+  <form method="post" id="edit-task-form">
+    {{ state_fields() }}
+    <div class="modal-header"><h2 class="card-title">Edit task</h2></div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="et-title">Title</label>
+        <input type="text" id="et-title" name="title" required maxlength="500">
+      </div>
+      <div class="field-row mb-4">
+        <div class="field">
+          <label for="et-due-date">Due date</label>
+          <input type="date" id="et-due-date" name="due_date">
+        </div>
+        <div class="field">
+          <label for="et-due-time">Due time</label>
+          <input type="time" id="et-due-time" name="due_time">
+          <span class="field-hint">Leave empty for a date with no set time.</span>
+        </div>
+        <div class="field">
+          <label for="et-priority">Priority</label>
+          <select id="et-priority" name="priority">
+            <option value="0">None</option>
+            <option value="1">High</option>
+            <option value="5">Medium</option>
+            <option value="9">Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="et-notes">Notes</label>
+        <textarea id="et-notes" name="notes" rows="3"></textarea>
+      </div>
+      <div class="alert alert-info">
+        <span class="alert-icon" aria-hidden="true">i</span>
+        <div class="grow small">
+          Ticking a task off is done from the list itself — this form leaves its
+          completion, tags and repeat rule exactly as they are.
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="submit" class="btn btn-danger" id="edit-task-delete"
+              formnovalidate data-confirm-delete="task">Delete</button>
+      <div class="grow"></div>
+      <button type="button" class="btn" data-close-modal>Cancel</button>
+      <button type="submit" class="btn btn-primary">Save changes</button>
+    </div>
+  </form>
+</dialog>
+
+{% endif %}
+{% endblock %}

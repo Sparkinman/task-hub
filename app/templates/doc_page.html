@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ doc_title }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ doc_title }}{% endblock %}
+{% block page_actions %}
+  <a class="btn btn-ghost" href="/docs">All guides</a>
+{% endblock %}
+
+{% block content %}
+<div class="doc-layout">
+  <nav class="doc-nav" aria-label="Guides">
+    {% for doc in docs %}
+      <a href="/docs/{{ doc.slug }}" class="{{ 'active' if doc.slug == slug }}">{{ doc.title }}</a>
+    {% endfor %}
+  </nav>
+
+  <article class="card">
+    <div class="card-body prose">
+      {{ doc_html|safe }}
+    </div>
+  </article>
+</div>
+{% endblock %}

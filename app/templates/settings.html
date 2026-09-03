@@ -1,0 +1,395 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Settings · {{ app_name }}{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+
+{# --- Region and appearance --------------------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Region and appearance</div>
+      <div class="card-hint">
+        How Task Hub interprets and displays dates and times.
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/settings/general">
+
+      <div class="field" style="max-width: 380px;">
+        <label for="timezone">Timezone</label>
+        <select id="timezone" name="timezone" required>
+          {% for tz in timezones %}
+            <option value="{{ tz }}" {{ 'selected' if tz == timezone }}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+        <span class="field-hint">
+          Used to convert times from every connected service into your local time.
+        </span>
+      </div>
+
+      <div class="field">
+        <label>Date format</label>
+        <div class="segmented">
+          {% for value, example in [
+                ('YYYY-MM-DD', '2026-03-05'), ('DD/MM/YYYY', '05/03/2026'),
+                ('MM/DD/YYYY', '03/05/2026'), ('D MMM YYYY', '5 Mar 2026'),
+                ('MMM D, YYYY', 'Mar 5, 2026') ] %}
+            <input type="radio" id="s-df-{{ loop.index }}" name="date_format" value="{{ value }}"
+                   {{ 'checked' if value == date_format }}>
+            <label for="s-df-{{ loop.index }}">{{ example }}</label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field-row mb-4">
+        <div class="field">
+          <label>Time format</label>
+          <div class="segmented">
+            <input type="radio" id="s-tf-24" name="time_format" value="24h"
+                   {{ 'checked' if time_format == '24h' }}>
+            <label for="s-tf-24">14:30</label>
+            <input type="radio" id="s-tf-12" name="time_format" value="12h"
+                   {{ 'checked' if time_format == '12h' }}>
+            <label for="s-tf-12">2:30 PM</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Week starts on</label>
+          <div class="segmented">
+            <input type="radio" id="s-ws-mon" name="week_start" value="monday"
+                   {{ 'checked' if settings.week_start != 'sunday' }}>
+            <label for="s-ws-mon">Monday</label>
+            <input type="radio" id="s-ws-sun" name="week_start" value="sunday"
+                   {{ 'checked' if settings.week_start == 'sunday' }}>
+            <label for="s-ws-sun">Sunday</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Theme</label>
+          <div class="segmented">
+            {% for value, label in [('system','System'), ('light','Light'), ('dark','Dark')] %}
+              <input type="radio" id="s-th-{{ value }}" name="theme" value="{{ value }}"
+                     {{ 'checked' if theme == value }} data-theme-choice>
+              <label for="s-th-{{ value }}">{{ label }}</label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="switch">
+          <input type="checkbox" name="advanced_mode" value="1"
+                 {{ 'checked' if advanced_mode }}>
+          <span class="switch-track"></span>
+          <span class="switch-label" style="font-size:0.92rem;">Advanced mode</span>
+        </label>
+        <span class="field-hint" style="margin-left: 46px;">
+          Unlocks the controls that are easy to misconfigure: the
+          <span class="strong">“Also write out to”</span> column on every
+          service's mapping table, which sends one list's tasks to a different
+          list somewhere else; the <span class="strong">“Changes only”</span>
+          switch on each row; and a link to Radicale's own raw CalDAV editor.
+          The write-out column and the Radicale link are hidden entirely when
+          this is off. “Changes only” stays visible but cannot be altered, since
+          it changes what syncs and you should still be able to see where it is
+          set. Turning this back off never undoes anything you set up while it
+          was on.
+        </span>
+      </div>
+
+      <div class="field" style="max-width: 560px;">
+        <label for="base_url_override">Public address <span class="field-optional">optional</span></label>
+        <input type="url" id="base_url_override" name="base_url_override"
+               value="{{ settings.base_url_override or '' }}"
+               placeholder="{{ detected_base_url }}">
+        <span class="field-hint">
+          <span class="strong">Normally leave this empty.</span> Task Hub works
+          out its own address from however you reach it, so the same install
+          works on a home network address, through a Cloudflare tunnel, over
+          Tailscale or behind your own reverse proxy without being told which.
+          Right now you are reaching it on
+          <span class="mono strong">{{ detected_base_url }}</span>, and that is
+          the address it will register with Google, Microsoft, Todoist and
+          TickTick, and show to CalDAV clients.
+          <br><br>
+          Fill this in only when the address to hand out is not the address you
+          are using — for example if you set Task Hub up from the machine it
+          runs on, but your phone will reach it by a different name. Whatever
+          you put here is used everywhere instead, so a stale value here breaks
+          sign-in and phone sync with no obvious cause.
+        </span>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Save settings</button>
+    </form>
+  </div>
+</div>
+
+{# --- Sync --------------------------------------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Synchronisation</div>
+      <div class="card-hint">How often Task Hub reconciles your connected services.</div>
+    </div>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/settings/sync">
+      <div class="field">
+        <label for="interval_minutes">Sync every</label>
+        <div class="row">
+          <input type="number" id="interval_minutes" name="interval_minutes"
+                 min="{{ minimum_interval }}" max="1440" step="1" required
+                 value="{{ sync_interval }}" style="max-width: 110px;">
+          <span class="muted">minutes</span>
+        </div>
+        <span class="field-hint">
+          Minimum {{ minimum_interval }} minutes. Below that the services start
+          refusing requests, which makes syncing slower rather than faster.
+        </span>
+      </div>
+
+      <div class="field">
+        <label class="check">
+          <input type="checkbox" name="sync_enabled" value="1" {{ 'checked' if sync_enabled }}>
+          <span>
+            <span class="check-label">Sync automatically</span>
+            <span class="check-hint">
+              When off, syncing only happens when you press "Sync now".
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Save sync settings</button>
+    </form>
+  </div>
+</div>
+
+{# --- Remote access ------------------------------------------------------ #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Remote access</div>
+      <div class="card-hint">
+        Reach Task Hub — and its calendars — from outside your home, without
+        opening any port on your router.
+      </div>
+    </div>
+    <span class="pill {{ 'pill-success' if tunnel.healthy else ('pill-warning' if tunnel.enabled else '') }}"
+          id="tunnel-pill">
+      {% if tunnel.healthy %}Connected
+      {% elif tunnel.enabled %}Connecting…
+      {% else %}Off{% endif %}
+    </span>
+  </div>
+
+  <div class="card-body">
+    {% if not tunnel_available %}
+      <div class="alert alert-warning">
+        <span class="alert-icon" aria-hidden="true">▲</span>
+        <div class="grow">
+          This build does not include the tunnel program yet. Rebuild with
+          <code>docker compose up -d --build</code> and it will appear here.
+        </div>
+      </div>
+    {% else %}
+
+      <form method="post" action="/settings/tunnel">
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" name="tunnel_enabled" value="1"
+                   {{ 'checked' if tunnel.enabled }}>
+            <span class="switch-track"></span>
+            <span class="switch-label" style="font-size:0.92rem;">Enable remote access</span>
+          </label>
+        </div>
+
+        <div class="field" style="max-width: 560px;">
+          <label for="tunnel_token">Cloudflare tunnel token</label>
+          <input type="password" id="tunnel_token" name="tunnel_token"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="{{ 'Saved — leave blank to keep it' if tunnel_has_token else 'eyJhIjoi…' }}">
+          <span class="field-hint">
+            Stored encrypted and never shown again. Leave it blank to keep the
+            one you already saved.
+          </span>
+        </div>
+
+        <div class="row-wrap">
+          <button type="submit" class="btn btn-primary">Save</button>
+          {% if tunnel_has_token %}
+            <button type="submit" class="btn btn-danger" formaction="/settings/tunnel/forget"
+                    formnovalidate
+                    data-confirm="Switch remote access off and delete the saved token?">
+              Forget token
+            </button>
+          {% endif %}
+          <span class="small muted" id="tunnel-summary">
+            {% if tunnel.last_error %}{{ tunnel.last_error }}{% endif %}
+          </span>
+        </div>
+      </form>
+
+      <details class="disclosure mt-4">
+        <summary>How to get a tunnel token (about 3 minutes, one time)</summary>
+        <div class="disclosure-body small stack-sm">
+          <p>You need a domain name already set up in Cloudflare. This is free.</p>
+          <ol style="padding-left: 1.2em; margin: 0;" class="stack-sm">
+            <li>Go to <span class="mono">one.dash.cloudflare.com</span> and sign in.</li>
+            <li>In the left menu choose <span class="strong">Networks → Tunnels</span>.</li>
+            <li>Click <span class="strong">Create a tunnel</span>, then
+                <span class="strong">Cloudflared</span>, and give it a name such as
+                <span class="mono">taskhub</span>. Click <span class="strong">Save tunnel</span>.</li>
+            <li>On the next page choose the <span class="strong">Docker</span> tab. A command
+                appears containing a very long string starting
+                <span class="mono">eyJhIjoi…</span> — copy everything after
+                <span class="mono">--token</span>. That is your token.</li>
+            <li>Click <span class="strong">Next</span>. Fill in the public hostname:
+              <ul style="padding-left: 1.2em; margin-top: 6px;">
+                <li><span class="strong">Subdomain</span>: anything you like, e.g. <span class="mono">tasks</span></li>
+                <li><span class="strong">Domain</span>: your domain</li>
+                <li><span class="strong">Type</span>: <span class="mono">HTTP</span></li>
+                <li><span class="strong">URL</span>: <span class="mono">taskhub:8080</span></li>
+              </ul>
+            </li>
+            <li>Click <span class="strong">Save tunnel</span>, paste the token above, tick
+                the box and press Save.</li>
+          </ol>
+          <p class="muted">
+            The address box takes <span class="mono">taskhub:8080</span> with no
+            <span class="mono">http://</span> in front — Cloudflare adds that from the
+            Type dropdown. It is the name of this application on its own private
+            network, so no IP addresses are involved and nothing breaks when they change.
+          </p>
+          <p class="muted">
+            Afterwards, set <span class="strong">Public address</span> above to
+            <span class="mono">https://</span> plus the hostname you chose, so the
+            CalDAV addresses on the Radicale tab are ones your devices can reach.
+          </p>
+        </div>
+      </details>
+
+      <details class="disclosure mt-4" id="tunnel-log-box"
+               {{ 'open' if tunnel.enabled and not tunnel.healthy }}>
+        <summary>Connection log</summary>
+        <div class="disclosure-body">
+          <pre class="tiny" id="tunnel-log" style="margin:0; max-height: 220px;">{% for line in tunnel.log[-12:] %}{{ line }}
+{% endfor %}</pre>
+        </div>
+      </details>
+    {% endif %}
+  </div>
+</div>
+
+{# --- Maintenance (advanced only) ---------------------------------------- #}
+{% if advanced_mode %}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Database repairs</div>
+      <div class="card-hint">
+        Leftovers from deleted accounts, lists or collections. Task Hub keeps
+        itself tidy automatically; anything listed here is something the
+        automatic cleanup does not touch.
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    {% if findings %}
+      <div class="stack">
+        {% for f in findings %}
+          <div class="slot-row">
+            <div class="grow">
+              <div class="strong">{{ f.title }}</div>
+              <div class="tiny muted">{{ f.detail }}</div>
+            </div>
+            <span class="pill pill-warning">{{ f.count }}</span>
+            <form method="post" action="/settings/repair/{{ f.key }}"
+                  data-confirm="Remove {{ f.count }} row(s)? {{ f.title }}.">
+              <button type="submit" class="btn btn-sm">Remove</button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+      <p class="small muted mt-4">
+        Each of these only ever removes rows whose parent has genuinely gone —
+        a link to a deleted account, settings for a list that no longer exists.
+        Nothing that still points at something real is touched, and no service
+        is contacted. Clearing one can reveal another underneath it, so if a new
+        line appears after a repair, that is expected: fix it the same way.
+      </p>
+    {% else %}
+      <div class="row">
+        <span class="badge badge-green">
+          <span class="badge-dot" aria-hidden="true"></span>Clean
+        </span>
+        <span class="small muted">
+          Nothing to repair. Every link, mapping and task points at something
+          that exists.
+        </span>
+      </div>
+    {% endif %}
+
+    <details class="disclosure mt-4">
+      <summary>What Task Hub clears up on its own</summary>
+      <div class="disclosure-body small muted stack-sm">
+        <p>After every sync it trims its own history: sync runs are kept while
+           they are among the most recent 200 <em>or</em> less than 30 days old,
+           so neither a quiet fortnight nor a busy day can erase it. Log lines
+           go with the run they belong to.</p>
+        <p>Records of deleted tasks are kept for 90 days. They stop a service
+           that has not caught up from recreating something you deleted, so
+           they are held well past the point of usefulness — the row is tiny and
+           a resurrected task is not.</p>
+        <p>Deliberately never swept up: the links recording that one of your
+           tasks <em>is</em> a particular task in a service. Removing one while
+           both sides still exist would make the next sync create a duplicate,
+           so they are only ever removed when the thing at one end has actually
+           gone.</p>
+      </div>
+    </details>
+  </div>
+</div>
+{% endif %}
+
+{# --- Password ----------------------------------------------------------- #}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Sign-in password</div>
+      <div class="card-hint">
+        The password for this web page. The CalDAV password is separate and
+        lives on the <a href="/radicale-admin">Radicale tab</a>.
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/settings/password" style="max-width: 420px;">
+      <div class="field">
+        <label for="current_password">Current password</label>
+        <input type="password" id="current_password" name="current_password" required
+               autocomplete="current-password">
+      </div>
+      <div class="field">
+        <label for="new_password">New password</label>
+        <input type="password" id="new_password" name="new_password" required minlength="8"
+               autocomplete="new-password" data-password-pair>
+      </div>
+      <div class="field">
+        <label for="new_password_confirm">Confirm new password</label>
+        <input type="password" id="new_password_confirm" name="new_password_confirm" required
+               minlength="8" autocomplete="new-password" data-password-pair>
+      </div>
+      <button type="submit" class="btn">{{ ico.icon('lock') }} Change password</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

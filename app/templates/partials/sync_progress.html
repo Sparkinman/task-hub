@@ -1,0 +1,15 @@
+{# Live sync progress. Hidden until the poller finds a run in flight, so it
+   costs nothing when idle but makes a long first sync legible instead of
+   looking like the application has frozen.
+
+   It reports and nothing more. There is no link out of it on purpose: the full
+   log is a navigation item like any other, opening in its own tab when you
+   choose to look, rather than something a running sync pushes at you. #}
+<div class="progress-banner" id="sync-progress" hidden>
+  <div class="spinner" aria-hidden="true"></div>
+  <div class="grow">
+    <div class="strong" data-progress-label>Syncing…</div>
+    <div class="progress-counts small muted" data-progress-counts></div>
+  </div>
+
+</div>

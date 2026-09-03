@@ -1,0 +1,327 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Radicale · {{ app_name }}{% endblock %}
+{% block page_title %}Radicale CalDAV server{% endblock %}
+{% block page_subtitle %}
+  {% if configured %}<div class="subtitle">Signed in as <span class="mono">{{ radicale_username }}</span></div>{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+  {% if configured %}
+    <button class="btn btn-primary" data-open-modal="new-collection-modal">
+      {{ ico.icon('plus') }} New collection
+    </button>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if not configured %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">⚙</div>
+    <h3>Radicale is not configured</h3>
+    <p>The CalDAV credentials are missing. This normally means setup did not
+       finish. Re-running the setup wizard will restore them.</p>
+  </div>
+{% else %}
+
+  {% for error in errors %}
+    <div class="alert alert-error">
+      <span class="alert-icon" aria-hidden="true">!</span><div class="grow">{{ error }}</div>
+    </div>
+  {% endfor %}
+
+  {# --- Connect a device -------------------------------------------------- #}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Connect a phone or laptop</div>
+        <div class="card-hint">
+          These collections are a real CalDAV server. Any standard client can
+          sync with them directly.
+        </div>
+      </div>
+    </div>
+    <div class="card-body stack">
+      <div class="field">
+        <label for="discovery-url">Server address</label>
+        <div class="copy-field">
+          <input type="text" id="discovery-url" readonly value="{{ caldav_discovery }}">
+          <button type="button" class="btn" data-copy="#discovery-url">Copy</button>
+        </div>
+        {% if base_mismatch %}
+          <div class="alert alert-warning" style="margin-top: var(--gap-3);">
+            <span class="alert-icon" aria-hidden="true">!</span>
+            <div class="grow small">
+              A public address is set by hand under <a href="/settings">Settings</a>,
+              and it is not the address you are using right now — you reached this
+              page on <span class="mono strong">{{ base_mismatch }}</span>. The
+              address above is the one that was set by hand, so check it is still
+              right, or clear it and Task Hub will use whatever address you
+              arrive on.
+            </div>
+          </div>
+        {% elif base_is_loopback %}
+          <div class="alert alert-warning" style="margin-top: var(--gap-3);">
+            <span class="alert-icon" aria-hidden="true">!</span>
+            <div class="grow small">
+              You are reading this on <span class="mono">localhost</span>, which
+              means “this device” to whatever device it is typed into — so a
+              phone given this address would call itself and time out. Open Task
+              Hub from another device using the server's own address, and this
+              page will show one your phone can use.
+            </div>
+          </div>
+        {% endif %}
+        <span class="field-hint">
+          Most apps discover every collection from this one address. Use your
+          CalDAV username <span class="mono strong">{{ radicale_username }}</span> and
+          the CalDAV password you chose during setup.
+        </span>
+      </div>
+
+      <details class="disclosure">
+        <summary>Setting this up on iPhone, Android, macOS or Thunderbird</summary>
+        <div class="disclosure-body stack-sm small">
+          <p><span class="strong">iPhone / iPad:</span> Settings → Apps → Calendar →
+             Calendar Accounts → Add Account → Other → Add CalDAV Account. Put the
+             address above in "Server", then your username and password.</p>
+          <p><span class="strong">macOS:</span> Calendar → Settings → Accounts → + →
+             Other CalDAV Account → Account Type "Manual", then the same details.</p>
+          <p><span class="strong">Android:</span> Install DAVx⁵, add a "Login with
+             URL and user name" account using the address above.</p>
+          <p><span class="strong">Thunderbird:</span> Calendar → New Calendar → On
+             the Network → CalDAV, then paste the address.</p>
+          <p class="muted">
+            If Task Hub is only reachable on your home network, these clients
+            will only sync while the device is on that network. To sync from
+            anywhere, Task Hub needs a public address — set it under
+            <a href="/settings">Settings</a> so the address shown here matches.
+          </p>
+        </div>
+      </details>
+
+      {% if advanced_mode %}
+      <div class="field" style="margin-bottom:0;">
+        <label>Radicale's own web interface</label>
+        <div class="row-wrap">
+          <a class="btn" href="{{ radicale_web_url }}"
+             target="_blank" rel="noopener">
+            {{ ico.icon('link') }} Open Radicale
+          </a>
+          <span class="field-hint" style="margin:0;">
+            Opens in a new tab. Nothing there is needed for normal use — every
+            action it offers is on this page — but it shows the raw CalDAV view
+            of a collection, which helps when a sync looks wrong. Sign in with
+            your <span class="strong">CalDAV</span> username and password, not
+            your Task Hub ones.
+          </span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# --- Collections ------------------------------------------------------- #}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Collections</div>
+        <div class="card-hint">{{ collections|length }} total</div>
+      </div>
+    </div>
+
+    {% if collections %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Name</th><th>Type</th><th>Items</th><th>Address</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in collections %}
+              <tr>
+                <td>
+                  <div class="row">
+                    {% if c.colour %}
+                      <span style="width:10px;height:10px;border-radius:3px;background:{{ c.colour }};flex:0 0 10px;"
+                            aria-hidden="true"></span>
+                    {% endif %}
+                    <span class="strong">{{ c.display_name }}</span>
+                  </div>
+                  <div class="tiny subtle mono">{{ c.collection_id }}</div>
+                </td>
+                <td>
+                  <span class="pill">
+                    {{ 'Tasks' if c.kind.value == 'tasks' else 'Calendar' }}
+                  </span>
+                </td>
+                <td class="mono">{{ c.item_count if c.item_count is not none else '—' }}</td>
+                <td>
+                  <div class="copy-field" style="max-width: 300px;">
+                    <input type="text" readonly id="url-{{ c.collection_id }}"
+                           value="{{ caldav_base }}{{ radicale_username }}/{{ c.collection_id }}/">
+                    <button type="button" class="btn btn-sm"
+                            data-copy="#url-{{ c.collection_id }}">Copy</button>
+                  </div>
+                </td>
+                <td>
+                  <div class="row">
+                    <button type="button" class="btn btn-ghost btn-sm"
+                            data-edit-toggle="rename-{{ c.collection_id }}"
+                            aria-label="Rename {{ c.display_name }}">{{ ico.icon('pencil') }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm"
+                            data-open-modal="delete-{{ c.collection_id }}"
+                            aria-label="Delete {{ c.display_name }}">{{ ico.icon('trash') }}</button>
+                  </div>
+                </td>
+              </tr>
+
+              <tr id="rename-{{ c.collection_id }}" class="hidden">
+                <td colspan="5">
+                  <form method="post" action="/radicale-admin/collections/{{ c.collection_id }}/rename"
+                        class="row-wrap">
+                    <div class="field grow" style="margin:0;">
+                      <label class="sr-only">New name</label>
+                      <input type="text" name="display_name" value="{{ c.display_name }}" required>
+                    </div>
+                    <div class="field" style="margin:0; width: 70px;">
+                      <label class="sr-only">Colour</label>
+                      <input type="color" name="colour" value="{{ c.colour or '#2563eb' }}">
+                    </div>
+                    <div class="field" style="margin:0; min-width: 150px;">
+                      <label class="sr-only">Type</label>
+                      <select name="kind">
+                        <option value="tasks"
+                                {{ 'selected' if c.kind.value == 'tasks' }}>
+                          Tasks
+                        </option>
+                        <option value="calendar"
+                                {{ 'selected' if c.kind.value == 'calendar' }}>
+                          Calendar events
+                        </option>
+                      </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                    <button type="button" class="btn btn-ghost btn-sm"
+                            data-edit-toggle="rename-{{ c.collection_id }}">Cancel</button>
+                    <div class="tiny muted" style="flex-basis:100%;">
+                      The type can only be changed while the collection is empty —
+                      a to-do and a calendar event are different objects, so
+                      existing items could not survive the switch.
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="card-body">
+        <div class="empty">
+          <div class="empty-icon" aria-hidden="true">☰</div>
+          <h3>No collections</h3>
+          <p>Create a task list or a calendar to get started.</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {# --- CalDAV password --------------------------------------------------- #}
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">CalDAV password</div>
+        <div class="card-hint">
+          Changing this immediately stops every device using the old one.
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="post" action="/radicale-admin/password" style="max-width: 420px;">
+        <div class="field">
+          <label for="rad-new">New CalDAV password</label>
+          <input type="password" id="rad-new" name="new_password" required minlength="8"
+                 autocomplete="new-password" data-password-pair>
+        </div>
+        <div class="field">
+          <label for="rad-confirm">Confirm</label>
+          <input type="password" id="rad-confirm" name="new_password_confirm" required
+                 minlength="8" autocomplete="new-password" data-password-pair>
+        </div>
+        <button type="submit" class="btn">{{ ico.icon('lock') }} Change password</button>
+      </form>
+    </div>
+  </div>
+
+  {# --- Modals ------------------------------------------------------------ #}
+  <dialog class="modal" id="new-collection-modal">
+    <form method="post" action="/radicale-admin/collections/create">
+      <div class="modal-header"><h2 class="card-title">New collection</h2></div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="col-name">Name</label>
+          <input type="text" id="col-name" name="display_name" required maxlength="120"
+                 placeholder="Work, Home, Errands…">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <div class="segmented">
+            <input type="radio" id="kind-tasks" name="kind" value="tasks" checked>
+            <label for="kind-tasks">Task list</label>
+            <input type="radio" id="kind-cal" name="kind" value="calendar">
+            <label for="kind-cal">Calendar</label>
+          </div>
+          <span class="field-hint">
+            This cannot be changed later — CalDAV fixes a collection's type when
+            it is created.
+          </span>
+        </div>
+        <div class="field">
+          <label for="col-colour">Colour</label>
+          <input type="color" id="col-colour" name="colour" value="#2563eb" style="max-width:80px;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-close-modal>Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  {% for c in collections %}
+    <dialog class="modal" id="delete-{{ c.collection_id }}">
+      <form method="post" action="/radicale-admin/collections/{{ c.collection_id }}/delete">
+        <div class="modal-header"><h2 class="card-title">Delete “{{ c.display_name }}”</h2></div>
+        <div class="modal-body">
+          <div class="alert alert-error">
+            <span class="alert-icon" aria-hidden="true">!</span>
+            <div class="grow">
+              This permanently deletes the collection and every
+              {{ 'task' if c.kind.value == 'tasks' else 'event' }} inside it
+              ({{ c.item_count if c.item_count is not none else 'unknown number of' }} items).
+              It cannot be undone, and it will disappear from every connected
+              device on their next sync.
+            </div>
+          </div>
+          <div class="field">
+            <label for="confirm-{{ c.collection_id }}">
+              Type <span class="mono strong">{{ c.display_name }}</span> to confirm
+            </label>
+            <input type="text" id="confirm-{{ c.collection_id }}" name="confirm_name"
+                   required autocomplete="off">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" data-close-modal>Cancel</button>
+          <button type="submit" class="btn btn-danger">Delete permanently</button>
+        </div>
+      </form>
+    </dialog>
+  {% endfor %}
+
+{% endif %}
+{% endblock %}

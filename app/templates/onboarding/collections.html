@@ -1,0 +1,51 @@
+{% extends "onboarding/_wizard.html" %}
+
+{% block wizard_title %}Your first collections{% endblock %}
+{% block wizard_lede %}
+  Task Hub creates one task list and one calendar to start with. These are real
+  CalDAV collections — you can add more, rename them or delete them later.
+{% endblock %}
+
+{% block wizard_form %}
+<form method="post" action="/setup/collections">
+  <div class="wizard-body">
+
+    <div class="field">
+      <label for="task_list_name">Task list name</label>
+      <input type="text" id="task_list_name" name="task_list_name" required autofocus
+             maxlength="120" value="{{ task_list_name|default('Tasks') }}">
+      <span class="field-hint">
+        Holds to-dos (VTODO in CalDAV terms). This is what the Tasks page shows.
+      </span>
+    </div>
+
+    <div class="field">
+      <label for="calendar_name">Calendar name</label>
+      <input type="text" id="calendar_name" name="calendar_name" required
+             maxlength="120" value="{{ calendar_name|default('Calendar') }}">
+      <span class="field-hint">
+        Holds appointments (VEVENT). Tasks and events are stored separately
+        because most services keep them apart, and mixing them makes syncing
+        ambiguous.
+      </span>
+    </div>
+
+    <div class="alert alert-info mt-4">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <div class="grow">
+        <div class="alert-title">You will probably want more than two</div>
+        A useful arrangement is one collection per area of life — Work, Home,
+        Errands — each linked to the matching list in your other services. That
+        way a private list stays private instead of everything syncing to
+        everything. The Radicale tab is where you add them.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wizard-foot">
+    <a class="btn btn-ghost" href="/setup/radicale">Back</a>
+    <button type="submit" class="btn btn-primary btn-lg">Create collections</button>
+  </div>
+</form>
+{% endblock %}

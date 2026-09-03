@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "partials/icons.html" as ico %}
+
+{# ``new_tab`` is for the pages you want to keep beside what you are
+   configuring -- the task editor, the calendar and the setup guides are all
+   things you read while changing settings somewhere else, so they open
+   alongside rather than replacing the page you are working on. #}
+{% macro nav_link(href, label, icon_name, exact=false, new_tab=false) -%}
+  {%- set active = (current_path == href) if exact else (current_path == href or current_path.startswith(href ~ '/')) -%}
+  <a class="nav-link {{ 'active' if active }}" href="{{ href }}"
+     {% if new_tab %}target="_blank" rel="noopener"{% endif %}
+     {% if active %}aria-current="page"{% endif %}>
+    {{ ico.icon(icon_name) }}
+    <span>{{ label }}</span>
+    {%- if new_tab %}<span class="nav-newtab" aria-label="opens in a new tab"
+                           title="Opens in a new tab">&#8599;</span>{% endif %}
+  </a>
+{%- endmacro %}
+
+{% block body %}
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/">
+      <img class="brand-mark" src="/static/img/logo.svg" alt="" aria-hidden="true">
+      <span>Task&nbsp;Hub</span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
+      {{ nav_link('/', 'Overview', 'home', exact=true) }}
+      {{ nav_link('/tasks', 'Tasks', 'check-square', new_tab=true) }}
+      {{ nav_link('/calendar', 'Calendar', 'calendar', new_tab=true) }}
+
+      <div class="nav-heading">Configure</div>
+      {{ nav_link('/services', 'Services', 'plug') }}
+      {{ nav_link('/sync', 'Sync groups', 'refresh') }}
+      {{ nav_link('/radicale-admin', 'Radicale', 'server') }}
+      {{ nav_link('/settings', 'Settings', 'settings') }}
+      {{ nav_link('/docs', 'Setup guides', 'book', new_tab=true) }}
+      {{ nav_link('/sync/history', 'Sync logs', 'clock', new_tab=true) }}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="small muted mb-4">
+        Signed in as <span class="strong">{{ user.username if user else '—' }}</span>
+      </div>
+      <a class="btn btn-ghost btn-sm btn-block" href="/logout">
+        {{ ico.icon('logout') }} Sign out
+      </a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1>{% block page_title %}{% endblock %}</h1>
+        {% block page_subtitle %}{% endblock %}
+      </div>
+      <div class="row">{% block page_actions %}{% endblock %}</div>
+    </header>
+
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}

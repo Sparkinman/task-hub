@@ -1,0 +1,31 @@
+# Task Hub, keeping its data in a folder you can see.
+#
+# The normal setup puts everything in a Docker named volume, which is tidy but
+# lives somewhere only Docker knows about. On a NAS, or anywhere you want your
+# backup software to be able to find the data, a plain folder is easier to live
+# with -- and it is the arrangement Synology's and QNAP's own interfaces expect.
+#
+# Change the path on the left of the colon to the folder you want:
+#
+#   Synology       /volume1/docker/taskhub
+#   QNAP           /share/Container/taskhub
+#   Unraid         /mnt/user/appdata/taskhub
+#   Linux, Mac     ./taskhub-data
+#
+# Create the folder first. Docker will otherwise create it as root and Task Hub
+# will not be able to write to it.
+#
+# Copy this file to the top of the project (or wherever you keep it) and rename
+# it docker-compose.yml, so that "./taskhub-data" means the folder beside it.
+
+services:
+  taskhub:
+    image: pauldmcneil/task-hub:latest
+    container_name: taskhub
+    restart: unless-stopped
+    ports:
+      - "${TASKHUB_HTTP_PORT:-8080}:8080"
+    volumes:
+      - ./taskhub-data:/data
+    environment:
+      TZ: "${TZ:-Etc/UTC}"

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Sign in · {{ app_name }}{% endblock %}
+
+{% block body %}
+<div class="auth">
+  <div class="auth-card">
+    <div class="wizard-brand">
+      <img class="brand-mark brand-mark-lg" src="/static/img/logo.svg" alt="" aria-hidden="true">
+      <span>Task Hub</span>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h1 class="mb-4" style="font-size:1.25rem;">Sign in</h1>
+
+        <form method="post" action="/login" class="stack">
+          <input type="hidden" name="next" value="{{ next|default('/') }}">
+
+          <div class="field">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required autofocus
+                   autocomplete="username" value="{{ username|default('') }}">
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required
+                   autocomplete="current-password">
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg btn-block">Sign in</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

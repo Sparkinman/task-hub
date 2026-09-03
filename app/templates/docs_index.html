@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Setup guides · {{ app_name }}{% endblock %}
+{% block page_title %}Setup guides{% endblock %}
+{% block page_subtitle %}
+  <div class="subtitle">Step-by-step instructions for connecting each service.</div>
+{% endblock %}
+
+{% block content %}
+
+{% if docs %}
+  <div class="grid grid-2">
+    {% for doc in docs %}
+      <a class="service-card" href="/docs/{{ doc.slug }}" target="_blank" rel="noopener">
+        <div class="row">
+          <span class="service-icon blue" aria-hidden="true">{{ ico.icon('book') }}</span>
+          <div class="grow">
+            <div class="strong">{{ doc.title }}</div>
+            <div class="tiny muted">/docs/{{ doc.slug }}</div>
+          </div>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">📖</div>
+    <h3>No guides yet</h3>
+    <p>Setup guides are written alongside each connector.</p>
+  </div>
+{% endif %}
+
+{% endblock %}

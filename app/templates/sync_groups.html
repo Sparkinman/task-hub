@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Sync · {{ app_name }}{% endblock %}
+{% block page_title %}Sync{% endblock %}
+{% block page_subtitle %}
+  <div class="subtitle">
+    {% if next_run %}Next automatic sync {{ next_run.strftime('%H:%M UTC') }}
+    {% else %}Automatic sync is off{% endif %}
+  </div>
+{% endblock %}
+
+{% block page_actions %}
+  <a class="btn" href="/sync/history">History</a>
+  <form method="post" action="/sync/run">
+    <button type="submit" class="btn btn-primary" {{ 'disabled' if sync_running }}>
+      {{ ico.icon('refresh') }} {{ 'Sync running…' if sync_running else 'Sync now' }}
+    </button>
+  </form>
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+<div class="alert alert-info mb-5">
+  <span class="alert-icon" aria-hidden="true">i</span>
+  <div class="grow">
+    <div class="alert-title">What is currently syncing</div>
+    This page is a summary and the place to run a sync by hand. To change what
+    syncs, open a service under <a href="/services">Services</a> — each connected
+    account has its own <span class="strong">Read in</span> and
+    <span class="strong">Write back</span> switches, split into Tasks and
+    Calendars tabs.
+  </div>
+</div>
+
+{% if not has_accounts %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">▲</span>
+    <div class="grow">
+      No services are connected yet, so there is nothing to sync with.
+      <a href="/services">Connect a service first.</a>
+    </div>
+  </div>
+{% endif %}
+
+{% for panel in panels %}
+  {% set c = panel.collection %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <div>
+        <div class="row-wrap">
+          {% if c.colour %}
+            <span style="width:11px;height:11px;border-radius:3px;background:{{ c.colour }};flex:0 0 11px;"
+                  aria-hidden="true"></span>
+          {% endif %}
+          <span class="card-title">{{ c.display_name }}</span>
+          <span class="pill">{{ 'Tasks' if c.kind.value == 'tasks' else 'Calendar' }}</span>
+          {% if panel.syncing %}
+            <span class="pill pill-success">
+              Reading {{ panel.active_read }} · Writing {{ panel.active_write }}
+            </span>
+          {% elif panel.group and not panel.group.enabled %}
+            <span class="pill pill-warning">Paused</span>
+          {% else %}
+            <span class="pill">Not syncing</span>
+          {% endif %}
+        </div>
+        <div class="card-hint">Radicale collection <span class="mono">{{ c.collection_id }}</span></div>
+      </div>
+      {% if panel.group %}
+        <form method="post" action="/sync/groups/{{ panel.group.id }}/toggle">
+          <button type="submit" class="btn btn-sm">
+            {{ 'Resume' if not panel.group.enabled else 'Pause' }}
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% set active = panel.rows | selectattr('read') | list + panel.rows | selectattr('write') | list %}
+    {% if panel.active_read or panel.active_write %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Connected list</th><th>Account</th><th class="center">Read in</th><th class="center">Write back</th></tr></thead>
+          <tbody>
+            {% for row in panel.rows %}
+              {% if row.read or row.write %}
+                <tr>
+                  <td class="strong">{{ row.list.name }}</td>
+                  <td>
+                    {% set badge = badge_for(row.account.service) %}
+                    <span class="badge badge-{{ badge.colour }}">
+                      <span class="badge-dot" aria-hidden="true"></span>{{ badge.label }}
+                    </span>
+                    <span class="tiny muted">{{ row.account.remote_identity or row.account.display_name }}</span>
+                  </td>
+                  <td class="center">{{ '✓' if row.read else '—' }}</td>
+                  <td class="center">{{ '✓' if row.write else '—' }}</td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="card-body">
+        <p class="muted small">
+          Nothing is feeding this collection yet. Set it up on the service's own
+          page — the read and write switches live directly under each connected
+          account.
+        </p>
+      </div>
+    {% endif %}
+  </div>
+{% endfor %}
+
+{% if panels %}
+  <div class="card mb-5">
+    <div class="card-body row-wrap">
+      <span class="small muted grow">
+        To change what syncs, open the service and use the switches under the
+        account you want to configure.
+      </span>
+      <a class="btn btn-sm" href="/services">Go to Services</a>
+    </div>
+  </div>
+{% endif %}
+
+{% if not panels %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">☰</div>
+    <h3>No Radicale collections yet</h3>
+    <p>Create a task list or calendar first — it holds the master copy that your
+       services sync against.</p>
+    <a class="btn btn-primary mt-4" href="/radicale-admin">Create a collection</a>
+  </div>
+{% endif %}
+
+{% endblock %}

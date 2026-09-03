@@ -1,0 +1,181 @@
+{# The mapping table: which of an account's lists are read into which
+   collections, and which lists the result is written back out to.
+
+   Shared by every service page rather than written per service. The behaviour
+   it configures -- fan-out on read, fan-out on write-back, and the changes-only
+   mode for write targets -- has to be identical everywhere, and the surest way
+   to keep it identical is for there to be exactly one copy of it. #}
+
+{% import "partials/icons.html" as ico %}
+{% from "partials/checkdrop.html" import checkdrop %}
+
+{# advanced_mode is an explicit parameter rather than inherited context: a
+   Jinja macro does not see the render context unless it is imported "with
+   context", and a call site that forgot would silently show advanced controls
+   to everyone. Defaulting to False means a mistake hides the column instead. #}
+{% macro mapping_form(account, service_name, task_lists, cal_lists, collections,
+                      dropdowns, kind_enabled, supports_tasks=True,
+                      supports_calendar=True, advanced_mode=False) -%}
+              <form method="post" action="/sync/account/{{ account.id }}/save">
+                <div class="tabbox">
+                  <input type="radio" class="tabctl" name="tab-{{ account.id }}"
+                         id="tab-{{ account.id }}-tasks" checked>
+                  <input type="radio" class="tabctl" name="tab-{{ account.id }}"
+                         id="tab-{{ account.id }}-cal">
+
+                  <div class="tabbox-strip">
+                    <label for="tab-{{ account.id }}-tasks">
+                      {{ ico.icon('check-square') }} Tasks
+                      <span class="nav-count">{{ task_lists|length }}</span>
+                    </label>
+                    <label for="tab-{{ account.id }}-cal">
+                      {{ ico.icon('calendar') }} Calendars
+                      <span class="nav-count">{{ cal_lists|length }}</span>
+                    </label>
+                  </div>
+
+                  <div class="tabbox-body">
+                    {% for kind, rows, kind_label in [
+                          ('tasks', task_lists, 'task'),
+                          ('calendar', cal_lists, 'calendar') ] %}
+                      <div class="tabpanel">
+
+                        {# Master switch for this whole kind on this account. #}
+                        <div class="spread" style="padding: var(--gap-4) var(--gap-5);
+                                    border-bottom: 1px solid var(--border);">
+                          <div>
+                            <label class="switch">
+                              <input type="checkbox" name="kind_enabled" value="{{ kind }}"
+                                     {{ 'checked' if kind_enabled[account.id][kind] }}>
+                              <span class="switch-track"></span>
+                              <span class="switch-label" style="font-size:0.92rem;">
+                                Sync {{ kind_label }}s for this account
+                              </span>
+                            </label>
+                            <div class="tiny muted" style="margin-left: 46px;">
+                              Turn this off to pause every {{ kind_label }} list below
+                              at once, without losing what you have set up.
+                            </div>
+                            <div class="tiny muted" style="margin-left: 46px; margin-top: 6px;">
+                              <span class="strong">Tick a collection and that list is
+                              kept in step with it both ways</span> &mdash; changes made
+                              here reach the collection, and changes made anywhere else
+                              in that collection come back here. That is all most setups
+                              need.
+                              {% if advanced_mode %}
+                              <br>
+                              The third column is for aggregating: sending
+                              <em>this row&rsquo;s</em> tasks to a different list, in any
+                              connected service, so several lists can be gathered
+                              somewhere they can be seen and ticked off together. A
+                              list chosen there receives only what comes from this
+                              row &mdash; not everything in the collection &mdash; and
+                              anything created there stays there. Leave it alone
+                              unless you want that.
+                              {% endif %}
+                            </div>
+                          </div>
+                        </div>
+
+                        {% if not rows %}
+                          <div class="card-body muted small">
+                            No {{ kind_label }} lists in this account.
+                          </div>
+                        {% else %}
+                          <div class="table-wrap">
+                            <table class="data">
+                              <thead>
+                                <tr>
+                                  <th>{{ service_name }} {{ 'list' if kind == 'tasks' else 'calendar' }}</th>
+                                  <th>Sync with these collections</th>
+                                  {% if advanced_mode %}
+                                    <th>Also write out to
+                                        <span class="tiny subtle">(optional)</span></th>
+                                  {% endif %}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {% for r in rows %}
+                                  <tr>
+                                    <td>
+                                      <input type="hidden" name="row" value="{{ r.id }}">
+                                      <span class="strong">{{ r.name }}</span>
+                                      {% if r.is_default %}<span class="pill">Default</span>{% endif %}
+                                      {% if r.unavailable %}<span class="pill pill-warning">Gone</span>{% endif %}
+                                      {% if dropdowns[r.id].one_way %}
+                                        <span class="pill pill-warning"
+                                              title="Written to, but never read. Changes made in this list — completing a task, for instance — will not come back. Tick a collection for it to sync both ways.">
+                                          One-way
+                                        </span>
+                                      {% endif %}
+                                    </td>
+                                    <td>
+                                      {% set dd = dropdowns[r.id] %}
+                                      {{ checkdrop('read', dd.read, dd.read_selected,
+                                                   'Not synced', 'collection') }}
+                                      <label class="tiny muted updates-only
+                                                    {{ 'is-locked' if not advanced_mode }}"
+                                             {% if not advanced_mode %}
+                                             title="Turn on Advanced mode in Settings to change this."
+                                             {% endif %}>
+                                        <input type="checkbox" name="updatesonly"
+                                               value="{{ r.id }}"
+                                               {{ 'checked' if dd.updates_only }}
+                                               {{ 'disabled' if not advanced_mode }}>
+                                        {% if not advanced_mode and dd.updates_only %}
+                                          {# A disabled input is never submitted, so
+                                             saving in simple mode would silently clear
+                                             this. The hidden field carries the current
+                                             value through untouched. #}
+                                          <input type="hidden" name="updatesonly"
+                                                 value="{{ r.id }}">
+                                        {% endif %}
+                                        Changes only — don’t add new tasks
+                                        from this list
+                                      </label>
+                                    </td>
+                                    {% if advanced_mode %}
+                                      <td>
+                                        {{ checkdrop('writeout', dd.writeout,
+                                                     dd.writeout_selected,
+                                                     'Nowhere else', 'list') }}
+                                      </td>
+                                    {% endif %}
+                                  </tr>
+                                {% endfor %}
+                              </tbody>
+                            </table>
+                          </div>
+
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+
+                {# Sticky, because the tables above are long enough that a tick
+                   made at the top is easy to make and then walk away from. The
+                   bar announces itself the moment anything changes. #}
+                <div class="savebar" data-savebar>
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    Save sync settings for this account
+                  </button>
+                  <span class="savebar-note" data-savebar-note hidden>
+                    Unsaved changes — nothing syncs until you save.
+                  </span>
+                </div>
+
+                <div class="alert alert-info mt-4">
+                  <span class="alert-icon" aria-hidden="true">i</span>
+                  <div class="grow small">
+                    Ticking a collection keeps that list and the collection in step
+                    <span class="strong">both ways</span>, and you can tick as many
+                    collections as you like — the same {{ service_name }} list mirrored
+                    into each. A list only ever accepts write-back from one
+                    collection, because two would each create their own copy of every
+                    task and then undo each other on alternating syncs.
+                  </div>
+                </div>
+              </form>
+
+{%- endmacro %}

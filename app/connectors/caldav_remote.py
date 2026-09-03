@@ -1,0 +1,307 @@
+"""A connector for any remote CalDAV server, and Apple iCloud in particular.
+
+Unlike the embedded Radicale connector, this one cannot assume where anything
+lives. A remote server is asked what the account owns -- principal discovery --
+and the collections it reports are used as they are found. iCloud, Fastmail,
+Nextcloud and a self-hosted Baikal all answer that conversation the same way,
+so the same code serves them.
+
+CalDAV is the only lossless transport Task Hub speaks: a collection stores real
+iCalendar, so every field survives. Its capabilities are therefore complete, and
+a value never has to be withheld to protect it from the far end.
+
+**Apple's two accounts problem.** Apple's Reminders app moves an "upgraded"
+primary iCloud account's to-do lists into a private store that CalDAV cannot
+reach, so Reminders on the account you use every day are invisible here.
+Calendars are unaffected. A *second* Apple ID, added to your devices as a manual
+CalDAV account, keeps its Reminders in the open where this connector can see
+them. That is covered step by step in the Apple setup guide.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import logging
+from urllib.parse import urlparse
+
+import caldav
+from caldav.lib.error import AuthorizationError, DAVError, NotFoundError
+
+from app.connectors.base import (
+    ALL_FIELDS,
+    Capabilities,
+    Connector,
+    ConnectorAuthError,
+    ConnectorError,
+    ConnectorGoneError,
+    PullResult,
+    PushOutcome,
+    RemoteItem,
+    RemoteList,
+)
+from app.db.models import CollectionKind, ServiceKind
+from app.services.ical_model import CanonicalRecord, parse_calendar
+
+logger = logging.getLogger(__name__)
+
+#: Apple's CalDAV entry point. Discovery finds everything else from here.
+ICLOUD_URL = "https://caldav.icloud.com/"
+
+#: CalDAV round-trips iCalendar, so nothing is lost and nothing is withheld.
+CALDAV_CAPABILITIES = Capabilities(
+    fields=ALL_FIELDS, stores_uid=True, carries_origin=True
+)
+
+
+class RemoteCalDAVConnector(Connector):
+    """Talks to a CalDAV server discovered from a base URL."""
+
+    service = ServiceKind.APPLE
+    name = "CalDAV"
+
+    def __init__(self, account_id: int, credentials: dict, sync_state: dict | None = None,
+                 default_timezone: str | None = None):
+        super().__init__(account_id, credentials, sync_state)
+        self.username = (credentials.get("username") or "").strip()
+        self._password = credentials.get("password") or ""
+        self.base_url = (credentials.get("url") or ICLOUD_URL).strip()
+        self.default_timezone = default_timezone
+        if not self.username or not self._password:
+            raise ConnectorError(
+                "This account has no saved sign-in. Add the Apple ID and its "
+                "app-specific password, then try again."
+            )
+        self._client: caldav.DAVClient | None = None
+        self._principal: caldav.Principal | None = None
+
+    # -- Connection ------------------------------------------------------------
+
+    def _connect(self) -> caldav.Principal:
+        if self._principal is not None:
+            return self._principal
+        insecure = urlparse(self.base_url).scheme == "http"
+        try:
+            self._client = caldav.DAVClient(
+                url=self.base_url,
+                username=self.username,
+                password=self._password,
+                # Only relaxed for an explicitly plain-http URL, which is a
+                # deliberate choice for a server on your own network. iCloud is
+                # https, so this stays on for it.
+                require_tls=not insecure,
+                timeout=45,
+            )
+            self._principal = self._client.principal()
+            return self._principal
+        except AuthorizationError as exc:
+            raise ConnectorAuthError(self._explain_auth_failure()) from exc
+        except DAVError as exc:
+            message = str(exc)
+            if "401" in message or "403" in message:
+                raise ConnectorAuthError(self._explain_auth_failure()) from exc
+            raise ConnectorError(
+                f"Could not reach the CalDAV server at {self.base_url}: {exc}"
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 - network stacks raise widely
+            raise ConnectorError(f"Could not connect: {exc}") from exc
+
+    def _explain_auth_failure(self) -> str:
+        if "icloud" in self.base_url:
+            return (
+                "Apple rejected the sign-in. Apple never accepts your normal "
+                "Apple ID password here -- it needs an app-specific password "
+                "generated at account.apple.com. If you are already using one, "
+                "generate a fresh one; they stop working when the Apple ID "
+                "password changes."
+            )
+        return "The server rejected that username and password."
+
+    def close(self) -> None:
+        self._principal = None
+        self._client = None
+
+    # -- Capabilities ----------------------------------------------------------
+
+    def capabilities(self, kind: CollectionKind) -> Capabilities:
+        return CALDAV_CAPABILITIES
+
+    # -- Discovery -------------------------------------------------------------
+
+    def verify(self) -> str:
+        principal = self._connect()
+        try:
+            principal.calendars()
+        except DAVError as exc:
+            raise ConnectorError(f"Signed in, but could not list calendars: {exc}") from exc
+        return self.username
+
+    @staticmethod
+    def _kind_of(calendar) -> CollectionKind | None:
+        """Whether a collection holds events or to-dos.
+
+        A CalDAV collection declares which components it accepts. Guessing from
+        the name instead would put Reminders lists in the calendar view and vice
+        versa, and writing a VTODO into an events-only collection is rejected by
+        the server.
+        """
+        try:
+            components = calendar.get_supported_components()
+        except Exception:  # noqa: BLE001 - not every server answers this
+            components = []
+        components = [str(c).upper() for c in (components or [])]
+        if "VTODO" in components and "VEVENT" not in components:
+            return CollectionKind.TASKS
+        if "VEVENT" in components:
+            return CollectionKind.CALENDAR
+        if components:
+            return None
+        # Said nothing: assume a calendar, which is what most collections are.
+        return CollectionKind.CALENDAR
+
+    def list_remote_lists(self) -> list[RemoteList]:
+        principal = self._connect()
+        try:
+            calendars = principal.calendars()
+        except DAVError as exc:
+            raise ConnectorError(f"Could not list collections: {exc}") from exc
+
+        found: list[RemoteList] = []
+        for calendar in calendars:
+            kind = self._kind_of(calendar)
+            if kind is None:
+                continue
+            try:
+                name = calendar.get_display_name() or str(calendar.url).rstrip("/").split("/")[-1]
+            except Exception:  # noqa: BLE001
+                name = str(calendar.url).rstrip("/").split("/")[-1]
+            found.append(
+                RemoteList(
+                    remote_id=str(calendar.url),
+                    name=name or "Untitled",
+                    kind=kind,
+                )
+            )
+        return found
+
+    # -- Helpers ---------------------------------------------------------------
+
+    def _calendar(self, remote_list_id: str):
+        """A collection handle from the URL discovery gave us."""
+        self._connect()
+        return caldav.Calendar(client=self._client, url=remote_list_id)
+
+    # -- Reading ---------------------------------------------------------------
+
+    def pull(
+        self,
+        remote_list_id: str,
+        kind: CollectionKind,
+        since: dt.datetime | None = None,
+        state: dict | None = None,
+    ) -> PullResult:
+        calendar = self._calendar(remote_list_id)
+        try:
+            if kind == CollectionKind.TASKS:
+                objects = calendar.todos(include_completed=True, sort_keys=())
+            else:
+                objects = calendar.events()
+        except NotFoundError:
+            return PullResult(errors=[f"That collection no longer exists on the server."])
+        except AuthorizationError as exc:
+            raise ConnectorAuthError(self._explain_auth_failure()) from exc
+        except DAVError as exc:
+            return PullResult(errors=[f"Could not read the collection: {exc}"])
+
+        wanted = "VTODO" if kind == CollectionKind.TASKS else "VEVENT"
+        items: list[RemoteItem] = []
+        for obj in objects:
+            try:
+                parsed = parse_calendar(obj.data)
+            except Exception:  # noqa: BLE001
+                # One malformed item, very likely written by another client,
+                # must not blank out the whole collection.
+                logger.warning("Skipping unreadable item at %s", obj.url)
+                continue
+            for record, component in parsed:
+                if component != wanted:
+                    continue
+                items.append(
+                    RemoteItem(
+                        remote_id=record.uid,
+                        record=record,
+                        fields_present=CALDAV_CAPABILITIES.present_fields(),
+                        remote_updated_at=record.updated_at,
+                        etag=getattr(obj, "etag", None),
+                    )
+                )
+        # A full listing every time, so an absent item really is deleted.
+        return PullResult(items=items, incremental=False)
+
+    # -- Writing ---------------------------------------------------------------
+
+    def create(
+        self, remote_list_id: str, record: CanonicalRecord, kind: CollectionKind
+    ) -> PushOutcome:
+        return self._write(remote_list_id, record, kind)
+
+    def update(
+        self, remote_list_id: str, remote_id: str, record: CanonicalRecord,
+        kind: CollectionKind,
+    ) -> PushOutcome:
+        # CalDAV addresses an item by its UID, so creating and replacing are the
+        # same operation.
+        return self._write(remote_list_id, record, kind)
+
+    def _write(
+        self, remote_list_id: str, record: CanonicalRecord, kind: CollectionKind
+    ) -> PushOutcome:
+        from app.services.ical_model import record_to_ics
+
+        record.kind = kind
+        calendar = self._calendar(remote_list_id)
+        payload = record_to_ics(record)
+        try:
+            if kind == CollectionKind.TASKS:
+                calendar.save_todo(payload)
+            else:
+                calendar.save_event(payload)
+        except AuthorizationError as exc:
+            raise ConnectorAuthError(self._explain_auth_failure()) from exc
+        except DAVError as exc:
+            return PushOutcome(remote_id=record.uid, error=f"Could not save: {exc}")
+        return PushOutcome(
+            remote_id=record.uid,
+            remote_updated_at=dt.datetime.now(dt.timezone.utc),
+        )
+
+    def delete(
+        self, remote_list_id: str, remote_id: str, kind: CollectionKind
+    ) -> PushOutcome:
+        calendar = self._calendar(remote_list_id)
+        try:
+            if kind == CollectionKind.TASKS:
+                objects = calendar.todos(include_completed=True, sort_keys=())
+            else:
+                objects = calendar.events()
+            for obj in objects:
+                for record, _component in parse_calendar(obj.data):
+                    if record.uid == remote_id:
+                        obj.delete()
+                        return PushOutcome(remote_id=remote_id)
+        except DAVError as exc:
+            return PushOutcome(remote_id=remote_id, error=f"Could not delete: {exc}")
+        # Already gone is a success: the outcome the caller wanted is the case.
+        return PushOutcome(remote_id=remote_id)
+
+
+class AppleConnector(RemoteCalDAVConnector):
+    """iCloud Calendar, and Reminders on an account that still exposes them."""
+
+    service = ServiceKind.APPLE
+    name = "Apple"
+
+    def __init__(self, account_id: int, credentials: dict, sync_state: dict | None = None,
+                 default_timezone: str | None = None):
+        credentials = dict(credentials)
+        credentials.setdefault("url", ICLOUD_URL)
+        super().__init__(account_id, credentials, sync_state, default_timezone)

@@ -1,0 +1,334 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+{% import "partials/disconnect.html" as dc %}
+{% from "partials/account_name.html" import account_name %}
+{% from "partials/mapping_form.html" import mapping_form %}
+
+{% block title %}{{ definition.name }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ definition.name }}{% endblock %}
+{% block page_subtitle %}<div class="subtitle">{{ definition.summary }}</div>{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="/sync/run">
+    <button type="submit" class="btn btn-primary">
+      {{ ico.icon('refresh') }} Sync now
+    </button>
+  </form>
+  <a class="btn" href="/docs/{{ definition.docs_slug }}" target="_blank" rel="noopener">
+    {{ ico.icon('book') }} Setup guide
+  </a>
+  <a class="btn btn-ghost" href="/services">All services</a>
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+{% if definition.caveats %}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">What {{ definition.name }} can and cannot do</div>
+        <div class="card-hint">
+          Limits of the service's own API, not of Task Hub. Task Hub works
+          around them where it can and tells you where it cannot.
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <ul style="padding-left:1.15em; margin:0;" class="stack-sm small">
+        {% for caveat in definition.caveats %}<li>{{ caveat }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endif %}
+
+{# --- The simple path, offered first where the service has one ------------- #}
+{% if service.personal_token_url %}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Connect with an API token — the easy way</div>
+        <div class="card-hint">
+          {{ definition.name }} will give you a personal token from its own
+          settings. It never expires, and it means you can skip registering an
+          application entirely.
+        </div>
+      </div>
+      <span class="pill pill-success">Recommended</span>
+    </div>
+    <div class="card-body stack">
+      <ol class="stack-sm small" style="padding-left:1.15em; margin:0;">
+        <li>
+          Open
+          <a href="{{ service.personal_token_url }}" target="_blank" rel="noopener">
+            {{ definition.name }} → Settings → Integrations → Developer</a>.
+        </li>
+        <li>Click <span class="strong">Copy API token</span>.</li>
+        <li>Paste it below and save.</li>
+      </ol>
+
+      <form method="post" action="/services/{{ definition.key }}/token"
+            class="stack" style="max-width: 560px;">
+        <div class="field">
+          <label for="token-label">Name for this account</label>
+          <input type="text" id="token-label" name="label"
+                 placeholder="e.g. Personal, or Work">
+          <span class="field-hint">
+            Only for your own reference. Connect several accounts by pasting a
+            token from each.
+          </span>
+        </div>
+        <div class="field">
+          <label for="api-token">API token</label>
+          <input type="password" id="api-token" name="api_token"
+                 autocomplete="off" placeholder="paste the token here">
+          <span class="field-hint">
+            Stored encrypted, and checked against {{ definition.name }} the
+            moment you save so a mistyped token cannot sit unnoticed. It grants
+            full access to that account — treat it like a password.
+          </span>
+        </div>
+        <div class="row-wrap">
+          <button type="submit" class="btn btn-primary btn-sm">
+            Connect this account
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <details class="disclosure mb-5">
+    <summary>Or set up OAuth instead (only if you prefer not to paste a token)</summary>
+    <div class="disclosure-body">
+      <p class="small muted">
+        OAuth achieves the same thing with more steps: you register an
+        application with {{ definition.name }}, and Task Hub is granted access
+        without ever holding a token that works everywhere. Worth it if several
+        people use this Task Hub; unnecessary if it is just you.
+      </p>
+{% endif %}
+
+{# --- Step one: the application ------------------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Register an application with {{ definition.name }}</div>
+      <div class="card-hint">
+        Done once. It tells {{ definition.name }} that this copy of Task Hub is
+        allowed to ask for access, and it is yours — nothing is shared with
+        anyone else.
+      </div>
+    </div>
+    {% if configured %}
+      <span class="pill pill-success">Configured</span>
+    {% endif %}
+  </div>
+
+  <div class="card-body stack">
+    <div class="field">
+      <label for="redirect-uri">Redirect URI — paste this into {{ service.console_name }}</label>
+      <div class="copy-field">
+        <input type="text" id="redirect-uri" readonly value="{{ redirect_uri }}">
+        <button type="button" class="btn" data-copy="#redirect-uri">Copy</button>
+      </div>
+      <span class="field-hint">
+        It must match character for character, including
+        <span class="mono">http</span> versus <span class="mono">https</span>,
+        the port, and the absence of a trailing slash. A mismatch is the single
+        most common reason a connection fails, and the error only appears at the
+        very end of the sign-in.
+      </span>
+    </div>
+
+    {% if redirect_problem %}
+      <div class="alert alert-warning">
+        <span class="alert-icon" aria-hidden="true">!</span>
+        <div class="grow small">{{ redirect_problem }}</div>
+      </div>
+    {% endif %}
+
+    <div class="row-wrap">
+      <a class="btn" href="{{ service.console_url }}" target="_blank" rel="noopener">
+        {{ ico.icon('link') }} Open the {{ service.console_name }}
+      </a>
+      <a class="btn btn-ghost" href="/docs/{{ definition.docs_slug }}"
+         target="_blank" rel="noopener">
+        {{ ico.icon('book') }} Step-by-step guide
+      </a>
+    </div>
+
+    <form method="post" action="/services/{{ definition.key }}/credentials"
+          class="stack" style="max-width: 560px;">
+      <div class="field">
+        <label for="client-id">Client ID</label>
+        <input type="text" id="client-id" name="client_id" autocomplete="off"
+               value="{{ client_id }}" placeholder="from {{ service.console_name }}">
+      </div>
+      <div class="field">
+        <label for="client-secret">Client Secret</label>
+        <input type="password" id="client-secret" name="client_secret"
+               autocomplete="off"
+               placeholder="{{ '•••••••• (saved)' if configured else 'from ' ~ service.console_name }}">
+        <span class="field-hint">
+          Stored encrypted. It is never shown again after saving — paste it
+          afresh if you need to change it.
+        </span>
+      </div>
+      <div class="row-wrap">
+        <button type="submit" class="btn btn-primary btn-sm">Save application details</button>
+        {% if configured %}
+          <button type="submit" class="btn btn-ghost btn-sm"
+                  formaction="/services/{{ definition.key }}/credentials/clear"
+                  data-confirm="Remove these application details? Connected accounts will stop syncing.">
+            Remove
+          </button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if service.personal_token_url %}
+    </div>
+  </details>
+{% endif %}
+
+{# --- Step two: the accounts ----------------------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Your {{ definition.name }} accounts</div>
+      <div class="card-hint">
+        Up to {{ max_slots }}, kept entirely separate from one another.
+      </div>
+    </div>
+  </div>
+
+  {% if not configured and not accounts %}
+    <div class="card-body">
+      <p class="muted">
+        {% if service.personal_token_url %}
+          Paste an API token above to connect an account, or set up OAuth.
+        {% else %}
+          Save your Client ID and Client Secret above first. Until then
+          {{ definition.name }} has no way to recognise this copy of Task Hub.
+        {% endif %}
+      </p>
+    </div>
+  {% else %}
+    <div class="card-body stack">
+      {% if not accounts %}
+        <p class="muted">No {{ definition.name }} account is connected yet.</p>
+      {% endif %}
+
+      {% for account in accounts %}
+        <div class="card" style="margin:0;">
+          <div class="card-header">
+            <div>
+              {{ account_name(account, definition.key, definition.name) }}
+              <div class="card-hint">
+                {% if account.status.value == 'connected' %}
+                  <span class="pill pill-success">Connected</span>
+                {% elif account.status.value == 'needs-auth' %}
+                  <span class="pill pill-warning">Needs reconnecting</span>
+                {% else %}
+                  <span class="pill pill-warning">{{ account.status.value }}</span>
+                {% endif %}
+                {% if account.status_detail %}
+                  <span class="tiny muted">{{ account.status_detail }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="row">
+              <form method="post"
+                    action="/services/{{ definition.key }}/{{ account.slot }}/discover">
+                <button type="submit" class="btn btn-sm">
+                  {{ ico.icon('refresh') }} Refresh lists
+                </button>
+              </form>
+              <a class="btn btn-sm"
+                 href="/services/{{ definition.key }}/connect/{{ account.slot }}">
+                Reconnect
+              </a>
+              {{ dc.disconnect_button(
+                   "/services/" ~ definition.key ~ "/" ~ account.slot ~ "/disconnect",
+                   account.label or definition.name,
+                   cleanup.get(account.id),
+                   "disconnect-" ~ definition.key ~ "-" ~ account.slot,
+                   icon=ico.icon('trash')) }}
+            </div>
+          </div>
+
+          <div class="card-body">
+            {% set lists = lists_by_account.get(account.id, []) %}
+            {% set task_lists = lists | selectattr('kind.value', 'equalto', 'tasks') | list %}
+            {% set cal_lists = lists | selectattr('kind.value', 'equalto', 'calendar') | list %}
+            {% if not lists %}
+              <p class="muted">
+                Press <span class="strong">Refresh lists</span> above to fetch
+                this account's lists from {{ definition.name }}.
+              </p>
+            {% else %}
+              {{ mapping_form(account, definition.name, task_lists, cal_lists,
+                              collections, dropdowns, kind_enabled,
+                              definition.supports_tasks,
+                              definition.supports_calendar,
+                              advanced_mode=advanced_mode) }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+
+      {% if free_slots and configured %}
+        <div class="row-wrap">
+          <a class="btn btn-primary btn-sm"
+             href="/services/{{ definition.key }}/connect/{{ free_slots[0] }}">
+            {{ ico.icon('plus') }} Connect a {{ definition.name }} account
+          </a>
+          <span class="tiny muted">
+            Opens {{ definition.name }}'s own sign-in page. Task Hub never sees
+            your password.
+          </span>
+        </div>
+      {% else %}
+        <p class="tiny muted">
+          All {{ max_slots }} slots are in use. Disconnect one to add another.
+        </p>
+      {% endif %}
+
+      {% if service.allows_paste_back %}
+        <details class="disclosure">
+          <summary>The browser did not come back to Task Hub — finish by hand</summary>
+          <div class="disclosure-body stack-sm">
+            <p class="small">
+              {{ definition.name }} will only ever redirect to the one address
+              registered with it. If that is not the address you are browsing
+              with — a phone on the network, or a different host name — the
+              redirect lands somewhere that cannot deliver the code, and you end
+              up on an error page or a blank one.
+            </p>
+            <p class="small">
+              <span class="strong">The code is still in the address bar.</span>
+              Copy the whole address from that page and paste it below. It will
+              look like
+              <span class="mono tiny">…/oauth/ticktick/callback?code=abc123&amp;state=…</span>
+            </p>
+            <form method="post" action="/services/{{ definition.key }}/paste"
+                  class="stack-sm" style="max-width: 620px;">
+              <div class="field">
+                <label class="sr-only" for="pasted">Pasted address</label>
+                <input type="text" id="pasted" name="pasted" autocomplete="off"
+                       placeholder="paste the whole address, or just the code">
+              </div>
+              <button type="submit" class="btn btn-sm">Finish connecting</button>
+            </form>
+          </div>
+        </details>
+      {% endif %}
+
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

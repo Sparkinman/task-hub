@@ -1,0 +1,80 @@
+{% extends "onboarding/_wizard.html" %}
+
+{% block wizard_title %}Your timezone{% endblock %}
+{% block wizard_lede %}
+  Every service records times differently, and several store them in UTC. Task
+  Hub converts them all into your timezone so a task due at 2:30pm shows as
+  2:30pm no matter which app it was created in.
+{% endblock %}
+
+{% block wizard_form %}
+<form method="post" action="/setup/preferences">
+  <div class="wizard-body">
+
+    <div class="field">
+      <label for="timezone">Timezone</label>
+      <select id="timezone" name="timezone" required autofocus>
+        {% for tz in timezones %}
+          <option value="{{ tz }}" {{ 'selected' if tz == selected_tz }}>{{ tz }}</option>
+        {% endfor %}
+      </select>
+      <span class="field-hint">
+        The most common zones are listed first, then every zone alphabetically.
+      </span>
+    </div>
+
+    <div class="field">
+      <label>Date format</label>
+      <div class="segmented">
+        {% for value, example in [
+              ('YYYY-MM-DD', '2026-03-05'),
+              ('DD/MM/YYYY', '05/03/2026'),
+              ('MM/DD/YYYY', '03/05/2026'),
+              ('D MMM YYYY', '5 Mar 2026'),
+              ('MMM D, YYYY', 'Mar 5, 2026') ] %}
+          <input type="radio" id="df-{{ loop.index }}" name="date_format" value="{{ value }}"
+                 {{ 'checked' if loop.first }}>
+          <label for="df-{{ loop.index }}">{{ example }}</label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Time format</label>
+        <div class="segmented">
+          <input type="radio" id="tf-24" name="time_format" value="24h" checked>
+          <label for="tf-24">14:30</label>
+          <input type="radio" id="tf-12" name="time_format" value="12h">
+          <label for="tf-12">2:30 PM</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Week starts on</label>
+        <div class="segmented">
+          <input type="radio" id="ws-mon" name="week_start" value="monday" checked>
+          <label for="ws-mon">Monday</label>
+          <input type="radio" id="ws-sun" name="week_start" value="sunday">
+          <label for="ws-sun">Sunday</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-info mt-4">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <div class="grow">
+        A task with a date but no time — "due Tuesday" — stays date-only. Task
+        Hub never invents a time of day, because a service that only stores
+        dates would then read it back as midnight and change your task.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wizard-foot">
+    <a class="btn btn-ghost" href="/setup/account">Back</a>
+    <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+  </div>
+</form>
+{% endblock %}

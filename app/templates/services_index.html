@@ -1,0 +1,69 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Services · {{ app_name }}{% endblock %}
+{% block page_title %}Services{% endblock %}
+{% block page_subtitle %}
+  <div class="subtitle">Connect up to 10 accounts per service.</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="alert alert-info mb-5">
+  <span class="alert-icon" aria-hidden="true">i</span>
+  <div class="grow">
+    <div class="alert-title">Every service has a full setup guide</div>
+    None of these connections need a terminal. Each service page links to a
+    step-by-step guide written for someone who has never opened a developer
+    console — including exactly which buttons to press in the Google Cloud
+    Console and the Azure portal.
+  </div>
+</div>
+
+<div class="grid grid-2">
+  {% for d in catalogue %}
+    <div class="service-card">
+      <div class="row">
+        <span class="service-icon {{ d.colour }}" aria-hidden="true">{{ d.name[0] }}</span>
+        <div class="grow">
+          <div class="row-wrap">
+            <span class="strong">{{ d.name }}</span>
+            {% if d.unofficial %}<span class="pill pill-warning">Unofficial API</span>{% endif %}
+            {% if d.phase > current_phase %}<span class="pill">Not yet available</span>{% endif %}
+          </div>
+          <div class="tiny muted">{{ d.summary }}</div>
+        </div>
+      </div>
+
+      <div class="row-wrap small">
+        {% if d.supports_tasks %}<span class="pill">{{ ico.icon('check-square') }} Tasks</span>{% endif %}
+        {% if d.supports_calendar %}<span class="pill">{{ ico.icon('calendar') }} Calendar</span>{% endif %}
+        <span class="pill">{{ ico.icon('lock') }} {{ d.auth_kind }}</span>
+      </div>
+
+      {% if counts.get(d.key) %}
+        <div class="small"><span class="pill pill-success">{{ counts[d.key] }} account{{ '' if counts[d.key] == 1 else 's' }} configured</span></div>
+      {% endif %}
+
+      {% if d.caveats %}
+        <details class="disclosure">
+          <summary>Limitations worth knowing ({{ d.caveats|length }})</summary>
+          <div class="disclosure-body">
+            <ul class="small muted" style="padding-left:1.1em; margin:0;">
+              {% for caveat in d.caveats %}<li>{{ caveat }}</li>{% endfor %}
+            </ul>
+          </div>
+        </details>
+      {% endif %}
+
+      <div class="row">
+        <a class="btn btn-primary btn-sm" href="/services/{{ d.key }}">
+          {{ 'Manage accounts' if counts.get(d.key) else 'Set up' }}
+        </a>
+        <a class="btn btn-sm" href="/docs/{{ d.docs_slug }}" target="_blank" rel="noopener">{{ ico.icon('book') }} Guide</a>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,449 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+{% import "partials/disconnect.html" as dc %}
+{% from "partials/mapping_form.html" import mapping_form %}
+
+{% block title %}{{ definition.name }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ definition.name }}{% endblock %}
+{% block page_subtitle %}<div class="subtitle">{{ definition.summary }}</div>{% endblock %}
+
+{% block page_actions %}
+  <a class="btn" href="/docs/{{ definition.docs_slug }}" target="_blank" rel="noopener">
+    {{ ico.icon('book') }} Setup guide
+  </a>
+  <a class="btn btn-ghost" href="/services">All services</a>
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+{# Read-only is the single most important thing to say on this page, so it is
+   said first and not buried among the caveats further down. #}
+{% set writable = obsidian.linked|selectattr('write_back')|list %}
+{% if writable %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">▲</span>
+    <div class="grow">
+      <div class="alert-title">
+        Task Hub can write to
+        {% for e in writable %}“{{ e.vault.name }}”{{ ', ' if not loop.last }}{% endfor %}
+      </div>
+      It changes one thing only: whether a task is ticked, and its completion
+      date. Never your wording, dates or tags; it never adds a task to a note
+      and never deletes one. Every other vault below is read-only, enforced by
+      Obsidian’s own client rather than promised here.
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-info mb-5">
+    <span class="alert-icon" aria-hidden="true">i</span>
+    <div class="grow">
+      <div class="alert-title">Task Hub never writes to your vaults</div>
+      Your notes are read, never changed. Obsidian’s own client runs in
+      <span class="strong">mirror-remote</span> mode, which reverts any local
+      change, so even a fault here could not alter your vault. Ticking a task
+      off in another service therefore will not tick it off in Obsidian.
+    </div>
+  </div>
+{% endif %}
+
+{% if obsidian.step == 'unavailable' %}
+
+  <div class="alert alert-warning">
+    <span class="alert-icon" aria-hidden="true">▲</span>
+    <div class="grow">
+      <div class="alert-title">The Obsidian client is missing from this image</div>
+      Task Hub bundles Obsidian’s headless client. This container was built
+      without it, so rebuilding will fix it.
+    </div>
+  </div>
+
+{% elif obsidian.step == 'login' %}
+
+  <div class="card mb-5">
+    <div class="card-head">
+      <h2>Sign in to Obsidian</h2>
+      <span class="subtle small">Step 1 of 2</span>
+    </div>
+    <div class="card-body">
+      <p class="subtle">
+        Task Hub signs in as another of your devices, the same way a second
+        laptop would, and Obsidian sends it the vault. This needs an
+        <span class="strong">Obsidian Sync subscription</span> — it is the only
+        way a server can read a vault, because Obsidian Sync has no public API.
+      </p>
+
+      <form method="post" action="/obsidian/login" class="stack">
+        <label class="field">
+          <span class="field-label">Email</span>
+          <input type="email" name="email" required autocomplete="username"
+                 placeholder="you@example.com">
+        </label>
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input type="password" name="password" required
+                 autocomplete="current-password">
+          <span class="field-hint">
+            Used once to sign in and not stored. Obsidian’s client keeps its own
+            session afterwards.
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Two-factor code <span class="subtle">(if you use one)</span></span>
+          <input type="text" name="mfa" inputmode="numeric" autocomplete="one-time-code"
+                 placeholder="000000">
+          <span class="field-hint">Leave empty if your account has no two-factor code.</span>
+        </label>
+        <div>
+          <button type="submit" class="btn btn-primary">Sign in</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+{% elif obsidian.step == 'linked' %}
+
+  {% if obsidian.error %}
+    <div class="alert alert-error">
+      <span class="alert-icon" aria-hidden="true">!</span>
+      <div class="grow">{{ obsidian.error }}</div>
+    </div>
+  {% endif %}
+
+  {# ---------- Vaults already linked ---------- #}
+  {% for entry in obsidian.linked %}
+    {% set account = entry.account %}
+    <div class="card mb-5">
+      <div class="card-head">
+        <div>
+          <h2>{{ entry.vault.name }}</h2>
+          <div class="small muted">Slot {{ account.slot }} · {{ account.remote_identity or obsidian.email }}</div>
+        </div>
+        <div class="row gap-2">
+          {% if entry.write_back %}
+            <span class="pill pill-warning" title="Task Hub may tick tasks off in this vault">Can tick tasks off</span>
+          {% else %}
+            <span class="pill pill-success">Read-only</span>
+          {% endif %}
+          {% if entry.paused %}
+            <span class="pill">Paused</span>
+          {% elif entry.live.running %}
+            <span class="pill pill-success">Live</span>
+          {% elif entry.live.last_error %}
+            <span class="pill pill-danger">Sync stopped</span>
+          {% else %}
+            <span class="pill">Not syncing</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card-body">
+        <dl class="kv">
+          <dt>Downloaded to</dt>
+          <dd><code>{{ entry.path }}</code></dd>
+          <dt>Copy on disk</dt>
+          <dd>
+            {% if entry.downloaded %}Present
+            {% else %}<span class="subtle">Not downloaded yet — use “Download now”.</span>{% endif %}
+          </dd>
+          <dt>Kept up to date</dt>
+          <dd>
+            {% if entry.live.running %}
+              Live{% if not entry.live.settled %} <span class="subtle">— downloading changes now</span>{% endif %}
+            {% elif entry.live.last_error %}
+              <span class="danger">{{ entry.live.last_error }}</span>
+            {% else %}
+              <span class="subtle">Not running — this copy will not update.</span>
+            {% endif %}
+          </dd>
+        </dl>
+
+        {% if entry.live.log %}
+          <details class="disclosure mt-4">
+            <summary class="small muted">Recent sync output</summary>
+            <pre class="tiny" style="margin:0; max-height: 220px;">{% for line in entry.live.log[-12:] %}{{ line }}
+{% endfor %}</pre>
+          </details>
+        {% endif %}
+
+        <div class="row gap-2 mt-4">
+          <form method="post" action="/obsidian/{{ account.slot }}/sync">
+            <button type="submit" class="btn btn-sm">{{ ico.icon('refresh') }} Download now</button>
+          </form>
+          <form method="post" action="/obsidian/{{ account.slot }}/discover">
+            <button type="submit" class="btn btn-sm">{{ ico.icon('refresh') }} Refresh folders</button>
+          </form>
+          <form method="post" action="/obsidian/{{ account.slot }}/pause">
+            <button type="submit" class="btn btn-sm">
+              {% if entry.paused %}Resume syncing{% else %}Pause syncing{% endif %}
+            </button>
+          </form>
+          {% if entry.write_back %}
+            {# Turning it off is one click and asks nothing: it only ever makes
+               the vault safer. Turning it ON is the direction that needs the
+               explanation and the confirmation, which live further down. #}
+            <form method="post" action="/obsidian/{{ account.slot }}/write-back">
+              <input type="hidden" name="enabled" value="0">
+              <button type="submit" class="btn btn-sm">Stop writing to this vault</button>
+            </form>
+          {% else %}
+            <button type="button" class="btn btn-ghost btn-sm"
+                    onclick="var d=document.getElementById('write-back-{{ account.slot }}');
+                             if (d) { d.open = true; d.scrollIntoView({behavior:'smooth', block:'center'}); }">
+              Allow writing…
+            </button>
+          {% endif %}
+          <div class="grow"></div>
+          {{ dc.disconnect_button(
+               "/obsidian/" ~ account.slot ~ "/disconnect",
+               entry.vault.name,
+               cleanup.get(account.id),
+               "disconnect-obsidian-" ~ account.slot,
+               button_class="btn btn-ghost btn-sm",
+               button_text="Unlink " ~ entry.vault.name,
+               extra_note="This deletes how the vault is wired up — its folder mappings go with it, and re-linking starts from scratch. To stop syncing it without losing that, use Pause syncing instead. The downloaded copy is left on disk and your other vaults are unaffected.") }}
+        </div>
+
+        {# ---------- Folders to skip ---------- #}
+        <details class="disclosure mt-5">
+          <summary>
+            <span class="strong">Folders to skip</span>
+            {% if entry.skip_folders %}
+              <span class="pill">{{ entry.skip_folders|length }} skipped</span>
+            {% else %}
+              <span class="subtle small">downloading everything</span>
+            {% endif %}
+          </summary>
+          <div class="mt-4">
+            <p class="muted small">
+              Task Hub reads markdown and nothing else, so a folder holding
+              attachments costs disk space for files it can never open. This
+              vault's Supernote folder was 312 MB of notebooks against 430 KB of
+              notes. Skipping a folder stops it downloading; anything already on
+              disk is left alone, and nothing is ever removed from your real
+              vault.
+            </p>
+            <form method="post" action="/obsidian/{{ account.slot }}/skip-folders" class="mt-4">
+              {% set folders = lists_by_account.get(account.id, [])
+                               | selectattr('remote_id', 'ne', 'vault:') | list %}
+              {% for f in folders %}
+                <label class="check">
+                  <input type="checkbox" name="skip" value="{{ f.name }}"
+                         {{ 'checked' if f.name in entry.skip_folders }}>
+                  <span class="check-label">{{ f.name }}</span>
+                </label>
+              {% endfor %}
+              {% for extra in entry.skip_folders %}
+                {% if extra not in folders|map(attribute='name')|list %}
+                  <label class="check">
+                    <input type="checkbox" name="skip" value="{{ extra }}" checked>
+                    <span class="check-label">{{ extra }} <span class="subtle">(not in the vault listing)</span></span>
+                  </label>
+                {% endif %}
+              {% endfor %}
+              <div class="row mt-4">
+                <button type="submit" class="btn btn-sm">Save what to skip</button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        {# ---------- Write-back ---------- #}
+        <details class="disclosure mt-5" id="write-back-{{ account.slot }}"
+                 {{ 'open' if entry.write_back }}>
+          <summary>
+            <span class="strong">Writing back into this vault</span>
+            {% if entry.write_back %}
+              <span class="pill pill-warning">On</span>
+            {% else %}
+              <span class="pill">Off — read-only</span>
+            {% endif %}
+          </summary>
+
+          <div class="mt-4">
+            <div class="alert {{ 'alert-warning' if entry.write_back else 'alert-info' }}">
+              <span class="alert-icon" aria-hidden="true">{{ '▲' if entry.write_back else 'i' }}</span>
+              <div class="grow">
+                <div class="alert-title">What this changes</div>
+                <p>
+                  With this off, Task Hub never writes to your vault, and it is
+                  not merely a promise: Obsidian’s own client runs in
+                  <span class="strong">mirror-remote</span> mode, which reverts
+                  any local change before it could reach you. Ticking a task off
+                  in Todoist will not tick it off in Obsidian.
+                </p>
+                <p class="mt-2">
+                  With it on, Obsidian’s client is switched to
+                  <span class="strong">bidirectional</span> and Task Hub may
+                  change <span class="strong">one thing only</span>: whether a
+                  task is ticked, and its completion date. It never edits your
+                  wording, dates, tags or anything else, never adds a task to a
+                  note, and never deletes one.
+                </p>
+                <p class="mt-2">
+                  Each line is patched in place rather than rewritten, then read
+                  back from disk and checked; if anything but the tick has
+                  changed, the note is put back as it was. It stops after 20
+                  changes in a single pass, because a sync wanting to rewrite
+                  more of your vault than that is likelier to be a fault than an
+                  intention.
+                </p>
+                <p class="mt-2 strong">
+                  Even so, this edits real notes. Your vault has version history
+                  in Obsidian Sync — that is your undo, and it is worth knowing
+                  where it is before you turn this on.
+                </p>
+              </div>
+            </div>
+
+            <form method="post" action="/obsidian/{{ account.slot }}/write-back" class="mt-4">
+              <input type="hidden" name="enabled" value="{{ '0' if entry.write_back else '1' }}">
+
+              {% if not entry.write_back %}
+                {% set folders = lists_by_account.get(account.id, [])
+                                 | selectattr('kind.value', 'equalto', 'tasks') | list %}
+                {% if folders %}
+                  <div class="field">
+                    <label class="field-label">Which folders may be written to</label>
+                    <span class="field-hint">
+                      Leave all unticked to allow the whole vault, or choose
+                      only the folders you keep tasks in.
+                    </span>
+                    <div class="mt-2">
+                      {% for f in folders %}
+                        <label class="check">
+                          <input type="checkbox" name="folders" value="{{ f.remote_id }}">
+                          <span class="check-label">{{ f.name }}</span>
+                        </label>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endif %}
+
+                <label class="check mt-4" style="align-items: flex-start;">
+                  <input type="checkbox" name="confirm" value="1" required>
+                  <span class="check-label">
+                    I understand Task Hub will change files in
+                    “{{ entry.vault.name }}”, and that Obsidian Sync’s version
+                    history is how I would undo it.
+                  </span>
+                </label>
+
+                <div class="row mt-4">
+                  <button type="submit" class="btn btn-warning">
+                    Allow writing into “{{ entry.vault.name }}”
+                  </button>
+                </div>
+              {% else %}
+                <p class="small muted">
+                  Allowed in:
+                  <span class="strong">
+                    {% if entry.write_folders %}
+                      {% for f in entry.write_folders %}{{ f.replace('folder:', '') or 'the vault root' }}{{ ', ' if not loop.last }}{% endfor %}
+                    {% else %}the whole vault{% endif %}
+                  </span>
+                </p>
+                <div class="row mt-4">
+                  <button type="submit" class="btn">Make “{{ entry.vault.name }}” read-only again</button>
+                </div>
+              {% endif %}
+            </form>
+          </div>
+        </details>
+
+        {# The same mapping table every other service gets. #}
+        {% set lists = lists_by_account.get(account.id, []) %}
+        {% set task_lists = lists | selectattr('kind.value', 'equalto', 'tasks') | list %}
+        {% if task_lists %}
+          <div class="mt-5">
+            {{ mapping_form(account, definition.name, task_lists, [],
+                            collections, dropdowns, kind_enabled,
+                            definition.supports_tasks,
+                            definition.supports_calendar,
+                            advanced_mode=advanced_mode|default(false)) }}
+          </div>
+        {% else %}
+          <p class="muted mt-4">
+            Press <span class="strong">Refresh folders</span> to list the places
+            in this vault that tasks can be read from.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+
+  {# ---------- Add more vaults ---------- #}
+  <div class="card mb-5">
+    <div class="card-head">
+      <h2>{% if obsidian.linked %}Add another vault{% else %}Choose your vaults{% endif %}</h2>
+      <span class="small muted">{{ obsidian.slots_left }} slot{{ '' if obsidian.slots_left == 1 else 's' }} left</span>
+    </div>
+    <div class="card-body">
+      {% if obsidian.addable and obsidian.slots_left > 0 %}
+        <p class="muted">
+          Tick every vault you want Task Hub to read. Each becomes its own slot,
+          with its own folder mappings, so a work vault and a personal one stay
+          entirely separate.
+        </p>
+        <form method="post" action="/obsidian/vaults" class="stack mt-4">
+          {% for v in obsidian.addable %}
+            <label class="check">
+              <input type="checkbox" name="vault_id" value="{{ v.vault_id }}">
+              <span class="check-label">{{ v.name }}</span>
+            </label>
+          {% endfor %}
+
+          <div class="field mt-4">
+            <label for="encryption_password">Vault encryption password</label>
+            <input type="password" id="encryption_password" name="encryption_password"
+                   autocomplete="off">
+            <span class="field-hint">
+              Only if you turned on end-to-end encryption in Obsidian Sync.
+              Leave empty otherwise. The same password is used for every vault
+              ticked above — link them one at a time if they differ.
+            </span>
+          </div>
+
+          <div class="row">
+            <button type="submit" class="btn btn-primary">Link the ticked vaults</button>
+          </div>
+        </form>
+      {% elif obsidian.slots_left <= 0 %}
+        <p class="muted">
+          Every slot is in use. Unlink a vault above to make room for another.
+        </p>
+      {% else %}
+        <p class="muted">
+          Every vault on this Obsidian account is already linked.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---------- Sign out entirely ---------- #}
+  <div class="row mb-5">
+    {{ dc.disconnect_button(
+         "/obsidian/disconnect",
+         "Obsidian entirely",
+         none,
+         "signout-obsidian",
+         button_class="btn btn-ghost btn-sm",
+         button_text="Sign out of Obsidian",
+         extra_note="Every vault is unlinked and the session is signed out. The downloaded copies are left on disk.") }}
+  </div>
+
+{% endif %}
+
+{% if definition.caveats %}
+  <div class="card">
+    <div class="card-head"><h2>Worth knowing</h2></div>
+    <div class="card-body">
+      <ul class="bullets">
+        {% for caveat in definition.caveats %}<li>{{ caveat }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

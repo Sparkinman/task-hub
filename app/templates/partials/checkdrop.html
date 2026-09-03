@@ -1,0 +1,60 @@
+{# A dropdown whose contents are checkboxes.
+
+   Plain columns of switches stop working once the choices run into the dozens,
+   which is exactly what happens when write-back targets are drawn from every
+   connected service rather than one account. This collapses them to a single
+   control that reports how many are ticked and opens on click.
+
+   Built on <details>, so it opens and closes with no JavaScript at all; the
+   script only keeps the summary count current as boxes are ticked, and the
+   markup degrades to an always-open list if it never runs. #}
+
+{% macro checkdrop(name, groups, selected, empty_label, noun) -%}
+  {%- set ns = namespace(count=0, total=0) -%}
+  {%- for group in groups -%}
+    {%- for option in group.options -%}
+      {%- set ns.total = ns.total + 1 -%}
+      {%- if option.value in selected -%}{%- set ns.count = ns.count + 1 -%}{%- endif -%}
+    {%- endfor -%}
+  {%- endfor -%}
+  <details class="checkdrop">
+    <summary>
+      <span class="checkdrop-label" data-checkdrop-count
+            data-empty-label="{{ empty_label }}"
+            data-noun="{{ noun }}">
+        {%- if ns.count == 0 -%}
+          {{ empty_label }}
+        {%- else -%}
+          {{ ns.count }} {{ noun }}{{ '' if ns.count == 1 else 's' }}
+        {%- endif -%}
+      </span>
+      <span class="checkdrop-caret" aria-hidden="true"></span>
+    </summary>
+    <div class="checkdrop-menu">
+      {%- if ns.total == 0 %}
+        <div class="checkdrop-empty">Nothing to choose from yet.</div>
+      {%- endif %}
+      {%- for group in groups %}
+        {%- if group.label %}
+          <div class="checkdrop-group">
+            {%- if group.colour %}
+              <span class="checkdrop-dot" style="background: {{ group.colour }};"
+                    aria-hidden="true"></span>
+            {%- endif %}
+            {{ group.label }}
+          </div>
+        {%- endif %}
+        {%- for option in group.options %}
+          <label class="checkdrop-item">
+            <input type="checkbox" name="{{ name }}" value="{{ option.value }}"
+                   {{ 'checked' if option.value in selected }}>
+            <span>{{ option.label }}</span>
+            {%- if option.note %}
+              <span class="tiny subtle">{{ option.note }}</span>
+            {%- endif %}
+          </label>
+        {%- endfor %}
+      {%- endfor %}
+    </div>
+  </details>
+{%- endmacro %}

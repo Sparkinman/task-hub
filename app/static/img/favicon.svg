@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="336 106 168 168" role="img" aria-label="Task Hub">
+<title>Task Hub</title>
+<desc>The hub of the Task Hub wheel, cropped for legibility at small sizes.</desc>
+<circle cx="420" cy="190" r="72" fill="none" stroke="#378ADD" stroke-width="12"/>
+<g fill="#378ADD">
+<circle cx="471.7" cy="211.4" r="7"/>
+<circle cx="441.4" cy="241.7" r="7"/>
+<circle cx="398.6" cy="241.7" r="7"/>
+<circle cx="368.3" cy="211.4" r="7"/>
+<circle cx="368.3" cy="168.6" r="7"/>
+<circle cx="398.6" cy="138.3" r="7"/>
+<circle cx="441.4" cy="138.3" r="7"/>
+<circle cx="471.7" cy="168.6" r="7"/>
+</g>
+<circle cx="420" cy="190" r="40" fill="#378ADD"/>
+<circle cx="420" cy="190" r="13" fill="#042C53"/>
+</svg>

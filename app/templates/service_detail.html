@@ -1,0 +1,148 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}{{ definition.name }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ definition.name }}{% endblock %}
+{% block page_subtitle %}<div class="subtitle">{{ definition.summary }}</div>{% endblock %}
+
+{% block page_actions %}
+  {# Right here, because the next thing anyone wants after changing what syncs
+     where is to watch it actually happen. #}
+  <form method="post" action="/sync/run">
+    <button type="submit" class="btn btn-primary">
+      {{ ico.icon('refresh') }} Sync now
+    </button>
+  </form>
+  <a class="btn" href="/docs/{{ definition.docs_slug }}" target="_blank" rel="noopener">{{ ico.icon('book') }} Setup guide</a>
+  <a class="btn btn-ghost" href="/services">All services</a>
+{% endblock %}
+
+{% block content %}
+
+{% if not available %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">▲</span>
+    <div class="grow">
+      <div class="alert-title">This connector is not built yet</div>
+      {{ definition.name }} arrives in phase {{ definition.phase }} of the build.
+      You can name and reserve its account slots now — the labels you set here
+      will still be waiting when the connector goes live.
+    </div>
+  </div>
+{% endif %}
+
+{% if definition.unofficial %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">▲</span>
+    <div class="grow">
+      <div class="alert-title">This uses an unofficial API</div>
+      {{ definition.name }} publishes no public API. This connector talks to an
+      endpoint documented by the community, which can stop working without
+      warning if the vendor changes it. If that happens, every other service
+      keeps syncing normally.
+    </div>
+  </div>
+{% endif %}
+
+{% if definition.caveats %}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">What this service can and cannot do</div>
+        <div class="card-hint">
+          Confirmed against {{ definition.name }}'s current API. These are limits
+          of the service, not of Task Hub.
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <ul style="padding-left:1.15em; margin:0;" class="stack-sm">
+        {% for caveat in definition.caveats %}<li>{{ caveat }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Accounts</div>
+      <div class="card-hint">
+        {{ accounts|length }} of {{ max_slots }} slots used. Each slot is an
+        independent login with its own list selection.
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body stack">
+    {% for account in accounts %}
+      <div class="slot-row">
+        <span class="slot-number">{{ account.slot }}</span>
+        <div class="grow">
+          <div class="strong">{{ account.display_name }}</div>
+          <div class="tiny muted">
+            {% if account.remote_identity %}{{ account.remote_identity }} · {% endif %}
+            {% if account.last_sync_at %}
+              last synced {{ account.last_sync_at.strftime('%Y-%m-%d %H:%M UTC') }}
+            {% else %}never synced{% endif %}
+          </div>
+        </div>
+
+        {% set status = account.status.value %}
+        <span class="pill {{ 'pill-success' if status == 'connected' else ('pill-danger' if status in ['error','needs_auth'] else '') }}">
+          {{ status.replace('_', ' ')|title }}
+        </span>
+
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-edit-toggle="slot-{{ account.slot }}">{{ ico.icon('pencil') }}</button>
+
+        <form method="post" action="/services/{{ definition.key }}/slots/{{ account.slot }}/delete"
+              data-confirm="Disconnect slot {{ account.slot }} and delete its stored credentials?">
+          <button type="submit" class="btn btn-ghost btn-sm">{{ ico.icon('trash') }}</button>
+        </form>
+      </div>
+
+      <div class="hidden" id="slot-{{ account.slot }}">
+        <form method="post" action="/services/{{ definition.key }}/slots/{{ account.slot }}/label"
+              class="row-wrap" style="padding-left: 42px;">
+          <div class="field grow" style="margin:0;">
+            <label class="sr-only">Label</label>
+            <input type="text" name="label" value="{{ account.label }}" maxlength="120"
+                   placeholder="Work, Personal, Family…">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save label</button>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-edit-toggle="slot-{{ account.slot }}">Cancel</button>
+        </form>
+      </div>
+    {% endfor %}
+
+    {% if free_slots %}
+      <div class="slot-row is-empty">
+        <span class="slot-number">{{ free_slots[0] }}</span>
+        <form method="post"
+              action="/services/{{ definition.key }}/slots/{{ free_slots[0] }}/label"
+              class="row-wrap grow">
+          <div class="field grow" style="margin:0;">
+            <label class="sr-only">Label for the new account</label>
+            <input type="text" name="label" maxlength="120"
+                   placeholder="Name this account — Work, Personal, Family…">
+          </div>
+          <button type="submit" class="btn btn-sm">
+            {{ ico.icon('plus') }} Reserve slot {{ free_slots[0] }}
+          </button>
+        </form>
+      </div>
+      <div class="small muted">
+        {{ free_slots|length }} slot{{ '' if free_slots|length == 1 else 's' }} still free.
+        {% if available %}
+          Reserve one, then connect it with {{ definition.auth_kind }}.
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="small muted">All {{ max_slots }} slots are in use.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

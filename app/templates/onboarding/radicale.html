@@ -1,0 +1,60 @@
+{% extends "onboarding/_wizard.html" %}
+
+{% block wizard_title %}CalDAV credentials{% endblock %}
+{% block wizard_lede %}
+  Task Hub includes a Radicale CalDAV server. It holds the master copy of your
+  tasks and calendars, and it is what your phone and laptop connect to directly.
+{% endblock %}
+
+{% block wizard_form %}
+<form method="post" action="/setup/radicale">
+  <div class="wizard-body">
+
+    <div class="alert alert-info">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <div class="grow">
+        <div class="alert-title">Why a second password?</div>
+        This one gets typed into your phone, your laptop and any other CalDAV
+        client, so it travels to more places than your web sign-in does. Keeping
+        them separate means a device you later stop trusting can be cut off by
+        changing this password alone, without touching the login that guards
+        your connected accounts.
+      </div>
+    </div>
+
+    <div class="field mt-4">
+      <label for="radicale_username">CalDAV username</label>
+      <input type="text" id="radicale_username" name="radicale_username" required autofocus
+             minlength="3" maxlength="64" pattern="[A-Za-z0-9._\-]{3,64}"
+             autocomplete="off" value="{{ radicale_username|default('') }}">
+      <span class="field-hint">
+        This appears in your CalDAV address, so keep it short and simple.
+      </span>
+    </div>
+
+    <div class="field">
+      <label for="radicale_password">CalDAV password</label>
+      <input type="password" id="radicale_password" name="radicale_password" required
+             minlength="8" autocomplete="new-password" data-password-pair>
+      <span class="field-hint">At least 8 characters. Make it different from your sign-in password.</span>
+    </div>
+
+    <div class="field">
+      <label for="radicale_password_confirm">Confirm CalDAV password</label>
+      <input type="password" id="radicale_password_confirm" name="radicale_password_confirm"
+             required minlength="8" autocomplete="new-password" data-password-pair>
+    </div>
+
+    <p class="small muted mt-4">
+      You can change this later on the Radicale tab, and the exact address to
+      enter on each of your devices is shown there too.
+    </p>
+
+  </div>
+
+  <div class="wizard-foot">
+    <a class="btn btn-ghost" href="/setup/preferences">Back</a>
+    <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+  </div>
+</form>
+{% endblock %}

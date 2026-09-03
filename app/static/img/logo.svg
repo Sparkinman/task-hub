@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="247 17 346 346" role="img" aria-label="Task Hub">
+<title>Task Hub</title>
+<desc>Wagon wheel hub with eight bidirectional arrow spokes.</desc>
+<g fill="none" stroke="#378ADD" stroke-width="5" stroke-linecap="round">
+<line x1="500.0" y1="190.0" x2="570.0" y2="190.0"/>
+<line x1="476.6" y1="246.6" x2="526.1" y2="296.1"/>
+<line x1="420.0" y1="270.0" x2="420.0" y2="340.0"/>
+<line x1="363.4" y1="246.6" x2="313.9" y2="296.1"/>
+<line x1="340.0" y1="190.0" x2="270.0" y2="190.0"/>
+<line x1="363.4" y1="133.4" x2="313.9" y2="83.9"/>
+<line x1="420.0" y1="110.0" x2="420.0" y2="40.0"/>
+<line x1="476.6" y1="133.4" x2="526.1" y2="83.9"/>
+</g>
+<g fill="none" stroke="#378ADD" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(570.0,190.0) rotate(0)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(500.0,190.0) rotate(180)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(526.1,296.1) rotate(45)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(476.6,246.6) rotate(225)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(420.0,340.0) rotate(90)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(420.0,270.0) rotate(270)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(313.9,296.1) rotate(135)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(363.4,246.6) rotate(315)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(270.0,190.0) rotate(180)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(340.0,190.0) rotate(360)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(313.9,83.9) rotate(225)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(363.4,133.4) rotate(405)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(420.0,40.0) rotate(270)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(420.0,110.0) rotate(450)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(526.1,83.9) rotate(315)"/>
+<path d="M-12.6,-8.4 L0,0 L-12.6,8.4" transform="translate(476.6,133.4) rotate(495)"/>
+</g>
+<circle cx="420" cy="190" r="72" fill="none" stroke="#378ADD" stroke-width="9"/>
+<g fill="#378ADD">
+<circle cx="471.7" cy="211.4" r="5"/>
+<circle cx="441.4" cy="241.7" r="5"/>
+<circle cx="398.6" cy="241.7" r="5"/>
+<circle cx="368.3" cy="211.4" r="5"/>
+<circle cx="368.3" cy="168.6" r="5"/>
+<circle cx="398.6" cy="138.3" r="5"/>
+<circle cx="441.4" cy="138.3" r="5"/>
+<circle cx="471.7" cy="168.6" r="5"/>
+</g>
+<circle cx="420" cy="190" r="40" fill="#378ADD"/>
+<circle cx="420" cy="190" r="13" fill="#042C53"/>
+</svg>

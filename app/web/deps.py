@@ -1,0 +1,199 @@
+"""Shared web plumbing: templates, the authentication gate and flash messages."""
+
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from fastapi import Request
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from starlette.responses import RedirectResponse
+
+from app.config import ASSET_VERSION, RUNTIME, TEMPLATES_DIR
+from app.db import settings_store
+from app.web import public_url
+from app.db.models import ServiceKind, User
+
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+#: Paths served without a login. Radicale is included because CalDAV clients
+#: authenticate against Radicale's own htpasswd with HTTP Basic auth -- putting
+#: the session gate in front of it would lock every phone and laptop out.
+PUBLIC_PREFIXES: tuple[str, ...] = (
+    "/static",
+    "/radicale",
+    "/healthz",
+    "/favicon.ico",
+)
+
+#: Reachable while logged out, so a user can actually log in or set up.
+AUTH_EXEMPT_PREFIXES: tuple[str, ...] = ("/login", "/logout", "/setup")
+
+
+def is_public_path(path: str) -> bool:
+    """Whether a path is served without any login check.
+
+    The match must stop at a path separator. A bare ``startswith`` would make
+    every path that merely begins with the same letters public too -- which is
+    how ``/radicale-admin``, the page that creates and deletes collections and
+    changes the CalDAV password, once fell through the gate on the strength of
+    ``/radicale``.
+    """
+    return any(
+        path == p or path.startswith(p + "/") for p in PUBLIC_PREFIXES
+    )
+
+
+def is_auth_exempt(path: str) -> bool:
+    return any(path == p or path.startswith(p + "/") for p in AUTH_EXEMPT_PREFIXES)
+
+
+# --- Session helpers ----------------------------------------------------------
+
+SESSION_USER_KEY = "user_id"
+SESSION_FLASH_KEY = "_flash"
+
+
+def login_user(request: Request, user: User) -> None:
+    request.session[SESSION_USER_KEY] = user.id
+    request.session["username"] = user.username
+
+
+def logout_user(request: Request) -> None:
+    request.session.clear()
+
+
+def get_current_user(request: Request, db: Session) -> User | None:
+    user_id = request.session.get(SESSION_USER_KEY)
+    if not user_id:
+        return None
+    return db.get(User, user_id)
+
+
+def flash(request: Request, message: str, category: str = "info") -> None:
+    """Queue a one-shot message to show on the next rendered page."""
+    messages = request.session.setdefault(SESSION_FLASH_KEY, [])
+    messages.append({"message": message, "category": category})
+    request.session[SESSION_FLASH_KEY] = messages
+
+
+def pop_flashes(request: Request) -> list[dict[str, str]]:
+    messages = request.session.pop(SESSION_FLASH_KEY, [])
+    return list(messages)
+
+
+def redirect(url: str, status_code: int = 303) -> RedirectResponse:
+    """Redirect after a form POST.
+
+    303 rather than 302 so the browser switches to GET and a refresh cannot
+    resubmit the form.
+    """
+    return RedirectResponse(url=url, status_code=status_code)
+
+
+# --- Presentation helpers -----------------------------------------------------
+
+#: Badge colours, as specified: Google green, Todoist red, TickTick yellow,
+#: Obsidian purple, items created in Task Hub blue, and everything else black
+#: and labelled "3rd party".
+#:
+#: Obsidian is named rather than lumped in with "3rd party" on purpose. A task
+#: from a vault is one whose real home is a note somewhere, and knowing that at
+#: a glance is the difference between "why is this here?" and "ah, that one".
+SERVICE_BADGES: dict[str, dict[str, str]] = {
+    ServiceKind.GOOGLE.value: {"label": "Google", "colour": "green"},
+    ServiceKind.TODOIST.value: {"label": "Todoist", "colour": "red"},
+    ServiceKind.TICKTICK.value: {"label": "TickTick", "colour": "yellow"},
+    ServiceKind.LOCAL.value: {"label": "Task Hub", "colour": "blue"},
+    ServiceKind.RADICALE.value: {"label": "3rd party", "colour": "black"},
+    ServiceKind.APPLE.value: {"label": "3rd party", "colour": "black"},
+    ServiceKind.MICROSOFT.value: {"label": "3rd party", "colour": "black"},
+    ServiceKind.THINGS3.value: {"label": "3rd party", "colour": "black"},
+    ServiceKind.OBSIDIAN.value: {"label": "Obsidian", "colour": "purple"},
+    ServiceKind.SUPERNOTE.value: {"label": "Supernote", "colour": "teal"},
+}
+
+DEFAULT_BADGE = {"label": "3rd party", "colour": "black"}
+
+
+def badge_for(service: Any) -> dict[str, str]:
+    value = getattr(service, "value", service)
+    return SERVICE_BADGES.get(str(value), DEFAULT_BADGE)
+
+
+def resolve_tz(name: str | None) -> dt.tzinfo:
+    try:
+        return ZoneInfo(name) if name else dt.timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        return dt.timezone.utc
+
+
+def format_date(value: dt.date | None, fmt: str = "YYYY-MM-DD") -> str:
+    if value is None:
+        return ""
+    patterns = {
+        "YYYY-MM-DD": "%Y-%m-%d",
+        "DD/MM/YYYY": "%d/%m/%Y",
+        "MM/DD/YYYY": "%m/%d/%Y",
+        "D MMM YYYY": "%-d %b %Y",
+        "MMM D, YYYY": "%b %-d, %Y",
+    }
+    return value.strftime(patterns.get(fmt, "%Y-%m-%d"))
+
+
+def format_time(value: dt.time | None, fmt: str = "24h") -> str:
+    if value is None:
+        return ""
+    if fmt == "12h":
+        return value.strftime("%-I:%M %p")
+    return value.strftime("%H:%M")
+
+
+def build_template_context(request: Request, db: Session, **extra: Any) -> dict[str, Any]:
+    """Base context every page render needs.
+
+    Centralised so that adding something to the chrome -- a nav item, the theme
+    setting -- does not mean editing every route handler.
+    """
+    settings = settings_store.all_settings(db)
+    user = get_current_user(request, db)
+    context: dict[str, Any] = {
+        "request": request,
+        "user": user,
+        "settings": settings,
+        "flashes": pop_flashes(request),
+        "timezone": settings.get(settings_store.TIMEZONE, "UTC"),
+        "date_format": settings.get(settings_store.DATE_FORMAT, "YYYY-MM-DD"),
+        "time_format": settings.get(settings_store.TIME_FORMAT, "24h"),
+        "theme": settings.get(settings_store.THEME, "system"),
+        # Exposed to every render so shared partials can hide advanced controls
+        # without each route having to remember to pass it down.
+        "advanced_mode": settings_store.is_advanced(db),
+        # Not a configured value: the address this request arrived on, so a
+        # page copied from a phone shows what the phone can actually reach.
+        "base_url": public_url.public_base_url(request, db),
+        "detected_base_url": public_url.detected_base_url(request),
+        "current_path": request.url.path,
+        "now": dt.datetime.now(dt.timezone.utc),
+    }
+    context.update(extra)
+    return context
+
+
+def render(request: Request, db: Session, template: str, **extra: Any):
+    return templates.TemplateResponse(
+        request, template, build_template_context(request, db, **extra)
+    )
+
+
+# --- Jinja registration -------------------------------------------------------
+
+templates.env.globals["badge_for"] = badge_for
+templates.env.globals["app_name"] = "Task Hub"
+# Stamped onto the CSS and JS URLs so an upgrade cannot be served from a
+# browser cache that never revalidated.
+templates.env.globals["asset_version"] = ASSET_VERSION
+templates.env.filters["fmt_date"] = format_date
+templates.env.filters["fmt_time"] = format_time

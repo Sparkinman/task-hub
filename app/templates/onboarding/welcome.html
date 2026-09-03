@@ -1,0 +1,55 @@
+{% extends "onboarding/_wizard.html" %}
+
+{% block wizard_title %}Welcome to Task Hub{% endblock %}
+{% block wizard_lede %}
+  Task Hub keeps your tasks and calendars in step across Google, Todoist,
+  TickTick, Apple, Microsoft and Things 3, with its own CalDAV server as the
+  single place everything converges.
+{% endblock %}
+
+{% block wizard_form %}
+<form method="post" action="/setup/welcome">
+  <div class="wizard-body stack">
+
+    <div>
+      <h3 class="mb-4">This setup takes about two minutes</h3>
+      <p class="muted">You will choose five things:</p>
+      <ul class="muted" style="padding-left:1.25em; margin-top: var(--gap-2);">
+        <li>A username and password for this web page.</li>
+        <li>Your timezone, and how you like dates written.</li>
+        <li>A separate username and password for the built-in CalDAV server.</li>
+        <li>The names of your first task list and calendar.</li>
+        <li>How often Task Hub checks your connected services.</li>
+      </ul>
+    </div>
+
+    <div class="alert alert-info">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <div class="grow">
+        <div class="alert-title">Connecting services comes afterwards</div>
+        Nothing here needs an account with Google, Todoist or anyone else yet.
+        Once setup is done, each service has its own page with a complete,
+        step-by-step guide written for someone who has never seen a developer
+        console before.
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <span class="alert-icon" aria-hidden="true">▲</span>
+      <div class="grow">
+        <div class="alert-title">Keep your data safe</div>
+        Everything Task Hub stores — your settings, your tasks and the
+        encrypted keys to your connected accounts — lives in a single Docker
+        volume called <code>taskhub-data</code>. Backing that up backs up
+        everything. Running <code>docker compose down -v</code> erases it.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wizard-foot">
+    <span class="small muted">Nothing is saved until you continue.</span>
+    <button type="submit" class="btn btn-primary btn-lg">Get started</button>
+  </div>
+</form>
+{% endblock %}

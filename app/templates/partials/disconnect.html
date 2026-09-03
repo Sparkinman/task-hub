@@ -1,0 +1,68 @@
+{# The disconnect control, shared by every service page.
+
+   Deliberately a dialog rather than a browser confirm(): the choice about what
+   happens to the items an account brought in cannot be expressed in a
+   confirm(), and it is a choice that deletes things, so it should be made while
+   looking at the actual numbers rather than from memory. #}
+
+{% macro disconnect_button(action, label, cleanup, dialog_id, button_class='btn btn-ghost btn-sm', button_text=None, icon=None, extra_note='') -%}
+  <button type="button" class="{{ button_class }}" data-open-modal="{{ dialog_id }}"
+          title="Disconnect {{ label }}">
+    {% if icon %}{{ icon }}{% endif %}{% if button_text %} {{ button_text }}{% endif %}
+  </button>
+
+  <dialog class="modal" id="{{ dialog_id }}">
+    <form method="post" action="{{ action }}">
+      <div class="modal-header"><h2 class="card-title">Disconnect {{ label }}?</h2></div>
+      <div class="modal-body">
+        <p>
+          Its saved login is deleted and it stops syncing.
+          <span class="strong">Nothing is deleted from the service itself.</span>
+          {% if extra_note %} {{ extra_note }}{% endif %}
+        </p>
+
+        {% if cleanup and cleanup.total %}
+          <label class="check mt-4" style="align-items: flex-start;">
+            <input type="checkbox" name="remove_items" value="1">
+            <span class="check-label">
+              <span class="strong">Also remove the {{ cleanup.summary }}
+              this account brought in.</span>
+              <span class="block small muted mt-2">
+                These would otherwise stay in your collections for ever, with
+                nothing left to keep them up to date.
+              </span>
+            </span>
+          </label>
+
+          {% if cleanup.kept_shared or cleanup.kept_local %}
+            <div class="alert alert-info mt-4">
+              <span class="alert-icon" aria-hidden="true">i</span>
+              <div class="grow small">
+                Kept either way:
+                {% if cleanup.kept_shared %}
+                  {{ cleanup.kept_shared }} item{{ '' if cleanup.kept_shared == 1 else 's' }}
+                  another connected service still holds{% if cleanup.kept_local %}, and{% endif %}
+                {% endif %}
+                {% if cleanup.kept_local %}
+                  {{ cleanup.kept_local }} you created in Task Hub yourself
+                {% endif %}.
+              </div>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="alert alert-info mt-4">
+            <span class="alert-icon" aria-hidden="true">i</span>
+            <div class="grow small">
+              This account has brought nothing into your collections that would
+              be left behind, so there is nothing to clean up.
+            </div>
+          </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-close-modal>Cancel</button>
+        <button type="submit" class="btn btn-danger">Disconnect</button>
+      </div>
+    </form>
+  </dialog>
+{%- endmacro %}

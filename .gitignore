@@ -1,0 +1,43 @@
+# Runtime data — never commit. Contains credentials and the encryption key.
+data/
+*.sqlite
+*.sqlite3
+*.db
+secret.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local-only compose overrides. Building from source is a developer's choice,
+# not something an installed copy should inherit.
+docker-compose.override.yml
+
+# Cloudflare tunnel token and any other local secrets
+.env
+
+# Backup and handover archives. These contain the encryption key and every
+# saved credential, so a stray one in a public repository is a full compromise.
+*.tar.gz
+*.tgz
+*.zip
+
+# Claude Code's local settings. Its permission rules quote whole commands,
+# which here included a real CalDAV password -- so this directory is personal
+# to a machine and never belongs in the repository.
+.claude/
+
+# Personal working files: a handover note describing one particular install,
+# an editor workspace, and a snapshot script that also archives conversations.
+HANDOVER.md
+*.code-workspace
+snapshot.sh

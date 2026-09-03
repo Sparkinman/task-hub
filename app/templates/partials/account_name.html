@@ -1,0 +1,47 @@
+{# An account's friendly name, with an inline rename.
+
+   Shared by every service page. The name matters most where a service cannot
+   tell us who the account belongs to -- TickTick has no "who am I" endpoint at
+   all, so two connected TickTick accounts would otherwise be told apart only
+   by their slot number. #}
+
+{% import "partials/icons.html" as ico %}
+
+{% macro account_name(account, service_key, service_name) -%}
+  <div class="row-wrap">
+    <span class="card-title" style="font-size:0.98rem;">{{ account.display_name }}</span>
+    {% if account.remote_identity %}
+      <span class="tiny subtle mono">{{ account.remote_identity }}</span>
+    {% endif %}
+    <button type="button" class="btn btn-ghost btn-sm"
+            data-edit-toggle="rename-acct-{{ account.id }}"
+            title="Give this account a friendly name"
+            aria-label="Rename {{ account.display_name }}">{{ ico.icon('pencil') }}</button>
+  </div>
+
+  <div class="hidden mt-4" id="rename-acct-{{ account.id }}">
+    <form method="post"
+          action="/services/{{ service_key }}/slots/{{ account.slot }}/label"
+          class="row-wrap">
+      <div class="field" style="margin:0; min-width: 230px;">
+        <label class="sr-only" for="acct-label-{{ account.id }}">Friendly name</label>
+        <input type="text" id="acct-label-{{ account.id }}" name="label"
+               value="{{ account.label }}" maxlength="120"
+               placeholder="Work, Personal, Family…">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Save name</button>
+      <button type="button" class="btn btn-ghost btn-sm"
+              data-edit-toggle="rename-acct-{{ account.id }}">Cancel</button>
+    </form>
+    <div class="tiny muted" style="margin-top: var(--gap-2);">
+      Used only inside Task Hub, to tell this slot apart from your other
+      {{ service_name }} accounts. Nothing in {{ service_name }} is renamed.
+      Leave it empty to fall back to
+      {% if account.remote_identity %}
+        <span class="mono">{{ account.remote_identity }}</span>.
+      {% else %}
+        “{{ service_name }} slot {{ account.slot }}”.
+      {% endif %}
+    </div>
+  </div>
+{%- endmacro %}

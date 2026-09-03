@@ -1,0 +1,382 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Tasks · {{ app_name }}{% endblock %}
+{% block page_title %}Tasks{% endblock %}
+{% block page_subtitle %}
+  {% if configured %}
+    <div class="subtitle">
+      {{ open_count }} open{% if completed_count %} · {{ completed_count }} completed{% endif %}
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block page_actions %}
+  {% if configured and collections %}
+    <button class="btn btn-primary" data-open-modal="new-task-modal">
+      {{ ico.icon('plus') }} New task
+    </button>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+{% if not configured %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">⚙</div>
+    <h3>Radicale is not configured</h3>
+    <p>Task Hub needs its CalDAV server before it can store tasks.</p>
+    <a class="btn btn-primary mt-4" href="/radicale-admin">Configure Radicale</a>
+  </div>
+
+{% elif not collections %}
+  <div class="empty">
+    <div class="empty-icon" aria-hidden="true">☰</div>
+    <h3>No task lists yet</h3>
+    <p>Create a task collection and it will show up here.</p>
+    <a class="btn btn-primary mt-4" href="/radicale-admin">Create a task list</a>
+  </div>
+
+{% else %}
+
+  {% for error in errors %}
+    <div class="alert alert-error">
+      <span class="alert-icon" aria-hidden="true">!</span><div class="grow">{{ error }}</div>
+    </div>
+  {% endfor %}
+
+  {# --- Filters ---------------------------------------------------------- #}
+  <form method="get" action="/tasks" class="card mb-5" data-no-lock>
+    <div class="card-body row-wrap">
+      <div class="field grow" style="margin:0; min-width: 200px;">
+        <label class="sr-only" for="q">Search tasks</label>
+        <input type="search" id="q" name="q" placeholder="Search titles and notes…"
+               value="{{ query|default('') }}">
+      </div>
+
+      <div class="field" style="margin:0; min-width: 170px;">
+        <label class="sr-only" for="collection">List</label>
+        <select id="collection" name="collection" data-autosubmit>
+          <option value="">All lists</option>
+          {% for c in collections %}
+            <option value="{{ c.collection_id }}" {{ 'selected' if c.collection_id == selected_collection }}>
+              {{ c.display_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn" data-allow-repeat>{{ ico.icon('search') }} Filter</button>
+      {% if query or selected_collection %}
+        <a class="btn btn-ghost" href="/tasks">Clear</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {# --- Quick add --------------------------------------------------------- #}
+  <form method="post" action="/tasks/create" class="quickadd quickadd-wide card mb-5">
+    <input type="hidden" name="back_collection" value="{{ selected_collection }}">
+    <input type="hidden" name="back_completed" value="{{ '1' if show_completed else '' }}">
+    <input type="hidden" name="back_q" value="{{ query|default('') }}">
+    <div class="card-body">
+      <div class="quickadd-row">
+        <input type="text" name="title" class="quickadd-title" required maxlength="500"
+               placeholder="New task" aria-label="New task">
+        <button type="submit" class="btn btn-primary">{{ ico.icon('plus') }} Add</button>
+      </div>
+      <div class="quickadd-more">
+        <label class="quickadd-lab">
+          <span>Due date</span>
+          <input type="date" name="due_date" id="qa-due-date">
+        </label>
+        <label class="quickadd-lab">
+          <span>Time</span>
+          <input type="time" name="due_time" data-requires-date="#qa-due-date">
+        </label>
+        <label class="quickadd-lab">
+          <span>Priority</span>
+          <select name="priority">
+            <option value="0">None</option>
+            <option value="1">High</option>
+            <option value="5">Medium</option>
+            <option value="9">Low</option>
+          </select>
+        </label>
+        <label class="quickadd-lab">
+          <span>List</span>
+          {% if selected_collection %}
+            {# Already looking at one list, so that is where it goes. #}
+            <input type="hidden" name="collection_id" value="{{ selected_collection }}">
+            <input type="text" value="{{ (collections|selectattr('collection_id','equalto',selected_collection)|first).display_name }}"
+                   disabled>
+          {% else %}
+            <select name="collection_id" required>
+              <option value="" disabled selected>Choose a list…</option>
+              {% for c in collections %}
+                <option value="{{ c.collection_id }}">{{ c.display_name }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+        </label>
+      </div>
+      <input type="text" name="notes" class="quickadd-notes" maxlength="1000"
+             placeholder="Description (optional)" aria-label="Description">
+    </div>
+  </form>
+
+  {# --- Groups ----------------------------------------------------------- #}
+  {% set ns = namespace(any=false) %}
+  {% for group in group_order if group != 'completed' %}
+    {% set rows = groups[group] %}
+    {% if rows %}
+      {% set ns.any = true %}
+      <section class="task-group {{ 'is-overdue' if group == 'overdue' }}">
+        <div class="task-group-header">
+          <h2>{{ group_labels[group] }}</h2>
+          <span class="task-group-count">{{ rows|length }}</span>
+        </div>
+
+        <ul class="task-list">
+          {% for row in rows %}
+            {% set t = row.record %}
+            {% set c = row.collection %}
+            {% set badge = badge_for(t.origin_service) %}
+            {% set row_id = 'edit-' ~ c.collection_id ~ '-' ~ loop.index %}
+            <li class="task {{ 'is-done' if t.is_completed }}">
+              <input type="checkbox" class="task-check"
+                     {{ 'checked' if t.is_completed }}
+                     aria-label="Mark {{ t.title }} complete"
+                     data-toggle-url="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/toggle">
+
+              <div class="task-main">
+                <div class="task-title">{{ t.title }}</div>
+
+                <div class="task-meta">
+                  <span class="badge badge-{{ badge.colour }}">
+                    <span class="badge-dot" aria-hidden="true"></span>{{ badge.label }}
+                  </span>
+
+                  {% if t.due_date %}
+                    <span class="task-due {{ 'is-overdue' if group == 'overdue' }} {{ 'has-time' if t.due_time }}">
+                      {{ ico.icon('clock', 'icon') if t.due_time }}
+                      {{ t.due_date|fmt_date(date_format) }}{% if t.due_time %} · {{ t.due_time|fmt_time(time_format) }}{% endif %}
+                    </span>
+                  {% endif %}
+
+                  {% if t.priority %}
+                    <span class="priority-flag priority-{{ t.priority }}">P{{ t.priority }}</span>
+                  {% endif %}
+
+                  {% if not selected_collection %}
+                    <span class="subtle">{{ c.display_name }}</span>
+                  {% endif %}
+
+                  {% for tag in t.tags %}<span class="pill">{{ tag }}</span>{% endfor %}
+
+                  {% if t.is_completed and t.completed_at %}
+                    <span class="subtle">done {{ t.completed_at.date()|fmt_date(date_format) }}</span>
+                  {% endif %}
+                </div>
+
+                {% if t.notes %}<div class="task-notes">{{ t.notes }}</div>{% endif %}
+
+                {# Inline editor, hidden until the pencil is clicked. #}
+                <div class="hidden mt-4" id="{{ row_id }}">
+                  <form method="post" action="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/update"
+                        class="card"><div class="card-body">
+                    <div class="field">
+                      <label>Title</label>
+                      <input type="text" name="title" value="{{ t.title }}" required>
+                    </div>
+                    <div class="field-row mb-4">
+                      <div class="field">
+                        <label>Due date</label>
+                        <input type="date" name="due_date"
+                               value="{{ t.due_date.isoformat() if t.due_date else '' }}">
+                      </div>
+                      <div class="field">
+                        <label>Due time</label>
+                        <input type="time" name="due_time"
+                               value="{{ t.due_time.strftime('%H:%M') if t.due_time else '' }}">
+                        <span class="field-hint">Leave empty for a date with no set time.</span>
+                      </div>
+                      <div class="field">
+                        <label>Priority</label>
+                        <select name="priority">
+                          <option value="0" {{ 'selected' if not t.priority }}>None</option>
+                          <option value="1" {{ 'selected' if t.priority in [1,2,3] }}>High</option>
+                          <option value="5" {{ 'selected' if t.priority in [4,5,6] }}>Medium</option>
+                          <option value="9" {{ 'selected' if t.priority in [7,8,9] }}>Low</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label>Notes</label>
+                      <textarea name="notes" rows="3">{{ t.notes or '' }}</textarea>
+                    </div>
+                    <div class="row">
+                      <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
+                      <button type="button" class="btn btn-ghost btn-sm"
+                              data-edit-toggle="{{ row_id }}">Cancel</button>
+                    </div>
+                  </div></form>
+                </div>
+              </div>
+
+              <div class="task-actions">
+                <button type="button" class="btn btn-ghost btn-sm" title="Edit"
+                        data-edit-toggle="{{ row_id }}" aria-label="Edit {{ t.title }}">
+                  {{ ico.icon('pencil') }}
+                </button>
+                <form method="post" action="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/delete"
+                      data-confirm="Delete “{{ t.title }}” permanently? This cannot be undone.">
+                  <button type="submit" class="btn btn-ghost btn-sm" title="Delete"
+                          aria-label="Delete {{ t.title }}">{{ ico.icon('trash') }}</button>
+                </form>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  {% endfor %}
+
+  {# --- Completed, collapsed, at the bottom ------------------------------- #}
+  {% if groups['completed'] %}
+    <details class="task-done-group">
+      <summary>
+        <span class="strong">Completed</span>
+        <span class="task-group-count">{{ completed_count }}</span>
+        <span class="small muted">— click to open, and to tick anything back on</span>
+      </summary>
+
+      <ul class="task-list mt-3">
+        {% for row in groups['completed'] %}
+          {% set t = row.record %}
+          {% set c = row.collection %}
+          {% set badge = badge_for(t.origin_service) %}
+          <li class="task is-done">
+            <input type="checkbox" class="task-check" checked
+                   aria-label="Mark {{ t.title }} not complete"
+                   data-toggle-url="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/toggle">
+            <div class="task-main">
+              <div class="task-title">{{ t.title }}</div>
+              <div class="task-meta">
+                <span class="badge badge-{{ badge.colour }}">
+                  <span class="badge-dot" aria-hidden="true"></span>{{ badge.label }}
+                </span>
+                {% if t.due_date %}
+                  <span class="task-due">
+                    {{ t.due_date|fmt_date(date_format) }}{% if t.due_time %} · {{ t.due_time|fmt_time(time_format) }}{% endif %}
+                  </span>
+                {% endif %}
+                {% if not selected_collection %}<span class="subtle">{{ c.display_name }}</span>{% endif %}
+                {% if t.completed_at %}
+                  <span class="subtle">done {{ t.completed_at.date()|fmt_date(date_format) }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="task-actions">
+              <form method="post" action="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/delete"
+                    data-confirm="Delete “{{ t.title }}” permanently? This cannot be undone.">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Delete"
+                        aria-label="Delete {{ t.title }}">{{ ico.icon('trash') }}</button>
+              </form>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+
+      {% if completed_count > completed_shown %}
+        <p class="small muted mt-3">
+          Showing the {{ completed_shown }} most recently finished of
+          {{ completed_count }}.
+        </p>
+      {% endif %}
+    </details>
+  {% endif %}
+
+  {% if not ns.any and not groups['completed'] %}
+    <div class="empty">
+      <div class="empty-icon" aria-hidden="true">✓</div>
+      <h3>{% if query %}Nothing matched “{{ query }}”{% else %}Nothing to do{% endif %}</h3>
+      <p>
+        {% if query %}Try a different search, or clear the filters.
+        {% elif not show_completed %}Your open tasks are all cleared. Tick “Show completed” to see finished ones.
+        {% else %}This list is empty. Add a task to get started.{% endif %}
+      </p>
+    </div>
+  {% endif %}
+
+  {# --- New task modal --------------------------------------------------- #}
+  <dialog class="modal" id="new-task-modal">
+    <form method="post" action="/tasks/create">
+      <div class="modal-header">
+        <h2 class="card-title">New task</h2>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="new-title">Title</label>
+          <input type="text" id="new-title" name="title" required maxlength="500"
+                 placeholder="What needs doing?">
+        </div>
+
+        <div class="field">
+          <label for="new-collection">List</label>
+          <select id="new-collection" name="collection_id" required>
+            {% for c in collections %}
+              <option value="{{ c.collection_id }}"
+                      {{ 'selected' if c.collection_id == selected_collection }}>
+                {{ c.display_name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field-row mb-4">
+          <div class="field">
+            <label for="new-due-date">Due date</label>
+            <input type="date" id="new-due-date" name="due_date">
+          </div>
+          <div class="field">
+            <label for="new-due-time">Due time</label>
+            <input type="time" id="new-due-time" name="due_time"
+                   data-requires-date="#new-due-date">
+            <span class="field-hint">Optional.</span>
+          </div>
+          <div class="field">
+            <label for="new-priority">Priority</label>
+            <select id="new-priority" name="priority">
+              <option value="0">None</option>
+              <option value="1">High</option>
+              <option value="5">Medium</option>
+              <option value="9">Low</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="new-notes">Notes</label>
+          <textarea id="new-notes" name="notes" rows="3"></textarea>
+        </div>
+
+        <div class="alert alert-info">
+          <span class="alert-icon" aria-hidden="true">i</span>
+          <div class="grow small">
+            Leaving the time empty stores a date-only due date. Task Hub keeps
+            that distinction, so a service that cannot store times will not turn
+            your task into one due at midnight.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-close-modal>Cancel</button>
+        <button type="submit" class="btn btn-primary">Add task</button>
+      </div>
+    </form>
+  </dialog>
+
+{% endif %}
+{% endblock %}

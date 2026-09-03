@@ -1,0 +1,156 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Overview · {{ app_name }}{% endblock %}
+{% block page_title %}Overview{% endblock %}
+{% block page_subtitle %}
+  <div class="subtitle">
+    {% if sync_enabled %}Syncing every {{ sync_interval }} minutes{% else %}Automatic sync is off{% endif %}
+  </div>
+{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="/sync/run">
+    <button type="submit" class="btn btn-primary">
+      {{ ico.icon('refresh') }} Sync now
+    </button>
+  </form>
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+{# --- Health warnings ---------------------------------------------------- #}
+{% if not radicale_status.configured %}
+  <div class="alert alert-error">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <div class="grow">
+      <div class="alert-title">Radicale is not configured</div>
+      Task Hub cannot store anything without it.
+      <a href="/radicale-admin">Set it up on the Radicale tab.</a>
+    </div>
+  </div>
+{% elif not radicale_status.reachable %}
+  <div class="alert alert-error">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <div class="grow">
+      <div class="alert-title">Cannot reach the CalDAV server</div>
+      {{ radicale_status.error }}
+    </div>
+  </div>
+{% endif %}
+
+{# --- Numbers ------------------------------------------------------------- #}
+<div class="grid grid-4 mb-5">
+  <div class="stat">
+    <div class="stat-label">Open tasks</div>
+    <div class="stat-value">{{ task_totals.open }}</div>
+    <div class="stat-note">across {{ collection_counts.tasks }} list{{ '' if collection_counts.tasks == 1 else 's' }}</div>
+  </div>
+
+  <div class="stat {{ 'is-danger' if task_totals.overdue }}">
+    <div class="stat-label">Overdue</div>
+    <div class="stat-value">{{ task_totals.overdue }}</div>
+    <div class="stat-note">
+      {% if task_totals.overdue %}<a href="/tasks">Review them</a>{% else %}Nothing late{% endif %}
+    </div>
+  </div>
+
+  <div class="stat">
+    <div class="stat-label">Completed</div>
+    <div class="stat-value">{{ task_totals.completed }}</div>
+    <div class="stat-note">still stored in Radicale</div>
+  </div>
+
+  <div class="stat">
+    <div class="stat-label">Connected accounts</div>
+    <div class="stat-value">{{ total_accounts }}</div>
+    <div class="stat-note">{{ collection_counts.calendars }} calendar{{ '' if collection_counts.calendars == 1 else 's' }}</div>
+  </div>
+</div>
+
+{# --- Services ------------------------------------------------------------ #}
+<div class="spread mb-4">
+  <div>
+    <h2>Connected services</h2>
+    <div class="small muted">Each service supports up to 10 separate accounts.</div>
+  </div>
+  <a class="btn btn-sm" href="/services">Manage services</a>
+</div>
+
+<div class="grid grid-3 mb-5">
+  {% for card in service_cards %}
+    {% set d = card.definition %}
+    <a class="service-card" href="/services/{{ d.key }}">
+      <div class="row">
+        <span class="service-icon {{ d.colour }}" aria-hidden="true">{{ d.name[0] }}</span>
+        <div class="grow">
+          <div class="strong">{{ d.name }}</div>
+          <div class="tiny muted">
+            {% if d.supports_tasks and d.supports_calendar %}Tasks &amp; calendar
+            {% elif d.supports_tasks %}Tasks only
+            {% else %}Calendar only{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="row-wrap">
+        {% if card.connected %}
+          <span class="pill pill-success">{{ card.connected }} connected</span>
+        {% elif d.phase > current_phase|default(1) %}
+          <span class="pill">Not yet available</span>
+        {% else %}
+          <span class="pill">Not connected</span>
+        {% endif %}
+        {% if card.needs_attention %}
+          <span class="pill pill-warning">{{ card.needs_attention }} need attention</span>
+        {% endif %}
+        {% if d.unofficial %}
+          <span class="pill pill-warning">Unofficial</span>
+        {% endif %}
+      </div>
+    </a>
+  {% endfor %}
+</div>
+
+{# --- Last sync ----------------------------------------------------------- #}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Sync activity</div>
+      <div class="card-hint">The most recent reconciliation pass.</div>
+    </div>
+  </div>
+  <div class="card-body">
+    {% if last_run %}
+      <div class="row-wrap mb-4">
+        <span class="pill {{ 'pill-success' if last_run.outcome.value == 'success' else ('pill-danger' if last_run.outcome.value == 'failed' else 'pill-warning') }}">
+          {{ last_run.outcome.value|title }}
+        </span>
+        <span class="small muted">{{ last_run.started_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
+        <span class="small muted">· triggered {{ last_run.trigger }}</span>
+      </div>
+      <div class="grid grid-4">
+        <div><div class="stat-label">Pulled</div><div class="strong">{{ last_run.items_pulled }}</div></div>
+        <div><div class="stat-label">Pushed</div><div class="strong">{{ last_run.items_pushed }}</div></div>
+        <div><div class="stat-label">Skipped</div><div class="strong">{{ last_run.items_skipped }}</div></div>
+        <div><div class="stat-label">Errors</div><div class="strong">{{ last_run.errors }}</div></div>
+      </div>
+    {% else %}
+      <div class="empty">
+        <div class="empty-icon" aria-hidden="true">↻</div>
+        <h3>No syncs yet</h3>
+        <p>
+          Connect a service and Task Hub will start reconciling automatically.
+          Until then, your tasks live only in the built-in CalDAV server — which
+          is already usable from the <a href="/tasks">Tasks</a> page and from any
+          CalDAV client on your phone.
+        </p>
+        <a class="btn btn-primary mt-4" href="/services">Connect a service</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
