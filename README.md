@@ -1,25 +1,58 @@
 # Task Hub
 
+[![Publish image](https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml/badge.svg)](https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml)
+
 A self-hosted web application that keeps tasks and calendars synchronised across
-Google, Todoist, TickTick, Apple, Microsoft and Things 3, with a built-in
-Radicale CalDAV server as the place everything converges.
+Google, Todoist, TickTick, Obsidian, Apple, Microsoft and Things 3, with a
+built-in Radicale CalDAV server as the place everything converges — so your
+phone, your laptop's calendar and every service you use are all looking at the
+same tasks.
 
 Everything is configured through the web interface. There is no configuration
-file to edit and no command to run beyond starting the container.
+file to edit, and no command beyond starting the container.
 
 ---
 
-## Quick start
+## Install
+
+One file, one command, no editing. On a Raspberry Pi, a NAS, a Mac, a Windows
+machine or any Linux server:
 
 ```
+mkdir -p ~/taskhub && cd ~/taskhub
+curl -fsSL -O https://raw.githubusercontent.com/Sparkinman/task-hub/main/docker-compose.yml
 docker compose up -d
 ```
 
-Then open **http://localhost:8080** and follow the setup wizard.
+Then open **http://localhost:8080** — or, from another device, this machine's
+address on your network with `:8080` after it — and follow the setup wizard.
 
-That is the entire installation. See [docs/getting-started.md](docs/getting-started.md)
-for installing Docker, reaching Task Hub from other devices, connecting phones
-and laptops, and backing up your data.
+Step-by-step guides, each written for someone who has not done this before:
+
+| | |
+| --- | --- |
+| [Raspberry Pi](docs/install-raspberry-pi.md) | From a blank SD card to a working install, including what to check on a Pi that is already in use |
+| [NAS](docs/install-nas.md) | Synology, QNAP, Unraid, TrueNAS and Asustor |
+| [Windows or Mac](docs/install-windows-mac.md) | The quickest way to try it |
+| [How it finds its own address](docs/addresses.md) | What each service accepts, and why sign-in fails when it does |
+
+Not sure whether your machine is up to it? This checks and changes nothing:
+
+```
+curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/check-system.sh | sh
+```
+
+### One image, any address
+
+Most self-hosted software has to be told where it lives, and quietly breaks when
+you reach it a different way. Task Hub works its own address out from each
+request instead, so the same image is correct on a home network address, behind
+a Cloudflare tunnel, over Tailscale, and behind your own nginx — with nothing to
+configure and nothing to change when you move it.
+
+Published for both Intel and ARM at
+[`sparkinman/task-hub`](https://hub.docker.com/r/sparkinman/task-hub) and
+`ghcr.io/sparkinman/task-hub`, built from this repository by GitHub Actions.
 
 ---
 
@@ -65,12 +98,13 @@ Built in phases, each one usable on its own.
 | 3 | Todoist, TickTick, shared mapping interface, aggregate destinations | **Complete** |
 | 4 | Microsoft (To Do, Outlook Calendar), Apple (iCloud CalDAV) | **Complete** |
 | 5 | Things 3 | **Complete** |
-| 6 | Obsidian (read-only, via Obsidian Sync) | In progress |
+| 6 | Obsidian, via Obsidian Sync: several vaults from one sign-in, read-only by default | **Complete** |
 | 7 | Backup and restore from the web interface | Planned |
 
-Obsidian is being added read-only: Task Hub reads tasks from a vault and never
-writes to it. Backup and restore are still done with the Docker commands in
-[docs/getting-started.md](docs/getting-started.md#backing-up), which is the last
+Obsidian is read-only unless you turn write-back on per vault, and even then it
+only ever changes a task's completion — the checkbox and its date — never the
+wording, dates or tags, and it never adds or removes a line. Backup and restore
+are still done with the Docker commands in the install guides, which is the last
 thing that needs a terminal.
 
 ---
@@ -132,22 +166,22 @@ APIs. They are surfaced in the interface next to each service rather than hidden
 
 ## Tests
 
-The suites run without credentials or a network connection, because the merge
-rules must be right regardless of which services happen to be connected:
+Every suite runs without credentials or a network connection, because the merge
+rules must be right regardless of which services happen to be connected. They
+also run against a throwaway database, so they are safe to run while Task Hub is
+syncing real accounts:
 
 ```
-docker run --rm -v "$PWD/app:/app/app" -v "$PWD/tests:/app/tests" \
-  -e TASKHUB_DATA_DIR=/data/test taskhub:latest python -m tests.test_merge
-docker run --rm -v "$PWD/app:/app/app" -v "$PWD/tests:/app/tests" \
-  -e TASKHUB_DATA_DIR=/data/test taskhub:latest python -m tests.test_engine
+./run-tests.sh
 ```
 
-`test_merge` covers the field-level rules directly. `test_engine` drives the
-whole pull/merge/push loop against stub services, one of which mimics Google
-Tasks by refusing to store a time of day. The other suites — `test_connectors`,
-`test_maintenance`, `test_mapping_save`, `test_writeback_lists` and
-`test_calendar_spans` and `test_obsidian` — run the same way, substituting
-their own module name.
+`test_merge` covers the field-level rules directly, and `test_engine` drives the
+whole pull/merge/push loop against stub services — one of which mimics Google
+Tasks by refusing to store a time of day. `test_forwarded` covers the address
+detection above, one case per deployment shape, because a regression there
+breaks sign-in for one whole class of user with an error that points elsewhere.
+
+The same suites run on every push, and no image is published unless they pass.
 
 ## Architecture
 

@@ -7,8 +7,8 @@ about ten minutes, most of which is a download.
 **Should you run it here permanently?** Only if this computer is on when you
 want your tasks to sync. Syncing happens on a timer, and a laptop that is asleep
 is not syncing. For an always-on setup, a Raspberry Pi or a NAS is a better
-home — see [Installing on a Raspberry Pi](install-raspberry-pi) or
-[Installing on a NAS](install-nas). Moving later is easy: everything Task Hub
+home — see [Installing on a Raspberry Pi](install-raspberry-pi.md) or
+[Installing on a NAS](install-nas.md). Moving later is easy: everything Task Hub
 owns is one folder, and there are instructions for copying it at the end.
 
 ---
@@ -99,7 +99,7 @@ work here too.
 
 If you later move Task Hub to a Pi or a NAS, those connections keep working —
 renewing them does not involve your address. See
-[How Task Hub finds its own address](addresses) for the whole picture.
+[How Task Hub finds its own address](addresses.md) for the whole picture.
 
 ---
 

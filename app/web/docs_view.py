@@ -107,6 +107,12 @@ def index(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/{slug}")
 def show(slug: str, request: Request, db: Session = Depends(get_db)):
+    # Guides link to each other by filename, because that is the form GitHub
+    # needs when the same files are browsed there. Accepting it here means one
+    # link works in both places instead of one of them quietly going nowhere.
+    if slug.endswith(".md"):
+        slug = slug[:-3]
+
     # The slug becomes a filename, so anything but a plain lowercase name is
     # refused rather than sanitised -- no traversal, no surprises.
     if not _SLUG.match(slug):

@@ -162,7 +162,7 @@ name rather than a number. Three ways round it, in increasing order of effort:
   real HTTPS address that every service accepts, with no domain name and no
   ports opened.
 
-[How Task Hub finds its own address](addresses) explains why each service
+[How Task Hub finds its own address](addresses.md) explains why each service
 behaves as it does. Task Hub itself needs no configuration for any of these — it
 follows whatever address you arrive on.
 
