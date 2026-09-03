@@ -21,7 +21,7 @@ services:
     # Raspberry Pi, a NAS, a Mac and a Windows machine -- Docker picks the
     # right one. The identical image also lives at
     # ghcr.io/sparkinman/task-hub:latest if you prefer GitHub's registry.
-    image: pauldmcneil/task-hub:latest
+    image: sparkinman/task-hub:latest
     container_name: taskhub
     restart: unless-stopped
 

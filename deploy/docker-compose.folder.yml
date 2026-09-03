@@ -20,7 +20,7 @@
 
 services:
   taskhub:
-    image: pauldmcneil/task-hub:latest
+    image: sparkinman/task-hub:latest
     container_name: taskhub
     restart: unless-stopped
     ports:

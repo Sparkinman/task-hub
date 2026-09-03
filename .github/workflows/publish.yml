@@ -37,7 +37,7 @@ permissions:
 env:
   # Not a secret -- it is half of the image name people type. Only the token is
   # secret. Change this and DOCKERHUB_TOKEN together if the project moves.
-  DOCKERHUB_USER: pauldmcneil
+  DOCKERHUB_USER: sparkinman
 
 jobs:
   # Nothing is published unless every suite passes. The image people pull is
@@ -108,8 +108,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Allowed to fail. A wrong token or account name should cost you Docker
+      # Hub, not the whole publish -- the GitHub registry half has already
+      # signed in by this point and can carry on alone.
       - name: Sign in to Docker Hub
+        id: hub_login
         if: steps.hub.outputs.enabled == 'true'
+        continue-on-error: true
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
@@ -124,7 +129,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository }}
-            ${{ steps.hub.outputs.enabled == 'true' && format('{0}/task-hub', env.DOCKERHUB_USER) || '' }}
+            ${{ steps.hub_login.outcome == 'success' && format('{0}/task-hub', env.DOCKERHUB_USER) || '' }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

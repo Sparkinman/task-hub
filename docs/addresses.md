@@ -1,0 +1,135 @@
+# How Task Hub finds its own address
+
+Most self-hosted software has to be told where it lives. You set a base URL in a
+configuration file, and if you later reach it a different way — a new address, a
+tunnel, a phone instead of a laptop — things quietly break in ways that point
+nowhere near the setting that caused them.
+
+Task Hub does not work that way, and this page explains what it does instead,
+because it changes what you have to set up.
+
+---
+
+## The short version
+
+**Task Hub's address is whatever address you are using.** Open it at
+`http://192.168.1.50:8080` and that is its address. Open the same install at
+`https://taskhub.tailnet.ts.net` a minute later and that is its address now.
+
+There is nothing to configure, and the same downloaded image is correct on a
+Raspberry Pi on your home network, behind a Cloudflare tunnel, over Tailscale,
+and behind your own nginx.
+
+---
+
+## Why this matters to you
+
+The address is not just cosmetic. It is what Task Hub gives to other services:
+
+- **The OAuth redirect address.** When you connect Google, Microsoft, Todoist or
+  TickTick, you register an address with them and they send you back to it after
+  you sign in. If it does not match to the character, the sign-in fails at the
+  very last step with an error that does not say why.
+- **The CalDAV address.** The one you type into your phone, your laptop's
+  calendar, or DAVx⁵ on Android.
+
+Because both are built from the request in front of it, the address Task Hub
+shows you on a page is one that demonstrably works — it is the address that just
+delivered that page to you.
+
+---
+
+## What each service will accept
+
+Every service is fussy in its own way, and none of them tells you clearly.
+
+| How you reach Task Hub | Google | Microsoft | Todoist | TickTick | Phones and calendar apps |
+| --- | --- | --- | --- | --- | --- |
+| `http://192.168.1.50:8080` | ✗ | ✗ | ✓ | ✗ | ✓ |
+| `http://192-168-1-50.sslip.io:8080` | ✗ | ✗ | ✓ | ✓ | ✓ |
+| `http://localhost:8080` | ✓ | ✓ | ✓ | ✓ | only on that machine |
+| `https://name.tailnet.ts.net` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `https://tasks.example.com` | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+The two rules behind that table:
+
+- **HTTPS is required by Google and Microsoft**, with one exception: both always
+  accept `localhost`. That exception exists precisely for software running on
+  your own machine, and it is the reason the trick below works.
+- **A bare number is rejected** by Google even over HTTPS, and by TickTick. A
+  name is required. `sslip.io` provides one free: `192-168-1-50.sslip.io`
+  resolves to `192.168.1.50` with no sign-up and nothing to install. It solves
+  the name rule but not the HTTPS rule, which is why it gets TickTick working
+  and not Google.
+
+**You only need an acceptable address at the moment you connect a service.**
+Afterwards it keeps working from any address for ever, because renewing a
+connection does not involve your address at all.
+
+---
+
+## Connecting Google or Microsoft with no setup at all
+
+Borrow your own computer's `localhost` for two minutes. On the computer you
+browse from, in a terminal:
+
+```
+ssh -L 8080:localhost:8080 pi@taskhub.local
+```
+
+Replace `pi@taskhub.local` with the machine Task Hub runs on. Leave that window
+open and browse to **`http://localhost:8080`**.
+
+That is the same Task Hub — the connection is being carried across — but the
+address is now one Google and Microsoft accept without argument. Connect them,
+then close the terminal and go back to using whatever address you like.
+
+---
+
+## Behind a reverse proxy
+
+If you run nginx, Caddy, Traefik or Nginx Proxy Manager, Task Hub reads the
+headers your proxy sends and reports the browser's address rather than the
+proxy's. It understands `Host`, `X-Forwarded-Proto`, `X-Forwarded-Host`,
+`X-Forwarded-Port` and the standard `Forwarded` header.
+
+There is a ready-made nginx configuration in the project at
+`deploy/nginx-taskhub.conf`. Two rules apply to any proxy:
+
+**Forward the headers.** A proxy that does not pass `Host` or `X-Forwarded-Host`
+leaves Task Hub describing your proxy's internal address, which is no use to
+anyone. Most proxies do this by default; nginx configured by hand does not.
+
+**Give Task Hub a name of its own.** `tasks.example.com` works.
+`example.com/tasks` does not — Task Hub's pages link to `/settings`, `/tasks`
+and so on from the root of the site, so a sub-path sends every link to the wrong
+place. Use a subdomain.
+
+---
+
+## When the headers are believed, and when they are not
+
+Those headers are just text in a request, and anyone who can reach Task Hub can
+put anything in them. So they are only honoured when the connection arrives from
+somewhere a proxy plausibly is: the same machine, or your local network. A
+request straight off the public internet is taken at face value and its claims
+about being something else are ignored.
+
+That default is right for essentially every home setup. If you have a proxy that
+reaches Task Hub over a public address, set `TASKHUB_TRUST_PROXY=always` in your
+`.env` file. To ignore the headers entirely, set it to `never`.
+
+---
+
+## The manual override, and why you probably do not want it
+
+**Settings → Public address** lets you set the address by hand. It is there for
+one case: the address you need to hand out is not the address you are using.
+Setting up from the machine Task Hub runs on, while your phone will reach it by
+a different name, is the example.
+
+Whatever you put there is used everywhere instead of the live address, which
+also means a value left over from an earlier setup silently breaks sign-in and
+phone sync with no obvious cause. Task Hub warns you on the Radicale page when
+the override disagrees with the address you are actually using, but the safest
+setting is an empty one.
