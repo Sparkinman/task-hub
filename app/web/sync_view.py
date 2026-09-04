@@ -122,6 +122,24 @@ def index(request: Request, db: Session = Depends(get_db)):
             select(SyncGroup).where(SyncGroup.radicale_collection_id == collection.id)
         ).scalar_one_or_none()
 
+        # Participation comes from the mapping table, which is the same place
+        # the sync engine reads it from. It used to be read off
+        # RemoteList.sync_group_id, a column left over from when a list could
+        # feed exactly one collection; the mapping table replaced it and only
+        # the Radicale anchor still has it set. The result was a page reporting
+        # every collection as "Not syncing" with "nothing feeding this
+        # collection" underneath, while the engine synced all of them correctly
+        # on every pass -- the worst kind of wrong, because the product works
+        # and the screen says it does not.
+        mappings = {}
+        if group is not None:
+            mappings = {
+                mapping.remote_list_id: mapping
+                for mapping in db.execute(
+                    select(ListMapping).where(ListMapping.sync_group_id == group.id)
+                ).scalars()
+            }
+
         rows = []
         # Only lists of the same kind can join: every service stores tasks and
         # events separately, so mixing them has no meaning.
@@ -129,17 +147,28 @@ def index(request: Request, db: Session = Depends(get_db)):
             row = entry["list"]
             if row.kind != collection.kind:
                 continue
-            mine = group is not None and row.sync_group_id == group.id
+            mapping = mappings.get(row.id)
+            mine = mapping is not None
+            # Which other collections this list also feeds. Not a conflict:
+            # feeding several is the point of the mapping table, so this is
+            # said as information rather than shown as something in the way.
             other = None
-            if row.sync_group_id and not mine:
-                claimed = db.get(SyncGroup, row.sync_group_id)
-                other = claimed.name if claimed else None
+            if not mine:
+                elsewhere = [
+                    other_group.name
+                    for other_group in db.execute(
+                        select(SyncGroup)
+                        .join(ListMapping, ListMapping.sync_group_id == SyncGroup.id)
+                        .where(ListMapping.remote_list_id == row.id)
+                    ).scalars()
+                ]
+                other = ", ".join(sorted(set(elsewhere))) or None
             rows.append(
                 {
                     "list": row,
                     "account": entry["account"],
-                    "read": mine and row.read_enabled,
-                    "write": mine and row.write_enabled,
+                    "read": mine and mapping.read_enabled,
+                    "write": mine and mapping.write_enabled,
                     # A list already feeding another collection is shown but
                     # locked, so the user can see why rather than ticking a box
                     # that would silently steal it from somewhere else.
