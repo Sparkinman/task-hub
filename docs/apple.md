@@ -1,13 +1,5 @@
 # Apple setup — complete walkthrough
 
-> **Apple is not finished yet.** This connector is written but has never been
-> run against a real iCloud account, and it has no tests. The walkthrough below
-> is complete and correct as far as it was designed, but nobody has confirmed
-> it works end to end. Setting it up asks you to create a second Apple ID used
-> purely as a task store, which is an hour you would rather not spend on
-> something unproven. It is next in line to be finished, and this notice comes
-> off the day it completes a sync.
-
 Connects **iCloud Calendar** and **Apple Reminders** using CalDAV, which is the
 same standard Task Hub's own server speaks. There is no developer account, no
 app registration and no OAuth — Apple gives you a password and that is the whole
@@ -17,6 +9,22 @@ setup.
 
 Reminders need one extra piece of preparation and a warning you should read
 before you start.
+
+---
+
+## First, the short version
+
+**Tasks and calendars both work on Apple devices.** Your iPhone, iPad or Mac
+talks to Task Hub's own CalDAV server, your lists appear in Apple's Calendar and
+Reminders apps, and everything syncs both ways. That needs nothing on this page
+— it is in [third-party apps](third-party-apps.md), takes about three minutes,
+and has no caveats worth the name.
+
+This page is about something narrower: connecting **iCloud itself** as a
+service, so that tasks and appointments genuinely live in your Apple account —
+shared with family, reachable by Siri, on an Apple Watch. That is worth doing
+for calendars. For reminders it depends on one thing Apple did to your account,
+possibly years ago, which the rest of this page explains.
 
 ---
 
