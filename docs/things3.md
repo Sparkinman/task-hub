@@ -162,14 +162,49 @@ actually are, dates can land a day out; correct it there.
 
 ### I want to write back to Things
 
-Not available, by design (see the top of this page). What you can do:
+Not available, and it will not become available: Cultured Code publishes no way
+to write to Things Cloud, and guessing at one against an unpublished endpoint is
+not a risk worth taking with somebody's task list.
 
-- Use the Things URL scheme to add to-dos from a Mac or iPhone shortcut, which
-  is Cultured Code's supported route.
-- Subscribe Things to Task Hub's calendar so tasks from elsewhere are at least
-  visible.
-- Use Apple Reminders as a two-way bridge — Things imports from Reminders
-  natively, and Task Hub syncs Reminders properly (`apple.md`).
+So tasks from Todoist, Google or anywhere else will not appear in Things as a
+mirror of what Task Hub holds. What you can do instead are Cultured Code's own
+routes, and one of them is genuinely useful.
+
+## Things' Reminders Inbox — the route that works
+
+Things can watch one Apple Reminders list and pull anything appearing in it into
+its own Inbox. Point that at a Task Hub list and tasks captured anywhere else
+arrive in Things for you to file.
+
+1. Put Task Hub on the device as a CalDAV account, if it is not already —
+   [third-party apps](third-party-apps.md) has the three fields.
+2. **Mac:** Things → Settings → **Reminders Inbox**, tick **Show to-dos from**,
+   and choose the Task Hub list.
+   **iPhone or iPad:** Things → Settings → **Reminders**, and the same choice.
+
+Lists become projects, reminders become to-dos, due dates become When dates, and
+tags come across.
+
+**Understand what this is.** It is a capture route, not a sync. An item crosses
+once, becomes an ordinary Things to-do, and stops being connected to anything —
+edit it in Todoist afterwards and Things will not hear about it, and completing
+it in Things will not tick it off anywhere else. That is the honest shape of it,
+and it is still worth having if what you want is everything landing in one inbox
+each morning.
+
+One limit of Apple's: lists inside a **group** in Reminders are invisible to
+Things. Drag the list out of its group if Things cannot see it.
+
+## The other two
+
+- **Mail to Things.** Every Things Cloud account can be given its own email
+  address, and anything sent there becomes a to-do in the Inbox. Cultured Code
+  supports it, and it is the only remote write route they offer. Task Hub does
+  not send email, so nothing here uses it today — but it is how a future
+  one-way push would have to work, and it is worth knowing exists.
+- **The Things URL scheme.** `things:///add?title=…` adds a to-do from a
+  shortcut or a link. It only works on a device with Things installed, so a
+  server cannot drive it.
 
 ---
 
