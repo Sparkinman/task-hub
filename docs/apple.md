@@ -60,6 +60,34 @@ So:
 > synced by Task Hub or by anything else. This is Apple's decision, not a
 > limitation of this application.
 
+### How to tell whether yours are upgraded
+
+Do not go looking through the Reminders app — connect the account and let Task
+Hub answer. It is faster and it is certain.
+
+- **Reminder lists appear** → not upgraded. CalDAV works and you are done.
+- **Calendars appear but no reminder lists at all** → upgraded.
+
+Apple makes this unambiguous, because it leaves the old CalDAV lists behind as
+headstones. On a real upgraded account they come back named `Reminders ⚠️` and
+`Family ⚠️` — Apple adds the warning sign — each holding exactly two items:
+
+```
+Where are my reminders?
+The creator of this list has upgraded these reminders.
+```
+
+**Task Hub hides those lists**, because offering one would look like a working
+list and syncing it would copy those two sentences into every other service you
+have connected. It only hides a marked list whose entire contents are those
+placeholders, so a list of your own that happens to have a ⚠️ in its name is
+left alone.
+
+Worth knowing: the upgrade belongs to the **Apple ID**, not the device. An
+account upgraded years ago on some other machine is upgraded on a brand-new
+iPhone and on a ten-year-old one alike, and signing in on an old device does not
+undo it.
+
 ### If your reminders are already upgraded
 
 Use a **second Apple ID** — a free one, made for this purpose — and add it to

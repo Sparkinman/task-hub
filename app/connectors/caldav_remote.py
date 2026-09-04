@@ -174,14 +174,62 @@ class RemoteCalDAVConnector(Connector):
                 name = calendar.get_display_name() or str(calendar.url).rstrip("/").split("/")[-1]
             except Exception:  # noqa: BLE001
                 name = str(calendar.url).rstrip("/").split("/")[-1]
-            found.append(
-                RemoteList(
-                    remote_id=str(calendar.url),
-                    name=name or "Untitled",
-                    kind=kind,
+            name = name or "Untitled"
+
+            if kind == CollectionKind.TASKS and self._is_upgrade_tombstone(
+                str(calendar.url), name
+            ):
+                logger.warning(
+                    "Skipping %r: Apple has upgraded this account's Reminders, so "
+                    "the list is a placeholder rather than real reminders. "
+                    "Calendars are unaffected.",
+                    name,
                 )
+                continue
+
+            found.append(
+                RemoteList(remote_id=str(calendar.url), name=name, kind=kind)
             )
         return found
+
+    #: What Apple leaves behind when Reminders are upgraded. The real reminders
+    #: move to a store CalDAV cannot see, and these two placeholders are put in
+    #: the old list in their place -- so a list containing nothing else is a
+    #: headstone, not a list. Matched exactly as Apple writes them, lowercased.
+    UPGRADE_PLACEHOLDERS = frozenset({
+        "where are my reminders?",
+        "the creator of this list has upgraded these reminders.",
+    })
+
+    #: Apple also appends a warning sign to the display name of such a list.
+    UPGRADE_MARKER = "⚠"
+
+    def _is_upgrade_tombstone(self, url: str, name: str) -> bool:
+        """Whether this reminder list is Apple's "these have moved" placeholder.
+
+        Offering one of these to be mapped is worse than showing nothing: it
+        looks like a working list, and syncing it copies two meaningless
+        sentences into every other service the user has connected.
+
+        Both signals are required. The warning sign in the name is Apple's own
+        doing and is the cheap test, but somebody is perfectly entitled to put
+        one in a list name themselves, and silently hiding a real list would be
+        a far worse fault than showing a dead one. So a marked list is opened
+        and skipped only when its entire contents are Apple's placeholders --
+        which costs one request, and only for lists that are already suspicious.
+        """
+        if self.UPGRADE_MARKER not in name:
+            return False
+        try:
+            items = self.pull(url, CollectionKind.TASKS).items
+        except Exception:  # noqa: BLE001 - if it cannot be read, leave it listed
+            return False
+        if not items:
+            return False
+        return all(
+            (item.record.title or "").strip().lower() in self.UPGRADE_PLACEHOLDERS
+            for item in items
+        )
 
     # -- Helpers ---------------------------------------------------------------
 

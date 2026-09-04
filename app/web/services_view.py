@@ -168,6 +168,13 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
             "cannot reach, so never sign that Apple ID in as a full iCloud "
             "account and never accept the 'Upgrade' prompt. The setup guide "
             "walks through this.",
+            "If no reminder lists appear here at all but your calendars do, "
+            "that Apple ID's Reminders have been upgraded. Apple leaves the old "
+            "lists behind holding two placeholders — 'Where are my reminders?' "
+            "and 'The creator of this list has upgraded these reminders.' — and "
+            "Task Hub hides those rather than offer a list that syncs nothing "
+            "but those two sentences. Calendars are unaffected, and the guide "
+            "covers the two ways to sync tasks anyway.",
             "Apple requires an app-specific password. Your normal Apple ID "
             "password will always be rejected.",
             "Apple speaks CalDAV, so nothing is lost: times, timezones, "
