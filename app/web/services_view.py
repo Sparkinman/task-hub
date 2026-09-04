@@ -65,10 +65,14 @@ class ServiceDefinition:
 EMPTY_LIST_NOTES: dict[str, dict[str, str]] = {
     ServiceKind.APPLE.value: {
         "tasks": (
-            "If this account's Reminders were ever upgraded in Apple's own app, "
-            "they moved to a store CalDAV cannot reach and no reminder list will "
-            "ever appear here. That is Apple's decision and it cannot be undone. "
-            "Calendars are unaffected."
+            "This account's Reminders were upgraded in Apple's own app at some "
+            "point, so the reminders you already had moved to a store CalDAV "
+            "cannot reach and no existing reminder list will ever appear here. "
+            "That is Apple's decision and it cannot be undone. Calendars are "
+            "unaffected, and so is syncing itself — Task Hub can create an "
+            "iCloud task list and keep it in step perfectly well. What an "
+            "upgraded account will not do is show that list in Apple's own "
+            "Reminders app, which is usually the reason for wanting it."
         ),
         # Getting tasks onto an iPhone does not involve this page at all, and
         # nothing previously said so. Somebody wanting their tasks in Reminders

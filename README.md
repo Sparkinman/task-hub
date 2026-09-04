@@ -25,21 +25,23 @@
 | **Todoist** | ✓ | — | |
 | **TickTick** | ✓ | — | |
 | **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar |
-| **Apple** | ✓\* | ✓ | iCloud Calendar, and Reminders on an Apple ID whose Reminders were never "upgraded" — [what that means](docs/apple.md) |
+| **Apple** | ✓\* | ✓ | iCloud Calendar and iCloud task lists, over CalDAV — [one caveat about Reminders](docs/apple.md) |
 | **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
 
 Every one of those has been run against a real account. **Things 3** is written
 but unproven and stays off the list until somebody connects one.
 
-\* Apple Reminders are the one conditional entry. Task Hub reads and writes
-iCloud task lists over CalDAV — proven at two hundred tasks — but Apple's own
-Reminders app stopped showing CalDAV lists on any account where somebody
-accepted its "Upgrade" prompt, and that cannot be undone. On such an account
-calendars still sync and reminders never will.
-[The guide explains how to tell, and the two ways round it](docs/apple.md) —
-one of which is simply pointing your iPhone at Task Hub's own CalDAV server,
-where the upgrade is irrelevant.
+\* Apple syncs both, and the caveat is about Apple's own app rather than about
+syncing. Calendars and iCloud task lists both work, proven at two hundred tasks
+and two hundred events against a live account. What the "Upgrade" prompt in
+Apple's Reminders app changes, permanently and for every application rather than
+just this one, is that your **existing** reminders move somewhere CalDAV cannot
+reach, and CalDAV task lists stop being displayed in the Reminders app. Syncing
+is unaffected; what you lose is Apple's app as the place you look at them.
+[How to tell whether an account is upgraded, and the two ways round
+it](docs/apple.md) — the simpler being to point your iPhone at Task Hub's own
+CalDAV server, where the whole question does not arise.
 
 And because the hub is a real CalDAV server, anything that speaks CalDAV can
 join without a connector at all: **iPhone, iPad and Mac**, Android through
@@ -270,12 +272,12 @@ is what each has actually been put through, which is a different question.
   been driven against live accounts, including a two-hundred-task,
   two-hundred-event stress run measuring memory, processor time and query counts
   per pass.
-- **Apple** has been run against a live iCloud account, including a
-  two-hundred-task run through an iCloud task list it created and removed
-  itself, so the reading and writing is proven. What is *not* proven is
-  reminders appearing in Apple's own Reminders app, because the account they
-  were tested on had been "upgraded" and no CalDAV list is displayed on such an
-  account ever again. Calendars are unaffected either way.
+- **Apple** has been run against a live iCloud account — two hundred tasks and
+  two hundred events, through a task list and a calendar it created and removed
+  itself, settling to zero writes. Both directions work, on an account whose
+  Reminders had been "upgraded". The upgrade does not stop CalDAV syncing; it
+  stops Apple's Reminders app from *displaying* CalDAV lists, and puts any
+  reminders you already had somewhere no application can reach.
   [Why, and what to do instead](docs/apple.md).
 - **Microsoft** has been run against a live account and works. Registering the
   app now needs an Entra ID directory, which a personal Microsoft account does
