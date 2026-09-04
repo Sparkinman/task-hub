@@ -558,7 +558,7 @@ def save_mail(
     if smtp_password.strip():
         settings_store.set_value(
             db, settings_store.SMTP_PASSWORD,
-            encrypt_json({"password": smtp_password.strip()}),
+            encrypt_json({"password": mail_providers.clean_password(smtp_password)}),
         )
     db.commit()
 

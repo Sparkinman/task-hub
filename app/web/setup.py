@@ -650,9 +650,14 @@ def email_submit(
     settings_store.set_value(db, settings_store.SMTP_PORT, str(port))
     settings_store.set_value(db, settings_store.SMTP_SECURITY, smtp_security)
     settings_store.set_value(db, settings_store.SMTP_USERNAME, smtp_username.strip())
-    if smtp_password:
+    # Trimmed, like the Settings page does it. An app password is copied from a
+    # provider's website and arrives with a trailing space or newline more often
+    # than not, and a mail server rejects that as a wrong password with no hint
+    # that the only thing wrong is the whitespace nobody can see.
+    if smtp_password.strip():
         settings_store.set_value(
-            db, settings_store.SMTP_PASSWORD, encrypt_json({"password": smtp_password})
+            db, settings_store.SMTP_PASSWORD,
+            encrypt_json({"password": mail_providers.clean_password(smtp_password)}),
         )
     settings_store.set_value(db, settings_store.SMTP_FROM, sender)
 

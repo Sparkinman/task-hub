@@ -125,6 +125,29 @@ print("\nThe wizard ends on the email step, which is the skippable one")
 check("email is last", setup.STEPS[-1].slug == "email")
 check("sync comes before it", setup.STEPS[-2].slug == "sync")
 
+print("\nA pasted app password is cleaned up before it is stored")
+# Google, Yahoo and Apple all *display* an app password as four groups of four
+# so it can be read off a screen; the spaces are presentation. Stored verbatim,
+# the mail server rejects it as a wrong password and says nothing about
+# whitespace, which is a failure nobody can find by looking.
+from app.services.mail_providers import clean_password  # noqa: E402
+
+check("the four-group display form is joined up",
+      clean_password("abcd efgh ijkl mnop") == "abcdefghijklmnop",
+      clean_password("abcd efgh ijkl mnop"))
+check("a trailing newline from a copy goes",
+      clean_password(" abcd efgh ijkl mnop\n") == "abcdefghijklmnop")
+check("dashes are treated the same way",
+      clean_password("abcd-efgh-ijkl-mnop") == "abcdefghijklmnop")
+check("an already-joined one is untouched",
+      clean_password("abcdefghijklmnop") == "abcdefghijklmnop")
+# The line that must not be crossed: somebody's real passphrase.
+check("a passphrase keeps its spaces",
+      clean_password("correct horse battery staple") == "correct horse battery staple")
+check("but still loses surrounding space",
+      clean_password("  swordfish  ") == "swordfish")
+check("nothing stays nothing", clean_password("") == "")
+
 print("\nDays are described the way a person would say them")
 check("all seven is 'every day'",
       settings_view._days_phrase(list(settings_store.DIGEST_DAY_CODES)) == "every day")

@@ -12,6 +12,7 @@ checked against the known wrong names before it is saved.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -142,6 +143,31 @@ def suggest_address(address: str) -> str:
         f"Check that address: mail to @{domain} will not reach you if you meant "
         f"@{better}. It is saved as you typed it."
     )
+
+
+#: An app password as Google, Yahoo and Apple all display it: sixteen letters
+#: shown in four groups of four so it can be read off a screen. The spaces are
+#: presentation, not part of the password.
+_APP_PASSWORD = re.compile(r"^[a-z]{4}[ -][a-z]{4}[ -][a-z]{4}[ -][a-z]{4}$", re.I)
+
+
+def clean_password(value: str) -> str:
+    """Trim a pasted password, and unpick the one shape that is displayed oddly.
+
+    Leading and trailing whitespace always goes: an app password is copied from
+    a website and arrives with a trailing space or newline more often than not,
+    and a mail server rejects that as a wrong password with no hint that the
+    only thing wrong is whitespace nobody can see.
+
+    The four-groups-of-four form is joined up as well, because that is how
+    Google, Yahoo and Apple *display* an app password rather than what it is.
+    Nothing else has its inner spaces touched -- a passphrase with real spaces
+    in it is somebody's actual password and must be left exactly as typed.
+    """
+    value = (value or "").strip()
+    if _APP_PASSWORD.match(value):
+        return re.sub(r"[ -]", "", value)
+    return value
 
 
 def correct_host(host: str) -> tuple[str, str]:
