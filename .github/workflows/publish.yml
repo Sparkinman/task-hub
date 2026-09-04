@@ -21,6 +21,12 @@
 #
 # Without those secrets the Docker Hub step is skipped and the GitHub registry
 # half still works, so the workflow is useful before you have set them up.
+#
+# The Docker Hub page itself -- the line under the name and the Overview tab --
+# is pushed from .docker/hub-overview.md by the last step, so it is reviewed and
+# version-controlled like everything else rather than typed into a website and
+# forgotten. The README is not used for it directly: its links and its logo are
+# relative to the repository and would be broken on Docker Hub.
 
 name: Publish image
 
@@ -151,3 +157,26 @@ jobs:
           # is slow; this is the difference between minutes and half an hour.
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Docker Hub shows whatever this sets on the repository page. Left unset
+      # it shows nothing at all -- no short line under the name and an empty
+      # Overview tab -- which is what somebody deciding whether to pull the
+      # image sees first. Pushed from a file here rather than typed into the
+      # website, so it is version-controlled and cannot drift from the README.
+      #
+      # Allowed to fail like the login above: a token without permission to
+      # edit the repository description should cost the description, not the
+      # image that has already been published by this point.
+      - name: Update the Docker Hub page
+        if: steps.hub_login.outcome == 'success' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ env.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_USER }}/task-hub
+          short-description: >-
+            Self-hosted sync for tasks and calendars across Google, Todoist,
+            TickTick, Microsoft, Apple, Obsidian and CalDAV. Your data stays on
+            your hardware.
+          readme-filepath: .docker/hub-overview.md
