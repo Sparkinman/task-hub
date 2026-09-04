@@ -57,10 +57,22 @@ BASE = "https://cloud.culturedcode.com/version/1"
 #: interface offers reminders separately and does not put a clock on a to-do.
 #: The field is therefore not claimed, which is what stops it clearing a time
 #: set in Todoist or on a CalDAV client.
+#: What Things can be read for, and nothing it can be asked to do. Every write
+#: method here refuses -- there is no supported way to write to Things Cloud, and
+#: guessing at one against an unpublished endpoint is not a risk worth taking
+#: with somebody's task list -- so the declaration has to say so.
+#:
+#: Claiming otherwise is not a harmless overstatement. The engine offers a
+#: changed task to every participant that says it can take one, so a connector
+#: that accepts the offer and then refuses it turns every edited task into a
+#: failed write, every pass, for ever: an error in the log per task and a run
+#: reported as partial for doing exactly what it was told. Obsidian in read-only
+#: mode is the same shape and carries the same declaration.
 THINGS_CAPABILITIES = Capabilities(
     fields=frozenset({F_TITLE, F_NOTES, F_STATUS, F_DUE_DATE, F_TAGS}),
-    can_create=True,
-    can_delete=True,
+    can_create=False,
+    can_delete=False,
+    writable_fields=frozenset(),
     stores_uid=False,
 )
 
