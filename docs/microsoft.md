@@ -159,6 +159,16 @@ browser again, so you can go back to whatever address you normally use.
 18. On the **Client secrets** tab, click **+ New client secret**.
 19. **Description**: `Task Hub`. **Expires**: choose the longest offered —
     normally 24 months.
+
+    > **Write the expiry date somewhere you will see it again.** When the secret
+    > expires, Microsoft stops honouring it and syncing stops — Task Hub will
+    > report the account as needing attention, but nothing warns you in advance
+    > and the date will be two years in the past by the time you think about it.
+    > Fixing it is quick: make a new secret here and paste the new Value into
+    > Task Hub. Nothing else needs redoing, and no data is lost. Microsoft caps
+    > the lifetime at two years, so this is unavoidable rather than a setting to
+    > get right.
+
 20. Click **Add**.
 21. The new secret appears in a table with two columns, **Value** and
     **Secret ID**.
