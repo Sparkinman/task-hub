@@ -27,12 +27,31 @@ Apple has two kinds of Reminders storage.
 **The old kind** is CalDAV. Every reminder is a standard VTODO on Apple's
 server, and any CalDAV client — Task Hub included — can read and write it.
 
-**The new kind** is a private Apple format. In 2021 Apple began prompting people
-to "Upgrade" their Reminders, which unlocked features such as smart lists and
-tags. That upgrade moves your reminders out of CalDAV entirely. They keep
-working perfectly in Apple's own apps and become **completely invisible to every
-other application, permanently.** There is no way to reverse it, and Apple
-support confirms this.
+**The new kind** is a private Apple format. From iOS 13 and macOS Catalina Apple
+began prompting people to "Upgrade" their Reminders, which unlocked features
+such as smart lists, tags and subtasks. That upgrade moves your reminders out of
+CalDAV entirely, into a store only Apple's own software can reach over the
+network. There is no way to reverse it.
+
+Be precise about what that costs, because the usual summary of it is wrong in a
+way that makes people give up too early:
+
+- **Invisible to CalDAV clients, permanently.** Anything reaching iCloud from
+  somewhere else — Task Hub, DAVx⁵, BusyCal, Thunderbird — can no longer see
+  those reminders. This is the part that cannot be worked around.
+- **Still perfectly visible to apps running on your own Mac or iPhone.** They
+  read Reminders through EventKit, Apple's local framework, which the upgrade
+  never touched. That is how Fantastical and GoodTask still work.
+
+So the restriction is on *remote* access, not on other applications as such.
+Task Hub is a server talking to iCloud over a network, which puts it firmly on
+the wrong side of that line — but it also means a helper running on a Mac is a
+genuine way out, and the comparison below covers it.
+
+There is a matching asymmetry worth knowing: iCloud's CalDAV server still
+*accepts* to-do lists, so Task Hub can create them there — the upgraded
+Reminders app simply will not display them. After an upgrade the iCloud route is
+therefore closed in both directions, not only for reading.
 
 So:
 
@@ -172,6 +191,40 @@ they stay on CalDAV permanently, and Task Hub can read and write them.
 > account are invisible to Task Hub; reminders added to the new account sync
 > everywhere. In the Reminders app, put the new account's list in your
 > favourites so it is the easy one to reach.
+
+---
+
+## The three ways to sync Apple tasks, compared
+
+Only the first depends on the upgrade question. If your reminders are already
+upgraded, the choice is between the second and the third.
+
+| | **1. iCloud CalDAV** | **2. Task Hub's own server** | **3. A helper on a Mac** |
+| --- | --- | --- | --- |
+| How | Task Hub signs in to iCloud with an app-specific password | Your iPhone adds Task Hub directly as a CalDAV account | A small app on a Mac reads Reminders through EventKit and answers Task Hub over HTTP |
+| Works with upgraded Reminders | **No** | Yes | **Yes** |
+| Calendars | Yes | Yes | Not its job — use 1 for calendars |
+| Reminders reachable by Siri | Yes | No | Yes |
+| On an Apple Watch | Yes | No | Yes |
+| Shared with family | Yes | No | Yes |
+| Needs a Mac left switched on | No | No | **Yes** |
+| Extra software to install | No | No | **Yes**, and it needs Reminders permission |
+| Set-up effort | An app-specific password | Three fields on the phone | Install, permit, keep it running |
+| Built into Task Hub | Yes | Yes | **No — not built** |
+
+**Route 2 is the one to reach for first.** It has no upgrade problem, no
+app-specific password, no second machine, and your tasks stop passing through
+Apple's servers on the way to your own. What you give up is Siri, the Apple
+Watch and family sharing for those lists, because they are no longer iCloud
+lists at all.
+
+**Route 3 is not implemented.** It is recorded here because it is the only way
+to reach upgraded Reminders remotely, and because people reasonably ask why not:
+EventKit is macOS-only and cannot run inside Task Hub's container, so it would
+mean a second piece of software to install, permit, update and keep awake. That
+is a real cost against Task Hub being one image that runs anywhere. The
+open-source [Ink2Task](https://github.com/LVEVAN/ink2task) project takes this
+approach — a Swift HTTP server on a Mac — if you want to see what it involves.
 
 ---
 
