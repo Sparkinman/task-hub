@@ -152,3 +152,32 @@ class ForwardedHeadersMiddleware:
         if scope["type"] == "http":
             apply_forwarded(scope)
         await self.app(scope, receive, send)
+
+
+# --- Address shapes the OAuth consoles care about -----------------------------
+#
+# Kept here, rather than beside either service's setup page, because both need
+# them and this module already has no dependencies of its own. The rules
+# themselves are written down in docs/addresses.md, which these are meant to
+# agree with.
+
+#: Every OAuth console exempts loopback from its HTTPS rule. The exception
+#: exists so that software running on somebody's own machine can be connected at
+#: all, and it is what makes an SSH port forward a workable way to connect a
+#: service on a headless Raspberry Pi.
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "[::1]", "::1"}
+
+
+def is_bare_ip(host: str) -> bool:
+    """Whether a host is a bare address rather than a name.
+
+    Google and TickTick both refuse one and want a name; Todoist does not mind.
+    A name is obtainable free and with nothing installed -- sslip.io resolves
+    192-168-1-50.sslip.io straight back to 192.168.1.50 -- so the distinction is
+    worth making precisely rather than guessing from punctuation.
+    """
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return True
+    except ValueError:
+        return False

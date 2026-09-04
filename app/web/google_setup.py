@@ -39,6 +39,7 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.web import deps
+from app.web.forwarded import LOOPBACK_HOSTS, is_bare_ip
 from app.web.disconnect import disconnect_accounts, wants_cleanup
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,6 @@ OAUTH_STATE_KEY = "_oauth_state"
 
 #: Hosts Google accepts over plain HTTP. Everything else must be HTTPS, and raw
 #: private IP addresses are rejected outright whatever the scheme.
-LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "[::1]", "::1"}
 
 
 # --- Client credentials -------------------------------------------------------

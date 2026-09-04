@@ -31,6 +31,7 @@ from app.db.models import Account, AccountStatus, CollectionKind, RemoteList, Se
 from app.db.session import get_db
 from app.web import deps
 from app.web.disconnect import disconnect_accounts, wants_cleanup
+from app.web.forwarded import LOOPBACK_HOSTS, is_bare_ip
 
 router = APIRouter()
 
@@ -54,8 +55,15 @@ class OAuthService:
     #: Path the service must be told to redirect back to.
     callback_path: str
     #: Some consoles reject a bare IP or a http:// URL; say so before the user
-    #: discovers it the hard way at the end of the flow.
+    #: discovers it the hard way at the end of the flow. Both rules exempt
+    #: loopback, which every console accepts precisely so that software running
+    #: on somebody's own machine can be connected at all.
     requires_https: bool = False
+    #: Whether a bare IP address is refused and a name is required. A separate
+    #: rule from HTTPS, and services differ on which they apply: TickTick wants
+    #: a name but not HTTPS, Microsoft wants HTTPS but not a name, Google wants
+    #: both, and Todoist wants neither.
+    requires_hostname: bool = False
 
     #: Whether this service also offers a personal token that can simply be
     #: pasted, skipping app registration entirely.
@@ -87,6 +95,10 @@ SERVICES: dict[str, OAuthService] = {
         authorization_url=ticktick_api.authorization_url,
         exchange_code=ticktick_api.exchange_code,
         callback_path="/oauth/ticktick/callback",
+        # TickTick refuses a bare number but is content with plain http, which
+        # is why an sslip.io name gets it working where it will not get Google
+        # working. See docs/addresses.md.
+        requires_hostname=True,
         allows_paste_back=True,
     ),
     ServiceKind.MICROSOFT.value: OAuthService(
@@ -98,9 +110,10 @@ SERVICES: dict[str, OAuthService] = {
         authorization_url=microsoft_api.authorization_url,
         exchange_code=microsoft_api.exchange_code,
         callback_path="/oauth/microsoft/callback",
-        # Azure accepts http://localhost for a Web platform, so this is not
-        # forced -- but anything else must be https, which the shared check
-        # already explains.
+        # Azure accepts http://localhost for a Web platform, and nothing else
+        # over plain http. The loopback exemption below is what makes those two
+        # statements compatible.
+        requires_https=True,
         allows_paste_back=True,
     ),
 }
@@ -139,22 +152,45 @@ def redirect_uri_for(request: Request, service: OAuthService) -> str:
 def redirect_uri_problem(uri: str, service: OAuthService) -> str | None:
     """Warn about a redirect URI the service will reject, before it does.
 
-    Both consoles are fussy in ways whose error messages arrive only at the very
-    end of the flow, by which point it is hard to tell which of half a dozen
-    fields was wrong.
+    Every console is fussy in its own way, and the error arrives only at the
+    very end of the flow, by which point it is hard to tell which of half a
+    dozen fields was wrong. The rules encoded here are the ones written down in
+    docs/addresses.md, and the two files are meant to agree.
+
+    Loopback is tested first and exempted from everything, because every console
+    carves out exactly that exception -- it exists so that software running on
+    somebody's own machine can be connected at all. Testing it after the HTTPS
+    rule would tell a user that ``http://localhost`` is rejected by a service
+    that in fact accepts it, which is worse than saying nothing: it would send
+    them off to fix an address that already worked.
     """
     parts = urlsplit(uri)
-    host = parts.hostname or ""
+    host = (parts.hostname or "").lower()
     if not host:
         return "Task Hub cannot work out its own address. Set one under Settings."
-    if service.requires_https and parts.scheme != "https":
-        return f"{service.name} only accepts an https redirect URI."
-    if host in {"localhost", "127.0.0.1", "::1"}:
+
+    if host in LOOPBACK_HOSTS:
         return (
             f"This redirect URI points at localhost. That works while you use "
-            f"Task Hub on this machine, but {service.name} will send other "
-            "devices back to themselves. Set your real address under Settings "
-            "before connecting from a phone."
+            f"Task Hub on this machine, and {service.name} accepts it, but it "
+            "will send other devices back to themselves. Set your real address "
+            "under Settings before connecting from a phone."
+        )
+
+    if service.requires_https and parts.scheme != "https":
+        return (
+            f"{service.name} will reject this address because it is not HTTPS. "
+            "Only localhost may use plain http. Reach Task Hub over HTTPS -- a "
+            "Tailscale or Cloudflare address gives you one -- or borrow "
+            "localhost with an SSH port forward just long enough to connect."
+        )
+
+    if service.requires_hostname and is_bare_ip(host):
+        return (
+            f"{service.name} will reject this address because it is a bare IP "
+            "address, and it wants a name. sslip.io provides one free with "
+            f"nothing to install: {host.replace('.', '-')}.sslip.io resolves "
+            f"straight back to {host}."
         )
     return None
 

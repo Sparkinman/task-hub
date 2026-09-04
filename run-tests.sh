@@ -17,7 +17,10 @@ set -u
 cd "$(dirname "$0")"
 
 STAMP="$(date +%s)-$$"
-docker compose cp tests taskhub:/app/tests >/dev/null 2>&1
+# Copied to /app/ rather than /app/tests: the destination already exists,
+# so naming it would nest the copy as /app/tests/tests and every suite
+# would keep running whatever version was there before.
+docker compose cp tests taskhub:/app/ >/dev/null 2>&1
 
 failed=0
 for t in tests/test_*.py; do
