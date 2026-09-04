@@ -83,6 +83,45 @@ if command -v timedatectl >/dev/null 2>&1; then
     fi
 fi
 
+# --- The system's own packages ------------------------------------------------
+#
+# Refreshing the package list is always safe and is sometimes necessary: a Pi
+# imaged weeks ago has a stale index, and installing anything from it fails with
+# a 404 that reads as a network fault. So that part happens quietly, always.
+#
+# Upgrading every installed package is a different matter and is *not* done
+# unless asked. It changes the whole machine rather than installing this one
+# program, it can take half an hour on a Pi Zero, it sometimes wants a reboot,
+# and a one-line installer that quietly rebuilds somebody's operating system is
+# not being a good guest. Set TASKHUB_APT_UPGRADE=1 to have it done here; the
+# Raspberry Pi guide instead shows the upgrade as part of the same pasted line,
+# where it is visible for what it is.
+
+if command -v apt-get >/dev/null 2>&1; then
+    step "Refreshing the system package list"
+    if $SUDO apt-get update -qq >/dev/null 2>&1; then
+        ok "Package list is current"
+    else
+        warn "Could not refresh the package list; carrying on."
+    fi
+
+    if [ "${TASKHUB_APT_UPGRADE:-0}" = "1" ]; then
+        step "Updating the system's packages"
+        say "  This can take a while and prints a lot; that is normal."
+        DEBIAN_FRONTEND=noninteractive $SUDO apt-get -y \
+            -o Dpkg::Options::=--force-confdef \
+            -o Dpkg::Options::=--force-confold \
+            upgrade || warn "Some packages did not upgrade; carrying on."
+        # A kernel or firmware upgrade only takes effect after a restart. Said
+        # here rather than done: rebooting somebody's machine out from under
+        # them, mid-install, would be worse than the delay.
+        if [ -f /var/run/reboot-required ]; then
+            warn "The system wants a restart to finish those updates. Task Hub"
+            warn "will install and run now; restart when it suits you."
+        fi
+    fi
+fi
+
 # --- Docker -------------------------------------------------------------------
 
 step "Checking Docker"
@@ -99,7 +138,7 @@ else
         say "  Installing Docker from Docker's own installer. This takes a few"
         say "  minutes and prints a lot; that is normal."
         if ! command -v curl >/dev/null 2>&1; then
-            $SUDO apt-get update -qq >/dev/null 2>&1 && \
+            # The package list was refreshed above, so this is just the install.
             $SUDO apt-get install -y curl >/dev/null 2>&1 || \
                 die "Could not install 'curl', which is needed to fetch Docker."
         fi

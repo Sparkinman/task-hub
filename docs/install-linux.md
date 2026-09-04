@@ -30,6 +30,15 @@ It is safe to run again: a second run updates Task Hub and leaves your accounts,
 settings and tasks alone, because those live in a Docker volume it never writes
 to.
 
+**It refreshes the package list but does not upgrade your system.** Installing
+one program is no reason to rebuild somebody's machine, and on a server that is
+your call rather than a script's. If you would like it done as part of the same
+run, put `TASKHUB_APT_UPGRADE=1` in front:
+
+```
+curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | TASKHUB_APT_UPGRADE=1 sh
+```
+
 When it finishes it prints something like:
 
 ```

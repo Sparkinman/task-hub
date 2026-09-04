@@ -130,6 +130,22 @@ Copy this line, paste it into the terminal window, and press Enter. It is the
 only command in this guide.
 
 ```
+sudo apt update && sudo apt full-upgrade -y && curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | sh
+```
+
+It is one line doing three things, and the first two are worth a sentence each.
+`apt update` refreshes the list of available packages — a Pi imaged a few weeks
+ago has a stale list, and installing anything from a stale list fails with an
+error that looks like a network fault. `full-upgrade` then installs the security
+fixes released since your SD card image was built, which on a machine that will
+sit on your network for years is worth the wait. Neither touches Task Hub; both
+are ordinary Raspberry Pi housekeeping that the official documentation asks for
+on first boot too.
+
+**On a Pi that is already up to date, or if you would rather do that part
+yourself**, the installer alone is enough:
+
+```
 curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | sh
 ```
 
@@ -146,8 +162,14 @@ That one line does the whole job:
 - waits until it reports itself healthy
 - prints the address to open
 
-It takes about five minutes on a new Pi, most of that downloading. It prints a
-great deal while Docker installs; that is normal and none of it needs reading.
+It takes about five minutes on a new Pi, most of that downloading — plus however
+long the system upgrade takes, which on a freshly imaged card can be another ten
+minutes on a Pi 4 or 5, and longer on a Zero 2 W. It prints a great deal while
+Docker installs; that is normal and none of it needs reading.
+
+If the upgrade included a new kernel it will say a restart is needed. Task Hub
+installs and runs regardless — restart whenever it suits you with
+`sudo reboot`, and Task Hub comes back up on its own afterwards.
 
 **It is safe to run again.** Run it a second time and it updates Task Hub to the
 current version and leaves everything you have set up alone — your accounts,
