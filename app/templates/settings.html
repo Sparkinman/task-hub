@@ -176,6 +176,208 @@
 <div class="card mb-5">
   <div class="card-header">
     <div>
+      <div class="card-title">Email</div>
+      <div class="card-hint">
+        Task Hub sends mail and never receives any — there is no inbox and no
+        open port. Used for the daily summary below.
+        <a href="/docs/email">Settings for Gmail, Outlook, iCloud and Fastmail →</a>
+      </div>
+    </div>
+    {% if mail.host %}<span class="pill pill-success">Configured</span>{% endif %}
+  </div>
+
+  <div class="card-body">
+    <form method="post" action="/settings/mail" class="stack" style="max-width: 560px;">
+      <div class="row-wrap">
+        <div class="field grow">
+          <label for="smtp-host">Mail server</label>
+          <input type="text" id="smtp-host" name="smtp_host" value="{{ mail.host }}"
+                 placeholder="smtp.gmail.com" autocomplete="off">
+        </div>
+        <div class="field" style="max-width: 120px;">
+          <label for="smtp-port">Port</label>
+          <input type="number" id="smtp-port" name="smtp_port" value="{{ mail.port }}"
+                 min="1" max="65535">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="smtp-security">Security</label>
+        <select id="smtp-security" name="smtp_security">
+          <option value="starttls" {{ 'selected' if mail.security == 'starttls' }}>STARTTLS — usually port 587</option>
+          <option value="ssl" {{ 'selected' if mail.security == 'ssl' }}>SSL/TLS — usually port 465</option>
+          <option value="none" {{ 'selected' if mail.security == 'none' }}>None — only for a mail server on this machine</option>
+        </select>
+        <span class="field-hint">
+          If one does not work, the other usually does: the port and the security
+          setting have to agree.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="smtp-username">Username</label>
+        <input type="text" id="smtp-username" name="smtp_username"
+               value="{{ mail.username }}" autocomplete="off"
+               placeholder="usually your full email address">
+      </div>
+
+      <div class="field">
+        <label for="smtp-password">Password</label>
+        <input type="password" id="smtp-password" name="smtp_password"
+               autocomplete="new-password"
+               placeholder="{{ 'Saved — leave blank to keep it' if mail.has_password else '' }}">
+        <span class="field-hint">
+          <span class="strong">Use an app-specific password if your provider offers
+          one.</span> Gmail, Yahoo and iCloud all refuse your normal password here
+          and require one generated in your account's security settings. It is
+          stored encrypted, but it is still a password to your mailbox — an
+          app-specific one can be revoked on its own.
+        </span>
+      </div>
+
+      <div class="field">
+        <label for="smtp-from">Send from</label>
+        <input type="text" id="smtp-from" name="smtp_from" value="{{ mail.from_address }}"
+               autocomplete="off" placeholder="you@example.com">
+        <span class="field-hint">
+          Most providers insist this matches the account signing in.
+        </span>
+      </div>
+
+      <div class="row-wrap">
+        <button type="submit" class="btn btn-primary btn-sm">Save mail server</button>
+      </div>
+    </form>
+
+    <div class="mt-4" style="max-width: 560px;">
+      <div class="strong">Check it works</div>
+      <p class="tiny muted mt-1">
+        Sends one message straight away using the settings above, and tells you
+        exactly what the mail server said if it refuses.
+      </p>
+      <form method="post" action="/settings/mail/test" class="row-wrap mt-2">
+        <div class="field grow" style="margin: 0;">
+          <label for="mail-test-to" class="sr-only">Send the test to</label>
+          <input type="email" id="mail-test-to" name="test_to"
+                 value="{{ mail.test_to }}" autocomplete="off"
+                 placeholder="you@example.com">
+        </div>
+        <button type="submit" class="btn btn-sm">Send a test message</button>
+      </form>
+      {% if mail.last_test %}
+        <p class="tiny mt-2">
+          <span class="pill {{ 'pill-success' if mail.last_test.ok else 'pill-danger' }}">
+            {{ 'Working' if mail.last_test.ok else 'Failed' }}
+          </span>
+          <span class="muted">
+            Last tested {{ mail.last_test.when }}.
+            {% if not mail.last_test.ok %}{{ mail.last_test.detail }}{% endif %}
+          </span>
+        </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Daily summary</div>
+      <div class="card-hint">
+        One message each morning listing what is overdue and what is due today,
+        across every collection.
+      </div>
+    </div>
+    <span class="pill {{ 'pill-success' if digest.enabled }}">
+      {{ 'On' if digest.enabled else 'Off' }}
+    </span>
+  </div>
+
+  <div class="card-body">
+    <form method="post" action="/settings/digest" class="stack" style="max-width: 560px;">
+      <div class="field">
+        <label for="digest-to">Send to</label>
+        <input type="email" id="digest-to" name="digest_to" value="{{ digest.to }}"
+               placeholder="you@example.com" autocomplete="off">
+      </div>
+
+      <div class="row-wrap">
+        <div class="field" style="max-width: 150px;">
+          <label for="digest-time">Time</label>
+          <input type="time" id="digest-time" name="digest_time" value="{{ digest.time }}">
+        </div>
+        <div class="field grow">
+          <label>&nbsp;</label>
+          <span class="field-hint">
+            In the timezone set at the top of this page, not the server's.
+            {% if digest.next_run %}
+              Next one {{ digest.next_run.strftime('%Y-%m-%d %H:%M %Z') }}.
+            {% endif %}
+          </span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Which days</label>
+        <div class="row-wrap" id="digest-days">
+          {% for code in digest.day_codes %}
+            <label class="check">
+              <input type="checkbox" name="digest_days" value="{{ code }}"
+                     {{ 'checked' if code in digest.days }}>
+              <span class="check-label">{{ digest.day_names[code][:3] }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="row-wrap mt-2">
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-digest-days="mon,tue,wed,thu,fri,sat,sun">Every day</button>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-digest-days="mon,tue,wed,thu,fri">Monday to Friday</button>
+          <button type="button" class="btn btn-ghost btn-sm"
+                  data-digest-days="mon">Mondays only</button>
+        </div>
+        <span class="field-hint">
+          Currently {{ digest.days_phrase }}. Pick any days you like — a weekly
+          plan on a Monday morning works as well as a message every day.
+        </span>
+      </div>
+
+      <label class="row-wrap tiny">
+        <input type="checkbox" name="digest_when_empty" value="1"
+               {{ 'checked' if digest.when_empty }}>
+        Send even on a day with nothing due
+      </label>
+      <span class="field-hint">
+        Off by default. A message that arrives every morning saying "nothing due"
+        stops being read within a week, and then the one that matters is not read
+        either.
+      </span>
+
+      <div class="row-wrap">
+        <input type="hidden" name="digest_enabled" value="0">
+        <button type="submit" class="btn btn-primary btn-sm"
+                name="digest_enabled" value="1">
+          {{ 'Save' if digest.enabled else 'Turn on daily summary' }}
+        </button>
+        {% if digest.enabled %}
+          <button type="submit" class="btn btn-ghost btn-sm"
+                  name="digest_enabled" value="0">Turn off</button>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if digest.enabled %}
+      <form method="post" action="/settings/digest/send" class="mt-3">
+        <button type="submit" class="btn btn-sm">Send one now</button>
+        <span class="tiny muted">Sends today's list even if nothing is due.</span>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
       <div class="card-title">Remote access</div>
       <div class="card-hint">
         Reach Task Hub — and its calendars — from outside your home, without

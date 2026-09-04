@@ -149,6 +149,33 @@ class ServiceKind(str, enum.Enum):
     RADICALE = "radicale"
     LOCAL = "local"
 
+    @property
+    def display_name(self) -> str:
+        """The service's name as a person writes it.
+
+        Kept beside the enum rather than in the web layer because the daily
+        summary email names services too, and two lists of names would drift.
+        """
+        return SERVICE_DISPLAY_NAMES.get(self.value, self.value.title())
+
+
+#: Names as their makers spell them. "Things 3" carries its number, Microsoft's
+#: list app is To Do rather than "Microsoft", and an item that arrived over
+#: CalDAV is named for the protocol because Task Hub cannot know which app on
+#: the other end wrote it.
+SERVICE_DISPLAY_NAMES: dict[str, str] = {
+    "google": "Google",
+    "todoist": "Todoist",
+    "ticktick": "TickTick",
+    "apple": "Apple",
+    "microsoft": "Microsoft To Do",
+    "things3": "Things 3",
+    "obsidian": "Obsidian",
+    "supernote": "Supernote",
+    "radicale": "CalDAV",
+    "local": "Task Hub",
+}
+
 
 class CollectionKind(str, enum.Enum):
     """Whether a list holds to-dos (VTODO) or calendar events (VEVENT)."""

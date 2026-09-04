@@ -311,6 +311,22 @@
     }
   });
 
+  /* --- Day shortcuts for the daily summary -------------------------------
+   * "Every day" and "Monday to Friday" are the two choices nearly everybody
+   * wants, and ticking five boxes to get the second is a chore. The checkboxes
+   * remain the truth -- these buttons only set them -- so the form still works
+   * with scripting off.
+   */
+  document.addEventListener("click", function (event) {
+    var shortcut = event.target.closest("[data-digest-days]");
+    if (!shortcut) return;
+    var wanted = shortcut.getAttribute("data-digest-days").split(",");
+    var boxes = document.querySelectorAll('#digest-days input[type="checkbox"]');
+    Array.prototype.forEach.call(boxes, function (box) {
+      box.checked = wanted.indexOf(box.value) !== -1;
+    });
+  });
+
   /* --- Filter form auto-submit ------------------------------------------- */
   document.addEventListener("change", function (event) {
     var control = event.target.closest("[data-autosubmit]");

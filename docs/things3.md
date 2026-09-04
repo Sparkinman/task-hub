@@ -199,9 +199,20 @@ Things. Drag the list out of its group if Things cannot see it.
 
 - **Mail to Things.** Every Things Cloud account can be given its own email
   address, and anything sent there becomes a to-do in the Inbox. Cultured Code
-  supports it, and it is the only remote write route they offer. Task Hub does
-  not send email, so nothing here uses it today — but it is how a future
-  one-way push would have to work, and it is worth knowing exists.
+  supports it, and it is the only remote write route they offer.
+
+  **Task Hub deliberately does not use it,** even though it can now send mail
+  for the [daily summary](email.md). Mail is a one-way, fire-and-forget channel:
+  nothing comes back to say the message arrived, an item that crossed cannot be
+  found again to update or delete, and a retry after a failure makes a duplicate
+  rather than correcting the first attempt. Driving a sync through it would mean
+  a Things Inbox that fills with near-copies whenever anything goes wrong, with
+  no way for Task Hub to notice or clean up. Reminders Inbox above does the same
+  job visibly and reversibly, so that is the route documented here.
+
+  Nothing stops you doing it by hand: your Things email address is under
+  Things → Settings → Things Cloud, and anything you send to it lands in the
+  Inbox.
 - **The Things URL scheme.** `things:///add?title=…` adds a to-do from a
   shortcut or a link. It only works on a device with Things installed, so a
   server cannot drive it.

@@ -57,6 +57,10 @@ STEPS: tuple[Step, ...] = (
     Step("radicale", "CalDAV", "Credentials for the built-in Radicale server."),
     Step("collections", "Collections", "Your first task list and calendar."),
     Step("sync", "Sync", "How often Task Hub checks your connected services."),
+    # Last, and skippable in one click. Nothing else in Task Hub depends on
+    # email, and somebody who has just got their tasks syncing should not be
+    # made to find SMTP settings before they can use it.
+    Step("email", "Email", "Optional: a daily summary of what is due."),
 )
 
 STEP_INDEX = {step.slug: i for i, step in enumerate(STEPS)}
@@ -504,14 +508,21 @@ def sync_submit(
 
     settings_store.set_sync_interval(db, requested)
     settings_store.set_bool(db, settings_store.SYNC_ENABLED, sync_enabled == "1")
+    _advance(db, "email")
+    db.commit()
+    return deps.redirect("/setup/email")
 
-    # Refuse to finish without an account to sign in with. Marking setup
-    # complete closes the wizard for good, and there is no password reset --
-    # Task Hub has no mail server -- so completing it with no user would lock
-    # everybody out of an installation permanently, with no way back in short
-    # of deleting the data volume. Following the wizard normally cannot reach
-    # this state, because a rejected account step re-renders rather than
-    # advancing; a reload, a stale form or a resubmitted step can.
+
+def _finish(request: Request, db: Session):
+    """Close the wizard, or send the user back for a sign-in account.
+
+    Refuse to finish without an account to sign in with. Marking setup complete
+    closes the wizard for good, and there is no password reset, so completing it
+    with no user would lock everybody out of an installation permanently, with
+    no way back in short of deleting the data volume. Following the wizard
+    normally cannot reach this state, because a rejected account step re-renders
+    rather than advancing; a reload, a stale form or a resubmitted step can.
+    """
     if db.execute(select(User)).scalars().first() is None:
         return _render_step(
             request, db, "account",
@@ -533,3 +544,159 @@ def sync_submit(
         "success",
     )
     return deps.redirect("/")
+
+
+def _email_context(db: Session) -> dict:
+    """Whatever is already saved, so a re-render never empties the form."""
+    from app.crypto import decrypt_json
+
+    return {
+        "mail": {
+            "host": settings_store.get(db, settings_store.SMTP_HOST) or "",
+            "port": settings_store.get(db, settings_store.SMTP_PORT) or "587",
+            "security": settings_store.get(db, settings_store.SMTP_SECURITY) or "starttls",
+            "username": settings_store.get(db, settings_store.SMTP_USERNAME) or "",
+            "from_address": settings_store.get(db, settings_store.SMTP_FROM) or "",
+            "has_password": bool(
+                decrypt_json(
+                    settings_store.get(db, settings_store.SMTP_PASSWORD)
+                ).get("password")
+            ),
+        },
+        "digest": {
+            "to": settings_store.get(db, settings_store.DIGEST_TO) or "",
+            "time": settings_store.get(db, settings_store.DIGEST_TIME) or "07:00",
+            "days": settings_store.digest_days(db),
+            "day_codes": settings_store.DIGEST_DAY_CODES,
+            "day_names": settings_store.DIGEST_DAY_NAMES,
+            "when_empty": settings_store.get_bool(db, settings_store.DIGEST_WHEN_EMPTY),
+        },
+    }
+
+
+@router.get("/email")
+def email_step(request: Request, db: Session = Depends(get_db)):
+    if (target := _guard(db, "email")):
+        return deps.redirect(target)
+    return _render_step(request, db, "email", **_email_context(db))
+
+
+@router.post("/email")
+def email_submit(
+    request: Request,
+    skip: str = Form(""),
+    smtp_host: str = Form(""),
+    smtp_port: str = Form("587"),
+    smtp_security: str = Form("starttls"),
+    smtp_username: str = Form(""),
+    smtp_password: str = Form(""),
+    smtp_from: str = Form(""),
+    digest_to: str = Form(""),
+    digest_time: str = Form("07:00"),
+    digest_days: list[str] = Form(default=[]),
+    digest_when_empty: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Save the mail server and summary, or skip the whole step.
+
+    Skipping is a first-class outcome, not a failure: email is the one part of
+    Task Hub that needs an account somewhere else, and making somebody go and
+    find SMTP settings before they can use what they just installed is how a
+    setup gets abandoned. Everything here is on the Settings page afterwards.
+    """
+    from app.crypto import encrypt_json
+    from app.services.digest import mail_settings
+    from app.services.mailer import MailError, send
+
+    if skip == "1":
+        return _finish(request, db)
+
+    host = smtp_host.strip()
+    sender = smtp_from.strip()
+    if not host and not sender and not digest_to.strip():
+        # An empty form and "Save" pressed: they meant to skip.
+        return _finish(request, db)
+
+    errors: list[str] = []
+    if not host:
+        errors.append("Enter the mail server, or press Skip to do this later.")
+    if not sender:
+        errors.append("Enter the address the summary should come from.")
+
+    try:
+        port = int(smtp_port)
+        if not 1 <= port <= 65535:
+            raise ValueError
+    except ValueError:
+        port = 587
+        errors.append("The port must be a number between 1 and 65535.")
+
+    when = digest_time.strip() or "07:00"
+    try:
+        hour, _, minute = when.partition(":")
+        hour, minute = int(hour), int(minute or 0)
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError
+    except ValueError:
+        hour, minute = 7, 0
+        errors.append("Give the time as HH:MM, like 07:00.")
+
+    if errors:
+        return _render_step(request, db, "email", errors=errors, **_email_context(db))
+
+    settings_store.set_value(db, settings_store.SMTP_HOST, host)
+    settings_store.set_value(db, settings_store.SMTP_PORT, str(port))
+    settings_store.set_value(db, settings_store.SMTP_SECURITY, smtp_security)
+    settings_store.set_value(db, settings_store.SMTP_USERNAME, smtp_username.strip())
+    if smtp_password:
+        settings_store.set_value(
+            db, settings_store.SMTP_PASSWORD, encrypt_json({"password": smtp_password})
+        )
+    settings_store.set_value(db, settings_store.SMTP_FROM, sender)
+
+    recipient = digest_to.strip()
+    days = [
+        code for code in settings_store.DIGEST_DAY_CODES
+        if code in {value.strip().lower() for value in digest_days}
+    ]
+    settings_store.set_value(db, settings_store.DIGEST_TIME, f"{hour:02d}:{minute:02d}")
+    settings_store.set_value(db, settings_store.DIGEST_TO, recipient)
+    settings_store.set_value(
+        db, settings_store.DIGEST_DAYS,
+        ",".join(days or settings_store.DIGEST_DAY_CODES),
+    )
+    settings_store.set_bool(
+        db, settings_store.DIGEST_WHEN_EMPTY, digest_when_empty == "1"
+    )
+    settings_store.set_bool(db, settings_store.DIGEST_ENABLED, bool(recipient))
+    db.commit()
+
+    # Prove it now rather than on the first morning it fails to arrive. A
+    # failure re-renders this step with the mail server's own complaint, and
+    # Skip is still right there.
+    try:
+        send(
+            mail_settings(db), recipient or sender,
+            "Task Hub test message",
+            "This is Task Hub checking that it can send you email.\n\n"
+            "If you are reading it, the daily summary will arrive too.\n\n"
+            "— Task Hub\n",
+        )
+    except MailError as exc:
+        settings_store.set_bool(db, settings_store.DIGEST_ENABLED, False)
+        db.commit()
+        return _render_step(
+            request, db, "email",
+            errors=[
+                str(exc),
+                "Your settings have been saved. Fix them and try again, or "
+                "press Skip and finish it later under Settings → Email.",
+            ],
+            **_email_context(db),
+        )
+
+    from app.sync.scheduler import reschedule_digest
+
+    reschedule_digest()
+    deps.flash(request, f"Test message sent to {recipient or sender}.", "success")
+    return _finish(request, db)

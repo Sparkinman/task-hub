@@ -30,6 +30,38 @@ ADVANCED_MODE: Final = "advanced_mode"
 TUNNEL_ENABLED: Final = "tunnel_enabled"
 TUNNEL_TOKEN: Final = "tunnel_token_enc"
 
+# --- Outgoing mail ------------------------------------------------------------
+#
+# Task Hub sends mail and never receives any: there is no inbox, no listener and
+# no open port. The password is stored encrypted like every other credential,
+# and the interface asks for an app-specific one wherever the provider offers
+# them, because this is otherwise a real mailbox password.
+SMTP_HOST: Final = "smtp_host"
+SMTP_PORT: Final = "smtp_port"
+SMTP_SECURITY: Final = "smtp_security"
+SMTP_USERNAME: Final = "smtp_username"
+SMTP_PASSWORD: Final = "smtp_password_enc"
+SMTP_FROM: Final = "smtp_from"
+#: How the last "send a test message" went, as JSON: whether it worked, where it
+#: went, when, and the server's complaint if it did not. Kept because a flash
+#: message is gone on the next page load, and "is my email actually working?" is
+#: a question people come back to the settings page to ask.
+SMTP_TEST_RESULT: Final = "smtp_test_result"
+
+#: The daily summary of what is due.
+DIGEST_ENABLED: Final = "digest_enabled"
+DIGEST_TIME: Final = "digest_time"
+DIGEST_TO: Final = "digest_to"
+#: Which days it goes out, as lowercase three-letter day names in the order a
+#: cron expression wants them ("mon,wed,fri"). Stored as days rather than as a
+#: "daily / weekdays / custom" mode because the mode is only ever a shortcut for
+#: picking days, and storing the shortcut would mean two places to get wrong.
+DIGEST_DAYS: Final = "digest_days"
+#: Whether to send on a day with nothing due. Off by default: a message that
+#: arrives every morning saying nothing stops being read within a week, and then
+#: the one that matters is not read either.
+DIGEST_WHEN_EMPTY: Final = "digest_when_empty"
+
 #: Anything below this hammers the upstream APIs and earns HTTP 429 responses,
 #: which then back off and make syncing *slower* than a polite interval would.
 #: Enforced here rather than only in the form so an API caller cannot bypass it.
@@ -49,7 +81,42 @@ DEFAULTS: Final[dict[str, str]] = {
     ADVANCED_MODE: "0",
     TUNNEL_ENABLED: "0",
     TUNNEL_TOKEN: "",
+    SMTP_HOST: "",
+    SMTP_PORT: "587",
+    SMTP_SECURITY: "starttls",
+    SMTP_USERNAME: "",
+    SMTP_PASSWORD: "",
+    SMTP_FROM: "",
+    SMTP_TEST_RESULT: "",
+    DIGEST_ENABLED: "0",
+    DIGEST_TIME: "07:00",
+    DIGEST_TO: "",
+    DIGEST_DAYS: "mon,tue,wed,thu,fri,sat,sun",
+    DIGEST_WHEN_EMPTY: "0",
 }
+
+#: The days of the week, in the order they are offered and stored. Monday first
+#: regardless of the week-start preference: this is a cron field, not a calendar.
+DIGEST_DAY_CODES: Final[tuple[str, ...]] = (
+    "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+)
+DIGEST_DAY_NAMES: Final[dict[str, str]] = {
+    "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday",
+    "fri": "Friday", "sat": "Saturday", "sun": "Sunday",
+}
+
+
+def digest_days(session: Session) -> list[str]:
+    """The days the summary goes out, always in week order and never empty.
+
+    A stored value that has lost every valid day -- hand-edited, or written by
+    an older version -- falls back to every day rather than silently switching
+    the summary off. Somebody who wanted it off would have used the switch.
+    """
+    raw = (get(session, DIGEST_DAYS) or "").lower()
+    chosen = {part.strip() for part in raw.split(",") if part.strip()}
+    days = [code for code in DIGEST_DAY_CODES if code in chosen]
+    return days or list(DIGEST_DAY_CODES)
 
 
 # --- Raw access ---------------------------------------------------------------

@@ -11,6 +11,7 @@ import logging
 import threading
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.db import settings_store
@@ -19,6 +20,10 @@ from app.db.session import session_scope
 logger = logging.getLogger(__name__)
 
 JOB_ID = "taskhub-sync"
+#: The daily summary. A separate job from the sync because it runs once a day at
+#: a chosen hour rather than on an interval, and because a mail server being down
+#: must never interfere with syncing.
+DIGEST_JOB_ID = "taskhub-digest"
 
 _scheduler: BackgroundScheduler | None = None
 _lock = threading.Lock()
@@ -117,6 +122,7 @@ def start_scheduler() -> None:
         _scheduler.start()
         logger.info("Scheduler started")
     reschedule()
+    reschedule_digest()
 
 
 def shutdown_scheduler() -> None:
@@ -127,6 +133,74 @@ def shutdown_scheduler() -> None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
         logger.info("Scheduler stopped")
+
+
+def _run_digest() -> None:
+    """Send the daily summary, and never let a mail failure escape.
+
+    A mail server that is down, rejecting, or simply misconfigured must not take
+    the scheduler with it -- this job runs beside the one that keeps everybody's
+    tasks in step.
+    """
+    try:
+        from app.services.digest import send_digest
+
+        with session_scope() as session:
+            outcome = send_digest(session)
+        logger.info("Daily summary: %s", outcome)
+    except Exception:  # noqa: BLE001 - reported, never fatal
+        logger.exception("Daily summary failed")
+
+
+def reschedule_digest() -> None:
+    """Apply the daily summary's on/off switch, time and chosen days.
+
+    Scheduled in the user's own timezone rather than the server's, so "seven in
+    the morning" means theirs. Somebody who moves the instance between machines,
+    or changes the timezone in settings, gets the hour they asked for either way.
+    """
+    global _scheduler
+    if _scheduler is None:
+        return
+
+    with session_scope() as session:
+        enabled = settings_store.get_bool(session, settings_store.DIGEST_ENABLED)
+        when = (settings_store.get(session, settings_store.DIGEST_TIME) or "07:00").strip()
+        zone = settings_store.get(session, settings_store.TIMEZONE) or "UTC"
+        days = settings_store.digest_days(session)
+
+    existing = _scheduler.get_job(DIGEST_JOB_ID)
+    if not enabled:
+        if existing:
+            _scheduler.remove_job(DIGEST_JOB_ID)
+            logger.info("Daily summary disabled")
+        return
+
+    try:
+        hour, _, minute = when.partition(":")
+        trigger = CronTrigger(
+            day_of_week=",".join(days),
+            hour=int(hour), minute=int(minute or 0), timezone=zone,
+        )
+    except (ValueError, TypeError):
+        logger.warning("Daily summary time %r is not readable; not scheduling", when)
+        return
+
+    if existing:
+        _scheduler.reschedule_job(DIGEST_JOB_ID, trigger=trigger)
+    else:
+        _scheduler.add_job(
+            _run_digest, trigger=trigger, id=DIGEST_JOB_ID,
+            name="Task Hub daily summary", replace_existing=True,
+        )
+    logger.info("Daily summary at %s %s on %s", when, zone, ",".join(days))
+
+
+def digest_next_run_time():
+    if _scheduler is None:
+        return None
+    job = _scheduler.get_job(DIGEST_JOB_ID)
+    return job.next_run_time if job else None
 
 
 def reschedule() -> None:

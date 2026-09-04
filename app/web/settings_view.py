@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import logging
 import tempfile
 import zoneinfo
@@ -55,7 +57,62 @@ def index(request: Request, db: Session = Depends(get_db)):
         restart_supported=backup.restart_supported(),
         rollback_bytes=backup.rollback_size(),
         rollback_size=backup.human_size(backup.rollback_size()),
+        mail={
+            "host": settings_store.get(db, settings_store.SMTP_HOST) or "",
+            "port": settings_store.get(db, settings_store.SMTP_PORT) or "587",
+            "security": settings_store.get(db, settings_store.SMTP_SECURITY) or "starttls",
+            "username": settings_store.get(db, settings_store.SMTP_USERNAME) or "",
+            "from_address": settings_store.get(db, settings_store.SMTP_FROM) or "",
+            # Never the password itself, only whether one is saved, so the page
+            # can say "leave blank to keep it" without putting a secret in HTML.
+            "has_password": bool(
+                decrypt_json(
+                    settings_store.get(db, settings_store.SMTP_PASSWORD)
+                ).get("password")
+            ),
+            # Where a test goes if the box is left as it is: the summary's own
+            # recipient, so the button proves the thing that happens each
+            # morning rather than something adjacent to it.
+            "test_to": (
+                (settings_store.get(db, settings_store.DIGEST_TO) or "").strip()
+                or (settings_store.get(db, settings_store.SMTP_FROM) or "").strip()
+            ),
+            "last_test": _last_mail_test(db),
+        },
+        digest={
+            "enabled": settings_store.get_bool(db, settings_store.DIGEST_ENABLED),
+            "time": settings_store.get(db, settings_store.DIGEST_TIME) or "07:00",
+            "to": settings_store.get(db, settings_store.DIGEST_TO) or "",
+            "days": settings_store.digest_days(db),
+            "day_codes": settings_store.DIGEST_DAY_CODES,
+            "day_names": settings_store.DIGEST_DAY_NAMES,
+            "days_phrase": _days_phrase(settings_store.digest_days(db)),
+            "when_empty": settings_store.get_bool(db, settings_store.DIGEST_WHEN_EMPTY),
+            "next_run": _digest_next_run(),
+        },
     )
+
+
+def _digest_next_run():
+    from app.sync.scheduler import digest_next_run_time
+
+    return digest_next_run_time()
+
+
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri")
+
+
+def _days_phrase(days: list[str]) -> str:
+    """The chosen days as a sentence: "every day", "weekdays", or a list."""
+    chosen = [code for code in settings_store.DIGEST_DAY_CODES if code in set(days)]
+    if len(chosen) == len(settings_store.DIGEST_DAY_CODES):
+        return "every day"
+    if chosen == list(WEEKDAYS):
+        return "Monday to Friday"
+    names = [settings_store.DIGEST_DAY_NAMES[code] for code in chosen]
+    if len(names) == 1:
+        return f"every {names[0]}"
+    return " and ".join([", ".join(names[:-1]), names[-1]])
 
 
 @router.post("/general")
@@ -450,3 +507,227 @@ def restart(request: Request, db: Session = Depends(get_db)):
         heading="Restarting Task Hub",
         detail="This normally takes about fifteen seconds.",
     )
+
+
+# --- Outgoing mail and the daily summary --------------------------------------
+
+
+@router.post("/mail")
+def save_mail(
+    request: Request,
+    smtp_host: str = Form(""),
+    smtp_port: str = Form("587"),
+    smtp_security: str = Form("starttls"),
+    smtp_username: str = Form(""),
+    smtp_password: str = Form(""),
+    smtp_from: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Store the mail server details.
+
+    The password box empty means "keep the saved one", exactly as the tunnel
+    token does, so the page never has to echo a secret back into its own HTML
+    to let somebody change the port.
+    """
+    from app.services.mailer import SECURITIES
+
+    security = smtp_security.strip().lower()
+    if security not in SECURITIES:
+        security = "starttls"
+
+    try:
+        port = int(smtp_port.strip() or "587")
+    except ValueError:
+        deps.flash(request, "The port has to be a number, usually 587 or 465.", "error")
+        return deps.redirect("/settings")
+    if not 1 <= port <= 65535:
+        deps.flash(request, "That is not a usable port number.", "error")
+        return deps.redirect("/settings")
+
+    settings_store.set_value(db, settings_store.SMTP_HOST, smtp_host.strip())
+    settings_store.set_value(db, settings_store.SMTP_PORT, str(port))
+    settings_store.set_value(db, settings_store.SMTP_SECURITY, security)
+    settings_store.set_value(db, settings_store.SMTP_USERNAME, smtp_username.strip())
+    settings_store.set_value(db, settings_store.SMTP_FROM, smtp_from.strip())
+    if smtp_password.strip():
+        settings_store.set_value(
+            db, settings_store.SMTP_PASSWORD,
+            encrypt_json({"password": smtp_password.strip()}),
+        )
+    db.commit()
+
+    deps.flash(request, "Mail server saved. Send a test to check it.", "success")
+    return deps.redirect("/settings")
+
+
+@router.post("/mail/test")
+def test_mail(
+    request: Request,
+    test_to: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Prove the settings work, and remember the answer.
+
+    The address defaults to the summary's own recipient, so pressing the button
+    without touching anything proves the thing that will actually happen every
+    morning. The outcome is recorded and shown beside the button afterwards:
+    a flash message is gone on the next page load, and "is my email working?"
+    is a question people come back to the settings page to ask.
+    """
+    from app.services.digest import mail_settings
+    from app.services.mailer import MailError, send
+
+    to = test_to.strip() or (settings_store.get(db, settings_store.DIGEST_TO) or "").strip()
+    to = to or (settings_store.get(db, settings_store.SMTP_FROM) or "").strip()
+    if not to:
+        deps.flash(request, "Type an address to send the test to.", "error")
+        return deps.redirect("/settings")
+
+    try:
+        send(
+            mail_settings(db), to,
+            "Task Hub test message",
+            "This is Task Hub checking that it can send you email.\n\n"
+            "If you are reading it, the daily summary will arrive too.\n\n"
+            "— Task Hub\n",
+        )
+    except MailError as exc:
+        _record_mail_test(db, ok=False, to=to, detail=str(exc))
+        deps.flash(request, str(exc), "error")
+        return deps.redirect("/settings")
+
+    _record_mail_test(db, ok=True, to=to, detail="")
+    deps.flash(
+        request,
+        f"Test message sent to {to}. If it does not appear within a minute or "
+        "two, check the spam folder — a sender that has never written to you "
+        "before is exactly what a spam filter looks for.",
+        "success",
+    )
+    return deps.redirect("/settings")
+
+
+def _record_mail_test(db: Session, *, ok: bool, to: str, detail: str) -> None:
+    """Remember how the last test went, so the page can say so."""
+    settings_store.set_value(
+        db, settings_store.SMTP_TEST_RESULT,
+        json.dumps({
+            "ok": ok,
+            "to": to,
+            "detail": detail,
+            "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        }),
+    )
+    db.commit()
+
+
+def _last_mail_test(db: Session) -> dict | None:
+    raw = settings_store.get(db, settings_store.SMTP_TEST_RESULT) or ""
+    if not raw:
+        return None
+    try:
+        saved = json.loads(raw)
+    except ValueError:
+        return None
+    when = saved.get("at", "")
+    try:
+        moment = dt.datetime.fromisoformat(when).astimezone(
+            deps.resolve_tz(settings_store.get(db, settings_store.TIMEZONE))
+        )
+        when = moment.strftime("%Y-%m-%d %H:%M")
+    except (TypeError, ValueError):
+        pass
+    return {
+        "ok": bool(saved.get("ok")),
+        "to": saved.get("to", ""),
+        "detail": saved.get("detail", ""),
+        "when": when,
+    }
+
+
+@router.post("/digest")
+def save_digest(
+    request: Request,
+    digest_enabled: str = Form(""),
+    digest_time: str = Form("07:00"),
+    digest_to: str = Form(""),
+    digest_days: list[str] = Form(default=[]),
+    digest_when_empty: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Turn the daily summary on or off, and choose when and how often."""
+    from app.sync.scheduler import reschedule_digest
+
+    enabled = digest_enabled == "1"
+    when = digest_time.strip() or "07:00"
+    try:
+        hour, _, minute = when.partition(":")
+        hour, minute = int(hour), int(minute or 0)
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError
+    except ValueError:
+        deps.flash(request, "Give the time as HH:MM, like 07:00.", "error")
+        return deps.redirect("/settings")
+
+    # Week order, whatever order the boxes were submitted in, and only real day
+    # codes -- this string goes straight into a cron expression.
+    days = [
+        code for code in settings_store.DIGEST_DAY_CODES
+        if code in {value.strip().lower() for value in digest_days}
+    ]
+    if enabled and not days:
+        deps.flash(
+            request,
+            "Choose at least one day for the summary, or switch it off.",
+            "error",
+        )
+        return deps.redirect("/settings")
+
+    recipient = digest_to.strip()
+    if enabled and not recipient:
+        deps.flash(request, "Add an address to send the summary to.", "error")
+        return deps.redirect("/settings")
+    if enabled and not (settings_store.get(db, settings_store.SMTP_HOST) or "").strip():
+        deps.flash(
+            request,
+            "Set up the mail server above before switching the summary on.",
+            "error",
+        )
+        return deps.redirect("/settings")
+
+    settings_store.set_bool(db, settings_store.DIGEST_ENABLED, enabled)
+    settings_store.set_value(db, settings_store.DIGEST_TIME, f"{hour:02d}:{minute:02d}")
+    settings_store.set_value(db, settings_store.DIGEST_TO, recipient)
+    settings_store.set_value(
+        db, settings_store.DIGEST_DAYS,
+        ",".join(days or settings_store.DIGEST_DAY_CODES),
+    )
+    settings_store.set_bool(
+        db, settings_store.DIGEST_WHEN_EMPTY, digest_when_empty == "1"
+    )
+    db.commit()
+
+    reschedule_digest()
+    deps.flash(
+        request,
+        f"Daily summary {'on' if enabled else 'off'}."
+        + (f" Sending at {hour:02d}:{minute:02d}, {_days_phrase(days)}."
+           if enabled else ""),
+        "success",
+    )
+    return deps.redirect("/settings")
+
+
+@router.post("/digest/send")
+def send_digest_now(request: Request, db: Session = Depends(get_db)):
+    """Send today's summary immediately, even on a quiet day."""
+    from app.services.digest import send_digest
+    from app.services.mailer import MailError
+
+    try:
+        outcome = send_digest(db, force=True)
+    except MailError as exc:
+        deps.flash(request, str(exc), "error")
+        return deps.redirect("/settings")
+    deps.flash(request, outcome, "success")
+    return deps.redirect("/settings")

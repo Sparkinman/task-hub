@@ -1,0 +1,151 @@
+{% extends "onboarding/_wizard.html" %}
+
+{% block wizard_title %}A summary in your inbox{% endblock %}
+{% block wizard_lede %}
+  Task Hub can email you one message listing everything overdue, everything due
+  today, and what is coming over the following week — from every service at
+  once. This step is optional, and nothing else depends on it.
+{% endblock %}
+
+{% block wizard_form %}
+<form method="post" action="/setup/email">
+  <div class="wizard-body">
+
+    <div class="alert mb-4">
+      <span class="alert-icon" aria-hidden="true">✉</span>
+      <div class="grow">
+        <div class="alert-title">Task Hub sends mail and never receives any</div>
+        There is no inbox, no listener and no open port. It needs an account to
+        send <em>through</em> — your own email account is fine.
+        <a href="/docs/email" target="_blank" rel="noopener">The exact settings
+          for Gmail, Outlook, iCloud, Fastmail and Yahoo are here →</a>
+      </div>
+    </div>
+
+    <div class="row-wrap">
+      <div class="field grow">
+        <label for="smtp_host">Mail server</label>
+        <input type="text" id="smtp_host" name="smtp_host" value="{{ mail.host }}"
+               placeholder="smtp.gmail.com" autocomplete="off">
+      </div>
+      <div class="field" style="max-width: 120px;">
+        <label for="smtp_port">Port</label>
+        <input type="number" id="smtp_port" name="smtp_port" value="{{ mail.port }}"
+               min="1" max="65535">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="smtp_security">Security</label>
+      <select id="smtp_security" name="smtp_security">
+        <option value="starttls" {{ 'selected' if mail.security == 'starttls' }}>STARTTLS — usually port 587</option>
+        <option value="ssl" {{ 'selected' if mail.security == 'ssl' }}>SSL/TLS — usually port 465</option>
+        <option value="none" {{ 'selected' if mail.security == 'none' }}>None — only for a mail server on this machine</option>
+      </select>
+      <span class="field-hint">
+        The port and the security setting have to agree. If one pair does not
+        work, the other usually does.
+      </span>
+    </div>
+
+    <div class="field">
+      <label for="smtp_username">Username</label>
+      <input type="text" id="smtp_username" name="smtp_username"
+             value="{{ mail.username }}" autocomplete="off"
+             placeholder="usually your full email address">
+    </div>
+
+    <div class="field">
+      <label for="smtp_password">Password</label>
+      <input type="password" id="smtp_password" name="smtp_password"
+             autocomplete="new-password"
+             placeholder="{{ 'Saved — leave blank to keep it' if mail.has_password else '' }}">
+      <span class="field-hint">
+        <span class="strong">Use an app-specific password if your provider offers
+        one.</span> Gmail, Yahoo and iCloud all refuse your normal password here.
+        It is stored encrypted, and it can be revoked on its own later.
+      </span>
+    </div>
+
+    <div class="field">
+      <label for="smtp_from">Send from</label>
+      <input type="text" id="smtp_from" name="smtp_from" value="{{ mail.from_address }}"
+             autocomplete="off" placeholder="you@example.com">
+      <span class="field-hint">
+        Most providers insist this matches the account signing in.
+      </span>
+    </div>
+
+    <hr class="rule my-4">
+
+    <div class="field">
+      <label for="digest_to">Send the summary to</label>
+      <input type="email" id="digest_to" name="digest_to" value="{{ digest.to }}"
+             placeholder="you@example.com" autocomplete="off">
+      <span class="field-hint">
+        Leave this empty to set the mail server up now and choose the summary
+        later.
+      </span>
+    </div>
+
+    <div class="row-wrap">
+      <div class="field" style="max-width: 150px;">
+        <label for="digest_time">Time</label>
+        <input type="time" id="digest_time" name="digest_time" value="{{ digest.time }}">
+      </div>
+      <div class="field grow">
+        <label>&nbsp;</label>
+        <span class="field-hint">In the timezone you chose earlier.</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Which days</label>
+      <div class="row-wrap" id="digest-days">
+        {% for code in digest.day_codes %}
+          <label class="check">
+            <input type="checkbox" name="digest_days" value="{{ code }}"
+                   {{ 'checked' if code in digest.days }}>
+            <span class="check-label">{{ digest.day_names[code][:3] }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="row-wrap mt-2">
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-digest-days="mon,tue,wed,thu,fri,sat,sun">Every day</button>
+        <button type="button" class="btn btn-ghost btn-sm"
+                data-digest-days="mon,tue,wed,thu,fri">Monday to Friday</button>
+      </div>
+    </div>
+
+    <label class="check mt-3">
+      <input type="checkbox" name="digest_when_empty" value="1"
+             {{ 'checked' if digest.when_empty }}>
+      <span>
+        <span class="check-label">Send even on a day with nothing due</span>
+        <span class="check-hint">
+          Off by default. A message that arrives every morning saying "nothing
+          due" stops being read within a week, and then the one that matters is
+          not read either.
+        </span>
+      </span>
+    </label>
+
+    <div class="alert mt-4">
+      <span class="alert-icon" aria-hidden="true">✓</span>
+      <div class="grow">
+        Saving sends one test message straight away, so you find out now rather
+        than the first morning it fails to arrive.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wizard-foot">
+    <a class="btn btn-ghost" href="/setup/sync">Back</a>
+    <button type="submit" class="btn btn-ghost" name="skip" value="1"
+            formnovalidate>Skip — set this up later</button>
+    <button type="submit" class="btn btn-primary btn-lg">Save and finish</button>
+  </div>
+</form>
+{% endblock %}

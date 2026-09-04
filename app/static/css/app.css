@@ -269,8 +269,18 @@ kbd {
 .grow        { flex: 1 1 auto; min-width: 0; }
 .truncate    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-0 { margin-top: 0; } .mb-0 { margin-bottom: 0; }
+/* The small steps were used in the templates long before they were defined
+   here, so a "mt-2" in the markup quietly did nothing. Defined now rather than
+   stripped out: the intent in each of those places was a small gap. */
+.mt-1 { margin-top: var(--gap-1); } .mb-1 { margin-bottom: var(--gap-1); }
+.mt-2 { margin-top: var(--gap-2); } .mb-2 { margin-bottom: var(--gap-2); }
+.mt-3 { margin-top: var(--gap-3); } .mb-3 { margin-bottom: var(--gap-3); }
 .mt-4 { margin-top: var(--gap-4); } .mt-5 { margin-top: var(--gap-5); }
 .mb-4 { margin-bottom: var(--gap-4); } .mb-5 { margin-bottom: var(--gap-5); }
+.my-4 { margin: var(--gap-4) 0; }
+
+/* A plain divider inside a card or a wizard step. */
+hr.rule { border: 0; border-top: 1px solid var(--border); }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

@@ -113,6 +113,7 @@ def list_docs() -> list[DocEntry]:
         "install-macos": 4,
         "install-linux": 5,
         "addresses": 6,
+        "email": 7,
         "third-party-apps": 9,
     }
     return sorted(entries, key=lambda e: (rank.get(e.slug, 8), e.title.lower()))
