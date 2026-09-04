@@ -610,6 +610,34 @@ def create_containers(session) -> dict:
         made["ticktick"] = (account.id, project_id, CollectionKind.TASKS)
         print(f"  ticktick   tasks     project {project_id}")
 
+    # -- Apple: a calendar and a task list of its own in iCloud ---------------
+    #
+    # iCloud accepts MKCALENDAR for both component types, verified by creating
+    # one of each and deleting them again, so Apple gets throwaway containers
+    # like everybody else rather than being pointed at somebody's real
+    # calendars. The account's own Reminders may well be upgraded and invisible
+    # to CalDAV; that does not affect a list created here, which is CalDAV by
+    # construction.
+    account, connector = connector_for(session, ServiceKind.APPLE)
+    if connector is not None:
+        principal = connector._connect()
+        for key, kind, components in (
+            ("apple_tasks", CollectionKind.TASKS, ["VTODO"]),
+            ("apple_calendar", CollectionKind.CALENDAR, ["VEVENT"]),
+        ):
+            try:
+                collection = principal.make_calendar(
+                    name=f"{name} {kind.value}",
+                    supported_calendar_component_set=components,
+                )
+            except Exception as exc:  # noqa: BLE001 - reported, not fatal
+                print(f"  apple      could not make a {kind.value} collection: {exc}")
+                continue
+            url = str(collection.url)
+            registry_add({"service": "apple", "kind": "collection", "id": url})
+            made[key] = (account.id, url, kind)
+            print(f"  apple      {kind.value:9} {url}")
+
     # -- Obsidian: an existing folder, read only, nothing created --------------
     #
     # No container is made here and none is registered for teardown, because
@@ -869,6 +897,13 @@ def teardown(verbose: bool = True) -> list[str]:
                 elif service == "ticktick":
                     _, connector = connector_for(session, ServiceKind.TICKTICK)
                     connector._request("DELETE", f"/project/{identifier}")
+                elif service == "apple":
+                    # Through the connector's own handle rather than a fresh
+                    # caldav.Calendar: it follows iCloud's discovery to the
+                    # numbered shard the collection actually lives on, which a
+                    # client left at the sign-in host cannot address at all.
+                    _, apple = connector_for(session, ServiceKind.APPLE)
+                    apple._calendar(identifier).delete()
                 elif service == "obsidian":
                     shutil.rmtree(identifier, ignore_errors=True)
                 if verbose:
@@ -893,7 +928,8 @@ def verify_clean(verbose: bool = True) -> list[str]:
     leftovers: list[str] = []
     with session_scope() as session:
         for service in (ServiceKind.RADICALE, ServiceKind.GOOGLE,
-                        ServiceKind.TODOIST, ServiceKind.TICKTICK):
+                        ServiceKind.TODOIST, ServiceKind.TICKTICK,
+                        ServiceKind.APPLE):
             try:
                 _, connector = connector_for(session, service)
                 if connector is None:

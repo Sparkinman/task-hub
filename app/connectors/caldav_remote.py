@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 
 import caldav
 from caldav.lib.error import AuthorizationError, DAVError, NotFoundError
+from caldav.lib.url import URL
 
 from app.connectors.base import (
     ALL_FIELDS,
@@ -92,6 +93,7 @@ class RemoteCalDAVConnector(Connector):
                 timeout=45,
             )
             self._principal = self._client.principal()
+            self._follow_discovery()
             return self._principal
         except AuthorizationError as exc:
             raise ConnectorAuthError(self._explain_auth_failure()) from exc
@@ -104,6 +106,44 @@ class RemoteCalDAVConnector(Connector):
             ) from exc
         except Exception as exc:  # noqa: BLE001 - network stacks raise widely
             raise ConnectorError(f"Could not connect: {exc}") from exc
+
+    def _follow_discovery(self) -> None:
+        """Move the client to whichever host discovery actually pointed at.
+
+        iCloud signs you in at ``caldav.icloud.com`` and then hands back a
+        principal, and every collection under it, on a numbered shard such as
+        ``p195-caldav.icloud.com``. The caldav library builds every object it
+        returns by joining the object's URL onto the client's base URL, and that
+        join refuses outright when the hostnames differ. So a client left
+        pointing at the sign-in host cannot construct a single one of the
+        objects discovery just told it about.
+
+        The failure is worth describing because it looks like something else
+        entirely: signing in works, listing collections works, and the account
+        page shows every calendar correctly. It is only when a sync reads one
+        that a ``ValueError`` about URLs surfaces -- and because a sync group
+        fails as a unit, mapping one iCloud calendar took Google and Radicale
+        down with it, with nothing in the message naming Apple.
+
+        Following the redirect once here fixes reads, writes and deletes
+        together, rather than patching each construction site as it is found.
+        """
+        if self._client is None or self._principal is None:
+            return
+        try:
+            # The principal is not the thing that moves. On iCloud it stays on
+            # the sign-in host and only the calendar home set is on the shard,
+            # so following the principal fixes nothing at all.
+            discovered = URL.objectify(str(self._principal.calendar_home_set.url))
+            current = URL.objectify(str(self._client.url))
+        except Exception:  # noqa: BLE001 - a URL we cannot parse is left alone
+            return
+        if discovered.hostname and discovered.hostname != current.hostname:
+            logger.info(
+                "CalDAV discovery moved this account from %s to %s",
+                current.hostname, discovered.hostname,
+            )
+            self._client.url = discovered
 
     def _explain_auth_failure(self) -> str:
         if "icloud" in self.base_url:
@@ -234,9 +274,27 @@ class RemoteCalDAVConnector(Connector):
     # -- Helpers ---------------------------------------------------------------
 
     def _calendar(self, remote_list_id: str):
-        """A collection handle from the URL discovery gave us."""
+        """A collection handle from the URL discovery gave us.
+
+        The URL is set after construction rather than passed in, and that is
+        load-bearing rather than fussy. Given both a client and a url, the caldav
+        library joins the url onto the client's base and refuses the join when
+        the hostnames differ -- which is exactly what iCloud does. Sign-in starts
+        at ``caldav.icloud.com`` and discovery hands back collections on a
+        numbered shard such as ``p195-caldav.icloud.com``, so every collection
+        this connector was told about is on a different host from the client that
+        found it.
+
+        The result was that mapping any iCloud calendar made the whole sync group
+        fail -- Google and Radicale included, because a group fails as a unit --
+        with a ValueError about URLs that cannot be joined and nothing pointing
+        at Apple as the cause. Discovery itself worked, which is what made it look
+        like the account was fine.
+        """
         self._connect()
-        return caldav.Calendar(client=self._client, url=remote_list_id)
+        collection = caldav.Calendar(client=self._client)
+        collection.url = URL.objectify(remote_list_id)
+        return collection
 
     # -- Reading ---------------------------------------------------------------
 

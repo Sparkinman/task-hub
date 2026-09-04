@@ -151,7 +151,6 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.APPLE.value,
         name="Apple",
-        hidden=True,
         colour="black",
         supports_tasks=True,
         supports_calendar=True,
@@ -162,6 +161,14 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
         caveats=[
             "Apple Calendar syncs normally over CalDAV with an app-specific "
             "password.",
+            "Creating a task list in iCloud over CalDAV does not get round the "
+            "upgrade. Task Hub can make one and read and write it perfectly "
+            "well, but an upgraded Reminders app does not display it -- tested "
+            "against a real account, and the list simply never appeared on the "
+            "phone. To have tasks in Apple's own Reminders app you need the "
+            "second Apple ID below; to have them on your phone at all, syncing "
+            "the phone directly to Task Hub is simpler and has no upgrade "
+            "problem.",
             "Reminders needs a second Apple ID used purely as a task store, "
             "added to your devices as a manual CalDAV account. Apple's Reminders "
             "app moves an 'upgraded' primary account's lists somewhere CalDAV "
