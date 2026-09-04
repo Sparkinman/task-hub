@@ -1,18 +1,89 @@
-# Task Hub
+<p align="center">
+  <img src="app/static/img/logo.svg" alt="" width="150">
+</p>
 
-[![Publish image](https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml/badge.svg)](https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml)
+<h1 align="center">Task Hub</h1>
 
-A self-hosted web application that keeps tasks and calendars synchronised across
-**Google, Todoist, TickTick and Obsidian**, with a built-in Radicale CalDAV
-server as the place everything converges — so your phone, your laptop's
-calendar and every service you use are all looking at the same tasks.
+<p align="center">
+  <strong>One place where all your tasks and calendars agree.</strong><br>
+  Self-hosted. One container. No configuration file.
+</p>
 
-Connectors for Apple, Microsoft and Things 3 are written but **not yet
-finished**: see [what works today](#what-works-today) before you plan around
-them.
+<p align="center">
+  <a href="https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml"><img src="https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml/badge.svg" alt="Publish image"></a>
+  <img src="https://img.shields.io/badge/licence-GPLv3-blue" alt="GPLv3">
+  <img src="https://img.shields.io/badge/arch-amd64%20%7C%20arm64-lightgrey" alt="amd64 and arm64">
+</p>
 
-Everything is configured through the web interface. There is no configuration
-file to edit, and no command beyond starting the container.
+---
+
+## The problem
+
+Your tasks are scattered. Some live in Todoist, some in Google Tasks, a few
+written into an Obsidian note at two in the morning, and the appointments they
+relate to are in a calendar that knows nothing about any of them.
+
+Every tool that promises to fix this fails the same way, and the reason is
+specific: **the services disagree about what a task even is.** Google Tasks
+cannot store a time of day. Todoist has four priority levels; iCalendar has
+nine; Microsoft To Do has three. TickTick's API will not return the tags you can
+plainly see in its own app.
+
+So a naive sync destroys things. It reads a task from Google, sees no time of
+day, concludes the time was cleared, and helpfully wipes the 5pm you set in
+Todoist. Do that on a schedule and it quietly eats your data — in both
+directions, for ever.
+
+## What Task Hub does about it
+
+**Absent is not empty.** Every connector declares exactly what its service can
+faithfully hold, and the merge engine only ever considers fields a service
+actually claims. Google Tasks never reports a time of day, so nothing coming
+from Google can erase one. No special case for Google exists anywhere in the
+code; the capability declaration does it, and every service gets the same
+treatment.
+
+**Conflicts resolve per field, not per record.** Edit a note in Todoist and a
+due date in Google between two syncs and both survive. Whole-record
+last-writer-wins would silently discard one, and you would never know which.
+
+**An echo is not an edit.** Services stamp a whole item as modified when one
+field changes, so a service reporting back what you sent it looks exactly like
+somebody editing it. Task Hub remembers what it last wrote to each service —
+including how that service will mangle it, because a four-level priority scale
+returns a different number than it was given — so an echo is recognised and
+ignored rather than fought.
+
+Everything converges on a **built-in CalDAV server**, which your phone, your
+laptop's calendar and any standards-respecting app can talk to directly. Your
+tasks end up in Apple Reminders or on an e-ink tablet without those devices
+knowing Todoist exists.
+
+## What it is like to run
+
+One container. No configuration file, no environment variables to guess at, no
+terminal after the first line. It works out its own address from however you
+reach it, so the same image is correct on a Raspberry Pi at
+`192.168.1.50:8080`, behind a Cloudflare tunnel, over Tailscale, or behind your
+own nginx — and it hands each service the redirect address that actually works,
+because it is the one that just delivered the page.
+
+Connecting an account, choosing what syncs, backups, restores, even restarting:
+all in the browser. The only thing that ever needs a command line is updating,
+because a program cannot replace itself while it is running.
+
+## Honest about what it is not
+
+Some connectors are further along than others, and the difference is stated
+everywhere you would see it rather than buried. A connector that has never run
+against a real account says so on its own page, in those words, until somebody
+connects one — see [what works today](#what-works-today).
+
+It is tested against real accounts rather than mocks, because that is the only
+thing that finds real faults: `tests/stress_live.py` drives every connected
+service at two hundred tasks and two hundred events, creating throwaway lists in
+each, measuring memory, processor time and query counts per pass, and removing
+everything it made afterwards.
 
 ---
 
@@ -127,8 +198,8 @@ directly, and Task Hub itself is just another client of it.
 
 Task Hub is being built one service at a time, and a service only counts as
 finished once it has been run against a real account — not when its code is
-written. Three of them have not passed that point yet, and this table is the
-honest state of each.
+written. One has not passed that point yet, and this table is the honest state
+of each.
 
 | Service | Tasks | Calendar | State |
 | --- | --- | --- | --- |
@@ -137,19 +208,24 @@ honest state of each.
 | **TickTick** | ✓ | — | **Working.** Tested against a live account. |
 | **Obsidian** | ✓ | — | **Working.** Tested against live vaults. Read-only unless you turn write-back on. |
 | **Radicale** (built in) | ✓ | ✓ | **Working.** This is where everything meets. |
-| Apple | — | — | **Not finished.** Written, never run against a real iCloud account, no tests. |
-| Microsoft | — | — | **Not finished.** Written, never run against a real account, no tests. |
-| Things 3 | — | — | **Not finished.** Hidden in the interface until it can be tried. |
+| **Apple** | — | ✓ | **Calendars working.** Tested against a live iCloud account. Reminders cannot be reached at all if that Apple ID's Reminders were ever "upgraded" — Apple moved them out of CalDAV permanently. [Why, and what to do instead](docs/apple.md). |
+| **Microsoft** | ✓ | ✓ | **Working.** Tested against a live account. Registering the app now needs an Entra ID directory, which a personal Microsoft account does not have — [the guide covers the options](docs/microsoft.md). |
+| Things 3 | — | — | **Not finished.** Written, never run against a real account, and it talks to an endpoint Things does not publish. Hidden in the interface until somebody tries it. |
 
-**Please do not set up Apple, Microsoft or Things 3 yet.** Each of them costs
-you real effort before you find out whether it works — an Azure app
-registration for Microsoft, a second Apple ID used purely as a task store for
-Apple — and none of that effort has been repaid by a single successful sync so
-far. All three are kept off the services list for that reason, and each says so
-on its own page and at the top of its guide. Nothing is removed — you can still
-reach them deliberately if you are willing to be the one who finds out — but
-you will not be offered them by accident. Apple is next in line, and this table
-changes the day it syncs.
+**Things 3 is the one still to prove.** It is kept off the services list, says
+so on its own page and at the top of its guide, and can still be reached
+deliberately if you are willing to be the one who finds out. Nothing is removed;
+you simply will not be offered it by accident. That label comes off the day
+somebody connects a real account, and not before.
+
+Apple and Microsoft carried that label until recently, and what removing it took
+is worth knowing, because it is the argument for the whole approach: connecting
+a real Microsoft account found an OAuth callback that had never worked for
+anybody, and a priority scale that provoked six hundred redundant writes on
+every second sync pass. Connecting a real iCloud account found a calendar host
+that Apple redirects you to and the library refuses to follow, which broke every
+sync group the account was mapped into. None of it was reachable from a test
+against a mock.
 
 Everything else in the project is finished: the sync engine, the field-level
 merge, scheduling, sync groups and history, the embedded CalDAV server, the
