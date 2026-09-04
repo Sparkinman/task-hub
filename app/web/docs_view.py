@@ -105,21 +105,25 @@ def list_docs() -> list[DocEntry]:
     # connecting your own apps -- which only makes sense once something syncs.
     rank = {
         "getting-started": 0,
+        # Straight after the introduction: "will it work with what I already
+        # use?" is the question somebody arrives with, before any install step.
+        "compatibility": 1,
         # The install guides sit together, ordered by how likely a reader is to
         # be on that machine rather than alphabetically.
-        "install-raspberry-pi": 1,
-        "install-nas": 2,
-        "install-windows": 3,
-        "install-macos": 4,
-        "install-linux": 5,
-        "addresses": 6,
-        "email": 7,
-        "third-party-apps": 9,
-        # Last of the service guides: it is the one to read when none of the
-        # named services is yours.
-        "caldav": 8.5,
+        "install-raspberry-pi": 2,
+        "install-nas": 3,
+        "install-windows": 4,
+        "install-macos": 5,
+        "install-linux": 6,
+        "addresses": 7,
+        "email": 8,
+        # 10 is the default, and is where the per-service guides sit.
+        # CalDAV comes after the named services: it is the one to read when
+        # none of them is yours.
+        "caldav": 11,
+        "third-party-apps": 12,
     }
-    return sorted(entries, key=lambda e: (rank.get(e.slug, 8), e.title.lower()))
+    return sorted(entries, key=lambda e: (rank.get(e.slug, 10), e.title.lower()))
 
 
 @router.get("")

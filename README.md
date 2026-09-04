@@ -31,6 +31,10 @@
 | **Things 3** | ✓ | — | Import only — Things has no supported way to write in. Its endpoint is unpublished and may change without warning |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
 
+**[The full list](docs/compatibility.md)** — including the servers that should
+work through the CalDAV connector, the apps that connect straight to Task Hub,
+and the ones that cannot, each with the reason.
+
 Every one of those has been run against a real account.
 
 **Tasks and calendars both reach your iPhone, iPad and Mac, and appear in
@@ -61,7 +65,9 @@ without a connector at all:
 | **GNOME Calendar / GNOME To Do** | Linux | |
 | **Supernote and other e-ink tablets** | | Anything with a CalDAV client |
 
-[How to connect each of them](docs/third-party-apps.md).
+[How to connect each of them](docs/third-party-apps.md), and
+[the full compatibility list](docs/compatibility.md) — every service and app
+that works, that should work, and that cannot, each with the reason.
 
 **Vikunja does not fit here**, and it is asked about often enough to be worth
 saying: Vikunja is itself a CalDAV *server*, not a client, so it cannot
