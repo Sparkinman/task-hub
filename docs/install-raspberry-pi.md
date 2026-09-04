@@ -216,12 +216,25 @@ http://192.168.1.50:8080
 
 `http://taskhub.local:8080` usually works too and is easier to remember.
 
-Task Hub greets you with its setup wizard. It asks you to create a login, pick
-a timezone, and choose a CalDAV password for the phones and apps you will
-connect later. Follow it to the end and you have a working Task Hub.
+Task Hub greets you with its setup wizard. It walks through seven short steps: a
+welcome, a login for this web page, your region and timezone, a CalDAV password
+for the phones and apps you will connect later, your first task list and
+calendar, how often it syncs, and finally an optional daily-summary email.
+Follow it to the end and you have a working Task Hub.
 
 **Write the CalDAV password down.** It is shown once and is what every phone
 and calendar app will need.
+
+**The last step, email, is optional — and Gmail has a trap worth knowing about.**
+The daily summary needs a mail server to send from, and Gmail, Yahoo and iCloud
+all refuse your normal account password here: they require an *app password*
+instead — a sixteen-letter one you make in your account's security settings, not
+the password you sign in with. Typing your ordinary password fails with a
+message that reads like a wrong password, which is misleading, because the
+password is not the problem. If you would rather not set this up now, click
+**Skip — set this up later**; everything on this step is on the Settings page
+afterwards. The [email guide](email.md) has the exact steps for each provider,
+including how to turn on Gmail's app passwords.
 
 **You are finished with the terminal.** Everything from here — connecting
 Google, Todoist, TickTick and Obsidian, choosing what syncs, backups, restores,
@@ -440,9 +453,26 @@ shows the exact address to register on its Google page — copy it from there
 rather than typing it, and make sure you are using the same address when you
 click connect.
 
+**The setup wizard will not accept my email address or password.**
+If it says the mail server rejected your username and password, and you use
+Gmail, Yahoo or iCloud, that is expected rather than a fault: those providers
+never accept your normal password for sending mail. Make an *app password* in
+your account's security settings and paste that instead — for Gmail, turn on
+2-Step Verification first, then create one at `myaccount.google.com/apppasswords`.
+Or simply skip the email step; it is optional and is set up later from Settings.
+The [email guide](email.md) covers every provider.
+
 **Everything is slow, or the Pi keeps rebooting.**
 Almost always the power supply. Use the official one. `vcgencmd get_throttled`
 returning anything other than `throttled=0x0` confirms it.
+
+**The Pi became unreachable — no web page, no SSH, not even a ping.**
+It has most likely run out of memory and locked up, which happens when Task Hub
+is sharing a small Pi with other heavy containers rather than having it to
+itself. Pull the power for ten seconds and plug it back in; Task Hub starts on
+its own when the Pi comes up. If it keeps happening, give Task Hub a Pi of its
+own, or one with more memory — 2 GB is enough for Task Hub alone, but not for
+Task Hub plus everything else.
 
 ---
 
