@@ -253,8 +253,12 @@ app.include_router(overview.router)
 app.include_router(tasks_view.router)
 app.include_router(calendar_view.router)
 app.include_router(radicale_admin.router)
-app.include_router(services_view.router)
+# Google's list discovery sits at a more specific path than the generic one
+# on services_view, and FastAPI matches in registration order rather than by
+# specificity -- so it is registered first, or the generic route swallows it
+# and a token refreshed during discovery would be thrown away.
 app.include_router(google_setup.router)
+app.include_router(services_view.router)
 app.include_router(oauth_setup.router)
 app.include_router(password_setup.router)
 app.include_router(obsidian_setup.router)

@@ -669,3 +669,67 @@ def delete_slot(
         disconnect_accounts(request, db, [account], wants_cleanup(remove_items))
 
     return deps.redirect(f"/services/{service_key}")
+
+
+@router.post("/{service_key}/{slot}/discover")
+def discover_lists(
+    service_key: str, slot: int, request: Request, db: Session = Depends(get_db)
+):
+    """Fetch a connected account's lists so they can be mapped to collections.
+
+    Written once, for every service, because it was previously written once for
+    *some* services. The URL is generic and only the OAuth module claimed it, so
+    a password-authenticated account -- Apple, Things 3 -- reached a handler that
+    did not recognise its service key and redirected away without a word. The
+    "Refresh lists" button appeared to work, nothing happened, and the account
+    could never be mapped to anything because it had no lists on record.
+
+    Google keeps its own handler at a more specific path, registered ahead of
+    this one, because discovery there can refresh an access token and that new
+    token has to be saved. Everything else wants exactly this.
+    """
+    if service_key not in SERVICES_BY_KEY:
+        return deps.redirect("/services")
+
+    account = db.execute(
+        select(Account).where(
+            Account.service == ServiceKind(service_key), Account.slot == slot
+        )
+    ).scalar_one_or_none()
+    if account is None:
+        deps.flash(request, "That slot is not connected.", "error")
+        return deps.redirect(f"/services/{service_key}")
+
+    from app.connectors.base import ConnectorAuthError, ConnectorError
+    from app.sync.engine import refresh_remote_lists
+
+    try:
+        remote_lists = refresh_remote_lists(db, account)
+    except ConnectorAuthError as exc:
+        account.status = AccountStatus.NEEDS_AUTH
+        account.status_detail = str(exc)
+        db.commit()
+        deps.flash(request, str(exc), "error")
+        return deps.redirect(f"/services/{service_key}")
+    except ConnectorError as exc:
+        account.status = AccountStatus.ERROR
+        account.status_detail = str(exc)
+        db.commit()
+        deps.flash(request, f"Could not read the lists: {exc}", "error")
+        return deps.redirect(f"/services/{service_key}")
+
+    account.status = AccountStatus.CONNECTED
+    account.status_detail = None
+    db.commit()
+
+    # Said plainly, including when the answer is none: an account that reports
+    # no lists at all is a real state -- an upgraded Apple ID has no reminder
+    # lists CalDAV can see -- and silence would look like the button failing.
+    deps.flash(
+        request,
+        f"Found {len(remote_lists)} list(s) in {account.label or service_key}."
+        if remote_lists
+        else f"{account.label or service_key} reported no lists at all.",
+        "success" if remote_lists else "error",
+    )
+    return deps.redirect(f"/services/{service_key}")

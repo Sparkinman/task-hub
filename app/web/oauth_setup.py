@@ -608,39 +608,3 @@ def disconnect(
         note=f"Nothing was deleted from {service.name} itself.",
     )
     return deps.redirect(f"/services/{service_key}")
-
-
-@router.post("/services/{service_key}/{slot}/discover")
-def discover_lists(
-    service_key: str, slot: int, request: Request, db: Session = Depends(get_db)
-):
-    """Fetch this account's lists so they can be mapped to collections."""
-    service = service_for(service_key)
-    if service is None:
-        return deps.redirect("/services")
-
-    account = db.execute(
-        select(Account).where(Account.service == service.kind, Account.slot == slot)
-    ).scalar_one_or_none()
-    if account is None:
-        return deps.redirect(f"/services/{service_key}")
-
-    try:
-        # The reconciliation lives in the sync layer so that every service's
-        # setup page treats a vanished list identically.
-        from app.sync.engine import refresh_remote_lists
-
-        remote_lists = refresh_remote_lists(db, account)
-    except ConnectorError as exc:
-        account.status = AccountStatus.ERROR
-        account.status_detail = str(exc)
-        db.commit()
-        deps.flash(request, f"Could not read the lists: {exc}", "error")
-        return deps.redirect(f"/services/{service_key}")
-
-    deps.flash(
-        request,
-        f"Found {len(remote_lists)} list(s) in {account.label}.",
-        "success",
-    )
-    return deps.redirect(f"/services/{service_key}")
