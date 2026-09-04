@@ -113,7 +113,12 @@ SERVICE_BADGES: dict[str, dict[str, str]] = {
     ServiceKind.TICKTICK.value: {"label": "TickTick", "colour": "yellow"},
     ServiceKind.LOCAL.value: {"label": "Task Hub", "colour": "blue"},
     ServiceKind.RADICALE.value: {"label": "3rd party", "colour": "black"},
-    ServiceKind.APPLE.value: {"label": "3rd party", "colour": "black"},
+    # Apple's own badge and its own red. It shared Todoist's name for a colour
+    # nowhere -- it had no badge at all and fell through to the generic "3rd
+    # party" black -- and now that it has one, the red is deliberately a cooler
+    # crimson than Todoist's warm brick. Two services on one task is the normal
+    # case, so the badges have to differ by hue rather than by shade.
+    ServiceKind.APPLE.value: {"label": "Apple", "colour": "crimson"},
     ServiceKind.MICROSOFT.value: {"label": "3rd party", "colour": "black"},
     ServiceKind.THINGS3.value: {"label": "3rd party", "colour": "black"},
     ServiceKind.OBSIDIAN.value: {"label": "Obsidian", "colour": "purple"},

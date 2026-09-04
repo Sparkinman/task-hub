@@ -57,6 +57,11 @@
   --badge-purple:  #6d3bd1;
   --badge-black:   #2c313a;
   --badge-teal:    #0f766e;
+  /* Apple's red, kept clearly apart from Todoist's. Todoist is a warm brick
+     (#c0392f); this is a cooler crimson, so the two service badges differ by
+     hue and not merely by shade -- which is the difference between telling
+     them apart at a glance and having to read the label. */
+  --badge-crimson: #cc1f45;
 
   /* Shape and depth */
   --radius-sm: 6px;
@@ -118,6 +123,7 @@
     --badge-purple:  #b08bff;
     --badge-black:   #b6becd;
   --badge-teal:    #4fd1c5;
+    --badge-crimson: #ff5f8a;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow:    0 2px 10px rgba(0, 0, 0, 0.45);
@@ -158,6 +164,7 @@
   --badge-purple:  #b08bff;
   --badge-black:   #b6becd;
   --badge-teal:    #4fd1c5;
+  --badge-crimson: #ff5f8a;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow:    0 2px 10px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.6);
@@ -574,6 +581,7 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
 .badge-yellow { color: var(--badge-yellow); background: color-mix(in srgb, var(--badge-yellow) 15%, transparent); border-color: color-mix(in srgb, var(--badge-yellow) 32%, transparent); }
 .badge-blue   { color: var(--badge-blue);   background: color-mix(in srgb, var(--badge-blue) 13%, transparent);   border-color: color-mix(in srgb, var(--badge-blue) 30%, transparent); }
 .badge-purple { color: var(--badge-purple); background: color-mix(in srgb, var(--badge-purple) 13%, transparent); border-color: color-mix(in srgb, var(--badge-purple) 30%, transparent); }
+.badge-crimson { color: var(--badge-crimson); background: color-mix(in srgb, var(--badge-crimson) 13%, transparent); border-color: color-mix(in srgb, var(--badge-crimson) 30%, transparent); }
 .badge-black  { color: var(--badge-black);  background: color-mix(in srgb, var(--badge-black) 12%, transparent);  border-color: color-mix(in srgb, var(--badge-black) 28%, transparent); }
 .badge-teal   { color: var(--badge-teal);   background: color-mix(in srgb, var(--badge-teal) 13%, transparent);   border-color: color-mix(in srgb, var(--badge-teal) 30%, transparent); }
 
@@ -1118,6 +1126,7 @@ a.service-card:hover {
 .service-icon.purple { background: var(--badge-purple); }
 .service-icon.black  { background: var(--badge-black); }
 .service-icon.teal   { background: var(--badge-teal); }
+.service-icon.crimson { background: var(--badge-crimson); }
 
 .slot-row {
   display: flex; align-items: center; gap: var(--gap-3);

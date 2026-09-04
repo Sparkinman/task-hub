@@ -15,7 +15,8 @@
    to everyone. Defaulting to False means a mistake hides the column instead. #}
 {% macro mapping_form(account, service_name, task_lists, cal_lists, collections,
                       dropdowns, kind_enabled, supports_tasks=True,
-                      supports_calendar=True, advanced_mode=False) -%}
+                      supports_calendar=True, advanced_mode=False,
+                      empty_notes={}) -%}
               <form method="post" action="/sync/account/{{ account.id }}/save">
                 <div class="tabbox">
                   <input type="radio" class="tabctl" name="tab-{{ account.id }}"
@@ -80,6 +81,27 @@
                         {% if not rows %}
                           <div class="card-body muted small">
                             No {{ kind_label }} lists in this account.
+                            {# Why there are none is usually the thing worth
+                               saying. "None found" reads as a fault to fix,
+                               and for an upgraded Apple ID it is not one. #}
+                            {% if empty_notes.get(kind) %}
+                              <div style="margin-top: var(--gap-2);">
+                                {{ empty_notes[kind] }}
+                              </div>
+                            {% endif %}
+                            {% if empty_notes.get(kind ~ '_alternative') %}
+                              <div class="alert alert-info"
+                                   style="margin-top: var(--gap-3);">
+                                <span class="alert-icon" aria-hidden="true">i</span>
+                                <div class="grow">
+                                  <div class="alert-title">There is another way to get these onto your phone</div>
+                                  {{ empty_notes[kind ~ '_alternative'] }}
+                                  <div style="margin-top: var(--gap-2);">
+                                    <a class="btn btn-sm" href="/sync">Open the Sync page</a>
+                                  </div>
+                                </div>
+                              </div>
+                            {% endif %}
                           </div>
                         {% else %}
                           <div class="table-wrap">

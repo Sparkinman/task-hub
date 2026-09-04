@@ -58,6 +58,35 @@ class ServiceDefinition:
     hidden: bool = False
 
 
+#: Why a service reports no lists of a given kind, when the reason is known and
+#: is not something the user can put right. Shown under the empty section, so
+#: that "none found" does not read as a fault waiting to be fixed.
+EMPTY_LIST_NOTES: dict[str, dict[str, str]] = {
+    ServiceKind.APPLE.value: {
+        "tasks": (
+            "If this account's Reminders were ever upgraded in Apple's own app, "
+            "they moved to a store CalDAV cannot reach and no reminder list will "
+            "ever appear here. That is Apple's decision and it cannot be undone. "
+            "Calendars are unaffected."
+        ),
+        # Getting tasks onto an iPhone does not involve this page at all, and
+        # nothing previously said so. Somebody wanting their tasks in Reminders
+        # comes to the Apple page, finds only calendars, and reasonably concludes
+        # it cannot be done -- when in fact it works today by a route that is not
+        # mentioned anywhere near here.
+        "tasks_alternative": (
+            "You can still see your tasks in Apple's Reminders app, and this "
+            "page is not where you set that up. Add Task Hub to the iPhone "
+            "directly as a CalDAV account, then on the Sync page choose which "
+            "services feed each collection. The lists appear in Reminders under "
+            "a Task Hub account rather than under iCloud — same app, same "
+            "ticking off, and no upgrade problem. Only Siri, the Apple Watch "
+            "and family sharing need the lists to be iCloud's."
+        ),
+    },
+}
+
+
 SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.GOOGLE.value,
@@ -151,7 +180,10 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.APPLE.value,
         name="Apple",
-        colour="black",
+        # Its own red rather than Todoist's. Two services sharing a badge colour
+        # is fine until both appear on the same task, which is exactly what a
+        # task synced to both looks like.
+        colour="crimson",
         supports_tasks=True,
         supports_calendar=True,
         auth_kind="Apple ID with an app-specific password",
@@ -530,6 +562,11 @@ def _mapping_context(db, accounts) -> dict:
         "kind_enabled": kind_enabled,
         "target_groups": target_groups,
         "cleanup": cleanup_by_account,
+        # Why a kind has no lists, where the reason is known and is not a fault
+        # the user can fix. "No task lists in this account" reads as something
+        # to go and correct; for an upgraded Apple ID there is nothing to
+        # correct, and saying so saves the search.
+        "empty_notes": EMPTY_LIST_NOTES.get(definition.key, {}),
     }
 
 
