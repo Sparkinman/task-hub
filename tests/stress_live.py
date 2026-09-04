@@ -610,6 +610,27 @@ def create_containers(session) -> dict:
         made["ticktick"] = (account.id, project_id, CollectionKind.TASKS)
         print(f"  ticktick   tasks     project {project_id}")
 
+    # -- Microsoft: a To Do list and a calendar of its own --------------------
+    #
+    # Graph creates and deletes both, so Microsoft gets throwaway containers
+    # like everybody else rather than being pointed at the default "Tasks" and
+    # "Calendar" that an actual Outlook user would be keeping things in.
+    account, connector = connector_for(session, ServiceKind.MICROSOFT)
+    if connector is not None:
+        for key, kind, path, field in (
+            ("microsoft_tasks", CollectionKind.TASKS, "/me/todo/lists", "displayName"),
+            ("microsoft_calendar", CollectionKind.CALENDAR, "/me/calendars", "name"),
+        ):
+            try:
+                created = connector._request("POST", path, json={field: name}) or {}
+            except Exception as exc:  # noqa: BLE001 - reported, not fatal
+                print(f"  microsoft  could not make a {kind.value} list: {exc}")
+                continue
+            identifier = created.get("id", "")
+            registry_add({"service": "microsoft", "kind": kind.value, "id": identifier})
+            made[key] = (account.id, identifier, kind)
+            print(f"  microsoft  {kind.value:9} {identifier[:44]}")
+
     # -- Apple: a calendar and a task list of its own in iCloud ---------------
     #
     # iCloud accepts MKCALENDAR for both component types, verified by creating
@@ -906,6 +927,10 @@ def teardown(verbose: bool = True) -> list[str]:
                 elif service == "ticktick":
                     _, connector = connector_for(session, ServiceKind.TICKTICK)
                     connector._request("DELETE", f"/project/{identifier}")
+                elif service == "microsoft":
+                    _, ms = connector_for(session, ServiceKind.MICROSOFT)
+                    path = ("/me/todo/lists/" if kind == "tasks" else "/me/calendars/")
+                    ms._request("DELETE", f"{path}{identifier}")
                 elif service == "apple":
                     # Through the connector's own handle rather than a fresh
                     # caldav.Calendar: it follows iCloud's discovery to the
@@ -936,9 +961,12 @@ def verify_clean(verbose: bool = True) -> list[str]:
     """
     leftovers: list[str] = []
     with session_scope() as session:
+        # Every service the run can create a container in. A service missing
+        # from here is not verified at all, and its absence looks exactly like a
+        # clean result: the sweep simply prints nothing about it.
         for service in (ServiceKind.RADICALE, ServiceKind.GOOGLE,
                         ServiceKind.TODOIST, ServiceKind.TICKTICK,
-                        ServiceKind.APPLE):
+                        ServiceKind.APPLE, ServiceKind.MICROSOFT):
             try:
                 _, connector = connector_for(session, service)
                 if connector is None:
