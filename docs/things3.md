@@ -1,12 +1,5 @@
 # Things 3 setup — complete walkthrough
 
-> **Things 3 is not finished yet, and may never be reliable.** This connector
-> is written but has never been run against a real Things Cloud account, and it
-> has no tests. It is also the only connector with no official API behind it at
-> all — see the warning below — so even once it is tested it can stop working
-> whenever Cultured Code changes something. It is hidden in the interface for
-> both reasons.
-
 Connects **Things 3** by Cultured Code, one way: Things → Task Hub.
 
 Read the honest summary before you set it up, because this connector is

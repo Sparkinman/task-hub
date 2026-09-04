@@ -27,10 +27,10 @@
 | **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar. Registering the app needs an Entra ID directory, which a personal account does not have — [the options](docs/microsoft.md) |
 | **Apple** | ✓ | ✓ | iCloud Calendar and iCloud task lists, over CalDAV — [one caveat](docs/apple.md) |
 | **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
+| **Things 3** | ✓ | — | Import only — Things has no supported way to write in. Its endpoint is unpublished and may change without warning |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
 
-Every one of those has been run against a real account. **Things 3** is written
-but unproven and stays off the list until somebody connects one.
+Every one of those has been run against a real account.
 
 **Tasks and calendars both reach your iPhone, iPad and Mac, and appear in
 Apple's own Calendar and Reminders apps.** That is the ordinary way to use Task
@@ -302,8 +302,12 @@ is what each has actually been put through, which is a different question.
 - **Microsoft** has been run against a live account and works. Registering the
   app now needs an Entra ID directory, which a personal Microsoft account does
   not have — [the guide covers the options and what each costs](docs/microsoft.md).
-- **Things 3** has never been connected to anything. It also talks to an
-  endpoint Things does not publish, which can stop working without warning.
+- **Things 3** has been run against a live Things Cloud account and imports
+  correctly. It reads and never writes, because Cultured Code publishes no way
+  to write. Its one standing caveat is not a milestone anybody can clear: the
+  endpoint it reads is unpublished, so it can stop working whenever Things
+  changes its backend. A failure there marks that one account and every other
+  service keeps syncing.
 
 **Things 3 is the one still to prove.** It is kept off the services list, says
 so on its own page and at the top of its guide, and can still be reached
