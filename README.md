@@ -18,30 +18,50 @@ file to edit, and no command beyond starting the container.
 
 ## Install
 
-One file, one command, no editing. On a Raspberry Pi, a NAS, a Mac, a Windows
-machine or any Linux server:
+**Never used Docker? Start here.** Pick your machine — the first three need no
+typing at all, and the other two need one line pasted once.
+
+| Your machine | What it takes | |
+|---|---|---|
+| **Windows** | No terminal. Docker Desktop's own window does all of it. | [Guide](docs/install-windows.md) |
+| **Mac** | No terminal. Docker Desktop's own window does all of it. | [Guide](docs/install-macos.md) |
+| **NAS** — Synology, QNAP, Unraid, TrueNAS, Asustor | No terminal. Your NAS's own container app does all of it. | [Guide](docs/install-nas.md) |
+| **Raspberry Pi** | One pasted line. A Pi has no Docker Desktop, so this is unavoidable. | [Guide](docs/install-raspberry-pi.md) |
+| **Linux server or desktop** | One pasted line. | [Guide](docs/install-linux.md) |
+
+On a Pi or a Linux machine, that line is:
+
+```
+curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | sh
+```
+
+It checks the machine, installs Docker if it is missing, finds a free port if
+8080 is taken, downloads and starts Task Hub, waits for it to come up, and
+prints the address to open. Run it again later and it updates Task Hub without
+touching your data.
+
+Then open **http://localhost:8080** — or, from another device, this machine's
+address on your network with `:8080` after it — and follow the setup wizard.
+
+**After the install, there is no terminal at all.** Connecting Google, Todoist,
+TickTick and Obsidian, choosing what syncs, backups, restores and even
+restarting are all in the web interface. The single exception is updating,
+because a program cannot replace itself while it is running.
+
+Every guide is written for someone who has not done this before, and covers both
+a fresh machine and one that already has Docker.
+
+| | |
+| --- | --- |
+| [How it finds its own address](docs/addresses.md) | What each service accepts, and why sign-in fails when it does |
+
+Already have Docker and would rather do it yourself:
 
 ```
 mkdir -p ~/taskhub && cd ~/taskhub
 curl -fsSL -O https://raw.githubusercontent.com/Sparkinman/task-hub/main/docker-compose.yml
 docker compose up -d
 ```
-
-Then open **http://localhost:8080** — or, from another device, this machine's
-address on your network with `:8080` after it — and follow the setup wizard.
-
-Step-by-step guides, each written for someone who has not done this before.
-Every one covers **both a fresh machine and one that already has Docker**, and
-every command can be copied and pasted exactly as written:
-
-| | |
-| --- | --- |
-| [Raspberry Pi](docs/install-raspberry-pi.md) | From a blank SD card to a working install |
-| [NAS](docs/install-nas.md) | Synology, QNAP, Unraid, TrueNAS and Asustor |
-| [Windows](docs/install-windows.md) | Docker Desktop, PowerShell commands, the firewall prompt |
-| [macOS](docs/install-macos.md) | Apple-chip and Intel, plus syncing the Mac's own Calendar and Reminders |
-| [Linux](docs/install-linux.md) | Ubuntu, Debian, Fedora, Rocky, Alma, openSUSE, Arch |
-| [How it finds its own address](docs/addresses.md) | What each service accepts, and why sign-in fails when it does |
 
 Not sure whether your machine is up to it? This checks and changes nothing:
 

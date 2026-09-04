@@ -186,11 +186,18 @@ def redirect_uri_problem(uri: str, service: OAuthService) -> str | None:
         )
 
     if service.requires_hostname and is_bare_ip(host):
+        # Worded as a caution rather than a certainty on purpose. That TickTick
+        # refuses a bare number is a finding from use rather than from anything
+        # it documents, so the message has to be useful if it is right and
+        # harmless if it is wrong -- telling somebody their working address is
+        # rejected would send them off fixing what was never broken.
         return (
-            f"{service.name} will reject this address because it is a bare IP "
-            "address, and it wants a name. sslip.io provides one free with "
-            f"nothing to install: {host.replace('.', '-')}.sslip.io resolves "
-            f"straight back to {host}."
+            f"{service.name} may refuse this address because it is a bare IP "
+            "address rather than a name. If the connection fails, sslip.io "
+            "gives you a name free with nothing to install: "
+            f"{host.replace('.', '-')}.sslip.io resolves straight back to "
+            f"{host}, so http://{host.replace('.', '-')}.sslip.io:{parts.port or 8080} "
+            "reaches the same machine."
         )
     return None
 

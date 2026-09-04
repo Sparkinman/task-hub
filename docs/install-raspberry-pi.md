@@ -5,12 +5,12 @@ electricity as a phone charger, and it can sit in a cupboard syncing your tasks
 for years. This guide goes from a Pi still in its box to Task Hub running in
 your browser.
 
-It assumes nothing. Every command is one line you can copy and paste, and after
-each one there is a description of what you should see.
+It assumes nothing, and it needs **one** command — a single line you copy and
+paste once. Everything after that happens in your browser.
 
 **Already have a Pi running something?** Skip to
-[Step 3](#step-3--see-what-is-already-installed), which checks what is on it
-already and tells you only what is missing.
+[Step 3](#step-3--one-command-installs-everything). The installer checks what is
+already there and only does what is missing.
 
 ---
 
@@ -122,165 +122,71 @@ ssh pi@192.168.1.50
 
 ---
 
-## Step 3 — See what is already installed
+## Step 3 — One command installs everything
 
-This is the step to start at if the Pi has been in use for a while. It checks
-the machine and changes nothing:
+This is the step to start at if the Pi has already been in use.
 
-```
-curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/check-system.sh | sh
-```
-
-If that answers `curl: command not found` — unusual on Raspberry Pi OS, but it
-happens on a cut-down installation — install it first and try again:
+Copy this line, paste it into the terminal window, and press Enter. It is the
+only command in this guide.
 
 ```
-sudo apt update && sudo apt install -y curl
+curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | sh
 ```
 
-It prints something like this:
+**To paste into a terminal:** Ctrl+Shift+V on Windows and Linux, Cmd+V on a Mac.
+A plain Ctrl+V does nothing in most terminal windows, which catches everybody
+out once.
+
+That one line does the whole job:
+
+- checks the Pi has enough memory and disk, and that its clock is right
+- installs Docker if Docker is not already there
+- moves Task Hub to a free port if something else is already using 8080
+- downloads Task Hub and starts it
+- waits until it reports itself healthy
+- prints the address to open
+
+It takes about five minutes on a new Pi, most of that downloading. It prints a
+great deal while Docker installs; that is normal and none of it needs reading.
+
+**It is safe to run again.** Run it a second time and it updates Task Hub to the
+current version and leaves everything you have set up alone — your accounts,
+your settings and your tasks live in a Docker volume that the installer never
+touches.
+
+### What you should see at the end
 
 ```
-This computer
-  OK    Processor: aarch64 (ARM, 64-bit — a ready-built image exists for this)
-  OK    System: Debian GNU/Linux 12 (bookworm)
-  OK    Model: Raspberry Pi 4 Model B Rev 1.5
+Done. Open Task Hub in a browser
 
-Room to run
-  OK    Memory: 3794 MB (Task Hub peaks at about 230 MB)
-  OK    Free disk: 27100 MB (Task Hub needs about 700 MB)
-
-Docker
-  TODO  Not installed. On Linux and Raspberry Pi OS:
-          curl -fsSL https://get.docker.com | sh
-          sudo usermod -aG docker pi
-        then log out and back in.
+  On another device:   http://192.168.1.50:8080
+  Or by name:          http://taskhub.local:8080
+  On this machine:     http://localhost:8080
 ```
 
-Read the lines marked **TODO** — those are things to fix. Lines marked **NOTE**
-are worth knowing but do not stop you. On a brand-new Lite install the only
-TODO will be Docker, which is the next step.
+Write down the address it prints. That is your Task Hub.
 
-Two of its checks are worth understanding, because both cause failures that
-appear to be about something else entirely:
+If it stops with a red **Stopped:** line instead, it says what went wrong and
+what to do about it. The most common causes are in
+[Troubleshooting](#troubleshooting) at the end of this guide.
 
-- **Port 8080 already in use.** Something else on the Pi answers on the number
-  Task Hub wants. Step 4 shows how to move Task Hub to another number.
-- **Clock not synchronised.** Google and Microsoft reject sign-ins from a
-  machine whose clock is wrong, with a message that blames your credentials.
-  `sudo timedatectl set-ntp true` fixes it.
+### If you would rather not paste a command at all
+
+You do not have to use a Raspberry Pi. Task Hub is the same program everywhere,
+and on **Windows, a Mac, or a Synology or QNAP NAS** it installs entirely
+through windows and buttons with no terminal at any point:
+
+- [Windows](install-windows.md) — [macOS](install-macos.md) — [NAS](install-nas.md)
+
+A Pi is the one place a single pasted line is unavoidable, because a Pi has no
+Docker Desktop and no app store to install it from.
 
 ---
 
-## Step 4 — Install Docker
+## Step 4 — Open it
 
-Task Hub runs inside Docker, which packages an application together with
-everything it needs. That is what lets one download work identically on a Pi, a
-NAS, a Mac and a Windows machine.
-
-```
-curl -fsSL https://get.docker.com | sh
-```
-
-That is Docker's own installer, from Docker's own website. It takes a few
-minutes and prints a lot; that is normal.
-
-Then allow your account to use Docker without `sudo` in front of every command:
-
-```
-sudo usermod -aG docker $USER
-```
-
-**This does not take effect until you log out and back in**, so do that now:
-
-```
-exit
-```
-
-and connect again:
-
-```
-ssh pi@taskhub.local
-```
-
-Check it worked:
-
-```
-docker run --rm hello-world
-```
-
-You should see *"Hello from Docker!"*. If instead you get *"permission
-denied"*, the log out and back in did not happen — do it again.
-
----
-
-## Step 5 — Install Task Hub
-
-Make a folder for it and go into it:
-
-```
-mkdir -p ~/taskhub && cd ~/taskhub
-```
-
-Download the one configuration file it needs:
-
-```
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/Sparkinman/task-hub/main/docker-compose.yml
-```
-
-**Nothing in that file needs editing.** Task Hub works out its own address from
-however you open it, so the same file is correct whether you reach it by the
-Pi's address on your network, over Tailscale, through a Cloudflare tunnel or
-behind your own reverse proxy.
-
-Optionally, tell it the Pi's timezone so that "due today" means today from the
-very first minute rather than after the setup wizard:
-
-```
-echo "TZ=$(cat /etc/timezone)" > .env
-```
-
-#### If the check in Step 3 said port 8080 was in use
-
-Pick another number and record it:
-
-```
-echo "TASKHUB_HTTP_PORT=9090" >> .env
-```
-
-Then use that number everywhere below instead of 8080.
-
-Now start it:
-
-```
-docker compose up -d
-```
-
-The first time, this downloads about 150 MB and unpacks it to about 650 MB on
-the card, which takes a few minutes on a normal connection. It prints download progress, then `Container taskhub
-Started`.
-
-Check on it:
-
-```
-docker compose ps
-```
-
-Wait for the STATUS column to say **healthy** — up to half a minute. If it says
-`unhealthy` or `restarting`, jump to [Troubleshooting](#troubleshooting).
-
----
-
-## Step 6 — Open it
-
-Find the Pi's address on your network:
-
-```
-hostname -I
-```
-
-That prints something like `192.168.1.50`. On your normal computer, open a
-browser and go to:
+The installer printed the address at the end. On your normal computer, open a
+browser and go to it — something like:
 
 ```
 http://192.168.1.50:8080
@@ -295,9 +201,14 @@ connect later. Follow it to the end and you have a working Task Hub.
 **Write the CalDAV password down.** It is shown once and is what every phone
 and calendar app will need.
 
+**You are finished with the terminal.** Everything from here — connecting
+Google, Todoist, TickTick and Obsidian, choosing what syncs, backups, restores,
+even restarting Task Hub — happens in that browser window. You can close the
+terminal and never open it again.
+
 ---
 
-## Step 7 — Decide how you will reach it
+## Step 5 — Decide how you will reach it
 
 This is the one decision worth taking a minute over, because it determines
 which task services you can connect.
@@ -408,13 +319,21 @@ Two rules:
 
 ### Updating
 
+The same line that installed it also updates it. Connect to the Pi as in Step 2
+and paste:
+
 ```
-cd ~/taskhub
-docker compose pull
-docker compose up -d
+curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | sh
 ```
 
-Your data is untouched by this. To reclaim the space the old version used:
+It notices Docker is already there, downloads the current version, and restarts
+Task Hub on it. **Your data is untouched** — accounts, settings and tasks live
+in a Docker volume the installer never writes to.
+
+This is the one job that cannot be done from the web interface, for the plain
+reason that a program cannot replace itself while it is running.
+
+To reclaim the space the old version used, afterwards:
 
 ```
 docker image prune -f

@@ -12,6 +12,43 @@ if Docker is already here. The check below tells you which.
 
 ---
 
+## The short way — one command
+
+On Linux there is no Docker Desktop to click through, so the quickest route is a
+single line. Paste this into a terminal:
+
+```
+curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | sh
+```
+
+It checks the machine, installs Docker if Docker is missing, picks a free port
+if something already uses 8080, downloads Task Hub, starts it, waits for it to
+report itself healthy, and prints the address to open. About five minutes on a
+clean machine, most of it downloading.
+
+It is safe to run again: a second run updates Task Hub and leaves your accounts,
+settings and tasks alone, because those live in a Docker volume it never writes
+to.
+
+When it finishes it prints something like:
+
+```
+Done. Open Task Hub in a browser
+
+  On another device:   http://192.168.1.50:8080
+  On this machine:     http://localhost:8080
+```
+
+Open that address and the setup wizard takes over. **Everything after this point
+happens in the browser** — connecting services, choosing what syncs, backups,
+restores, restarting. The only job that ever needs a terminal again is updating,
+which is the same line as above.
+
+If you would rather do each step yourself, or the installer stopped with an
+error you want to work around, the rest of this guide does the same job by hand.
+
+---
+
 ## First: what is already here
 
 ```

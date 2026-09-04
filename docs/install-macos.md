@@ -14,6 +14,97 @@ there is a section at the end.
 
 ---
 
+## The way with no typing at all
+
+Docker Desktop can download and start Task Hub from its own window. There is no
+terminal, no file to create and nothing to edit. If you have never used Docker
+before, this is the route to take.
+
+### 1. Install Docker Desktop
+
+Download it from **https://www.docker.com/products/docker-desktop/** and run the
+installer, taking every default. Choose the version matching your Mac — **Apple Silicon** for M1 and later, **Intel** for older ones. If unsure, click the Apple menu → About This Mac.
+
+### 2. Open Docker Desktop once
+
+Accept the licence when it asks. Wait until the bottom-left corner says
+**Engine running** with a green dot. The first start takes a minute or two.
+
+You can ignore everything else in the window, and you never need a Docker
+account — skip the sign-in prompts.
+
+### 3. Download Task Hub
+
+In the search box at the top of the Docker Desktop window, type:
+
+```
+sparkinman/task-hub
+```
+
+Press Enter, find **sparkinman/task-hub** in the results, and click **Pull**.
+That downloads about 150 MB and takes a few minutes. When it finishes, close the
+search results.
+
+### 4. Start it
+
+Go to the **Images** tab on the left. You will see `sparkinman/task-hub` listed.
+Click the **▶ Run** button on its row.
+
+A dialog appears. Click **Optional settings** to open it, and fill in three
+things:
+
+| Field | What to put |
+|---|---|
+| **Container name** | `taskhub` |
+| **Host port** | `8080` |
+| **Volumes → Host path** | a new folder called `TaskHub` in your Home folder — click **Browse**, press Cmd+Shift+N to make it, and choose it |
+| **Volumes → Container path** | `/data` |
+
+macOS may ask permission to access that folder the first time. Click **OK**.
+
+Then click **Run**.
+
+> **The volume is the important one.** It is where Task Hub keeps your accounts,
+> settings and tasks. Without it, everything you set up disappears the next time
+> the container is replaced — which is what an update does. Take the extra
+> fifteen seconds.
+
+### 5. Open it
+
+Go to the **Containers** tab. `taskhub` should be listed as **Running**. Give it
+half a minute to finish starting, then open a browser at:
+
+```
+http://localhost:8080
+```
+
+Task Hub greets you with its setup wizard: create a login, pick a timezone, and
+choose a CalDAV password for the phones and apps you will connect later.
+
+**Write the CalDAV password down.** It is shown once and is what every phone and
+calendar app will need.
+
+Everything from here — connecting your services, choosing what syncs, backups,
+restores, restarting — happens in that browser window.
+
+### Updating later
+
+In Docker Desktop: search for `sparkinman/task-hub` and **Pull** again, then on
+the **Containers** tab stop and delete the old `taskhub` container and run the
+new image exactly as in step 4, with the same port and the same volume. Your
+data is in the volume, so it comes back with everything intact.
+
+---
+
+## The way with a compose file
+
+Everything below is the alternative for people who would rather use a terminal,
+or who want the configuration written down in a file they can keep. It produces
+exactly the same result. **If you followed the section above, you are done and
+can stop reading.**
+
+---
+
 ## First: what is already here
 
 Open **Terminal**: press ⌘ Space, type `terminal`, press Enter. Paste this in
