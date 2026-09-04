@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -76,6 +77,43 @@ THINGS_CAPABILITIES = Capabilities(
     stores_uid=False,
 )
 
+def _notes(value: Any) -> str | None:
+    """The note text, whatever shape this schema wraps it in.
+
+    Older schemas stored a plain string. Current ones store a small object --
+    ``{"_t": "tx", "ch": <checksum>, "v": "the text", "t": 1}`` -- and the text
+    is in ``v``. Reading it as a string raised an AttributeError on the first
+    real account this connector ever saw, which is a better failure than
+    silently importing the word "dict" as somebody's note, but not by much.
+
+    Both shapes are handled because there is no way to know which a given
+    account is on, and the endpoint is unpublished, so the next one may differ
+    again.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, dict):
+        text = value.get("v")
+        if isinstance(text, str):
+            return text.strip() or None
+    return None
+
+
+#: Which history entries are to-dos. Things numbers its entity names by schema
+#: version -- Task6 on one release, Task7 on the next -- and the connector was
+#: written against a list of the names that existed at the time. A live account
+#: on schema 301 returns Task7, matched none of them, and read as an empty
+#: account: signing in worked, the lists appeared, and every one of them was
+#: silently empty.
+#:
+#: Matching the shape rather than an enumeration means the next bump does not
+#: repeat it. The number is deliberately optional, because the oldest entries
+#: are plain "Task", and the match is anchored so that no other entity beginning
+#: with those four letters is swept in.
+_TASK_ENTITY = re.compile(r"Task\d*")
+
 #: Things' own status numbering, as observed.
 STATUS_OPEN = 0
 STATUS_CANCELLED = 2
@@ -103,6 +141,12 @@ class ThingsConnector(Connector):
             "Accept": "application/json",
             # Things Cloud rejects requests without a recognisable client.
             "User-Agent": "ThingsMac/31415926 (Task Hub)",
+            # Every request carries the password in this header. Not Basic auth,
+            # which the server answers with 400, and not a form field: the
+            # scheme is the literal word "Password" followed by it. Confirmed
+            # against the live endpoint, where the header returns the account
+            # and both alternatives fail.
+            "Authorization": f"Password {self._password}",
         })
         self.dirty = False
 
@@ -133,10 +177,11 @@ class ThingsConnector(Connector):
         if self._session_token and self._history_key:
             return self._history_key
         try:
-            response = self._client.put(
-                f"{BASE}/account/{self.email}",
-                data={"confirmed-password": self._password},
-            )
+            # GET, not PUT. A PUT to this address changes the account -- which
+            # is why it answered 401 to a correct password and would have been
+            # a far worse thing to get working. Signing in is simply reading
+            # your own account with the password in the header.
+            response = self._client.get(f"{BASE}/account/{self.email}")
         except httpx.RequestError as exc:
             raise ConnectorError(f"Could not reach Things Cloud: {exc}") from exc
 
@@ -231,19 +276,25 @@ class ThingsConnector(Connector):
         return self.email
 
     def list_remote_lists(self) -> list[RemoteList]:
-        """Things' built-in lists.
+        """One list, because there is only one this connector can actually tell apart.
 
-        Things organises by area and project rather than by list, and the
-        unofficial endpoint exposes those inconsistently. The three built-in
-        lists everyone has are offered instead, which is honest about what can
-        be relied on.
+        Things organises by area and project, and the history endpoint hands
+        back a single undifferentiated stream of to-dos with no reliable way to
+        say which built-in list any of them belongs to. Inbox, Today and Anytime
+        were offered separately, and against a live account all three returned
+        exactly the same thirty-seven items -- so mapping two of them would have
+        imported every to-do twice, into a collection the user would then have
+        had to clean out by hand.
+
+        Offering one list named for what it is beats offering three that are
+        secretly the same. If the sorting ever becomes reliable, splitting this
+        up is an additive change; a user who mapped a duplicate is a mess that
+        has to be undone.
         """
         self._login()
         return [
-            RemoteList(remote_id="inbox", name="Inbox", kind=CollectionKind.TASKS,
+            RemoteList(remote_id="all", name="All to-dos", kind=CollectionKind.TASKS,
                        is_default=True),
-            RemoteList(remote_id="today", name="Today", kind=CollectionKind.TASKS),
-            RemoteList(remote_id="anytime", name="Anytime", kind=CollectionKind.TASKS),
         ]
 
     # -- Reading ---------------------------------------------------------------
@@ -268,7 +319,7 @@ class ThingsConnector(Connector):
             for item_id, payload in entry.items():
                 if not isinstance(payload, dict):
                     continue
-                if payload.get("e") not in ("Task6", "Task", "Task2", "Task3"):
+                if not _TASK_ENTITY.fullmatch(str(payload.get("e") or "")):
                     continue
                 body = payload.get("p") or {}
                 # History is a log: a later entry supersedes an earlier one.
@@ -303,7 +354,7 @@ class ThingsConnector(Connector):
             uid=new_uid(),
             kind=CollectionKind.TASKS,
             title=title,
-            notes=(body.get("nt") or "").strip() or None,
+            notes=_notes(body.get("nt")),
             status=(ItemStatus.COMPLETED if done else
                     ItemStatus.CANCELLED if status == STATUS_CANCELLED else
                     ItemStatus.NEEDS_ACTION),
