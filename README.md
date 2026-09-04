@@ -25,12 +25,21 @@
 | **Todoist** | ✓ | — | |
 | **TickTick** | ✓ | — | |
 | **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar |
-| **Apple** | — | ✓ | iCloud Calendar. Reminders only on an Apple ID that was never "upgraded" — [why](docs/apple.md) |
+| **Apple** | ✓\* | ✓ | iCloud Calendar, and Reminders on an Apple ID whose Reminders were never "upgraded" — [what that means](docs/apple.md) |
 | **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
 
 Every one of those has been run against a real account. **Things 3** is written
 but unproven and stays off the list until somebody connects one.
+
+\* Apple Reminders are the one conditional entry. Task Hub reads and writes
+iCloud task lists over CalDAV — proven at two hundred tasks — but Apple's own
+Reminders app stopped showing CalDAV lists on any account where somebody
+accepted its "Upgrade" prompt, and that cannot be undone. On such an account
+calendars still sync and reminders never will.
+[The guide explains how to tell, and the two ways round it](docs/apple.md) —
+one of which is simply pointing your iPhone at Task Hub's own CalDAV server,
+where the upgrade is irrelevant.
 
 And because the hub is a real CalDAV server, anything that speaks CalDAV can
 join without a connector at all: **iPhone, iPad and Mac**, Android through
@@ -261,10 +270,12 @@ is what each has actually been put through, which is a different question.
   been driven against live accounts, including a two-hundred-task,
   two-hundred-event stress run measuring memory, processor time and query counts
   per pass.
-- **Apple** has been run against a live iCloud account. Calendars work. Its
-  Reminders cannot be reached at all if that Apple ID's Reminders were ever
-  "upgraded" — Apple moved them out of CalDAV permanently, and no application
-  can reach them remotely again.
+- **Apple** has been run against a live iCloud account, including a
+  two-hundred-task run through an iCloud task list it created and removed
+  itself, so the reading and writing is proven. What is *not* proven is
+  reminders appearing in Apple's own Reminders app, because the account they
+  were tested on had been "upgraded" and no CalDAV list is displayed on such an
+  account ever again. Calendars are unaffected either way.
   [Why, and what to do instead](docs/apple.md).
 - **Microsoft** has been run against a live account and works. Registering the
   app now needs an Entra ID directory, which a personal Microsoft account does
