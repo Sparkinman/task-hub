@@ -48,14 +48,15 @@ class ServiceDefinition:
     docs_slug: str
     caveats: list[str] = field(default_factory=list)
     unofficial: bool = False
-    #: Written, but never run against a real account. Kept out of the lists and
-    #: labelled as unfinished on its own page, without being removed: the
-    #: connector, its page and its guide all still work and can be reached
-    #: directly, so it can be tried deliberately. What this prevents is somebody
-    #: being offered it, spending an evening on an Azure app registration or a
-    #: second Apple ID, and only then discovering it was never tested. Clear the
-    #: flag on the day the connector completes a sync against a live account.
+    #: Kept out of the services list. The connector, its page and its guide all
+    #: still work and can be reached directly, so it can be tried deliberately.
     hidden: bool = False
+    #: Written, but never run against a real account. Says so on the page,
+    #: loudly, whether or not the service is listed -- the two were one flag
+    #: until making a connector visible silently removed its only warning, which
+    #: is the opposite of what the flag was for. Clear it on the day the
+    #: connector completes a sync against a live account, and not before.
+    untested: bool = False
 
 
 #: Why a service reports no lists of a given kind, when the reason is known and
@@ -228,7 +229,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.MICROSOFT.value,
         name="Microsoft",
-        hidden=True,
+        untested=True,
         colour="black",
         supports_tasks=True,
         supports_calendar=True,
@@ -258,6 +259,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
         key=ServiceKind.THINGS3.value,
         name="Things 3",
         hidden=True,
+        untested=True,
         colour="black",
         supports_tasks=True,
         supports_calendar=False,

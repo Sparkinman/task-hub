@@ -65,6 +65,22 @@
   </div>
 {% endif %}
 
+{% if definition.untested %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">▲</span>
+    <div class="grow">
+      <div class="alert-title">This connector has never run against a real account</div>
+      The code is written and its tests pass, but nobody has yet connected a live
+      {{ definition.name }} account to it. Expect to find things that no test could
+      have caught. If it misbehaves, every other service keeps syncing normally, and
+      disconnecting it changes nothing elsewhere.
+      <div class="mt-2">
+        Please say what happens — that is the only way this label comes off.
+      </div>
+    </div>
+  </div>
+{% endif %}
+
 {% if definition.caveats %}
   <div class="card mb-5">
     <div class="card-header">
