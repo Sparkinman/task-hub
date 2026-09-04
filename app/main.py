@@ -220,8 +220,10 @@ from app.web import (  # noqa: E402 - imported after app creation by design
     setup,
     sync_view,
     tasks_view,
+    wellknown,
 )
 
+app.include_router(wellknown.router)
 app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(overview.router)

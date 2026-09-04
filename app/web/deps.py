@@ -26,6 +26,11 @@ PUBLIC_PREFIXES: tuple[str, ...] = (
     "/radicale",
     "/healthz",
     "/favicon.ico",
+    # Service discovery. A CalDAV client asks for this before it has any
+    # credentials and has no way to obtain a session, so gating it answers the
+    # discovery request with a login page -- which iOS reports as a rejected
+    # password, sending people off to reset a password that was already right.
+    "/.well-known",
 )
 
 #: Reachable while logged out, so a user can actually log in or set up.
