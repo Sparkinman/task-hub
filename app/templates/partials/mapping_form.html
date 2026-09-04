@@ -169,6 +169,24 @@
                             </table>
                           </div>
 
+                          {# Kept inside this branch on purpose. It used to sit
+                             below the tabs, where it read as advice about
+                             whichever tab you were looking at -- including one
+                             saying no lists exist, which made it advice about
+                             ticking things that are not there. #}
+                          <div class="alert alert-info mt-4">
+                            <span class="alert-icon" aria-hidden="true">i</span>
+                            <div class="grow small">
+                              Ticking a collection keeps that list and the collection
+                              in step <span class="strong">both ways</span>, and you
+                              can tick as many collections as you like — the same
+                              {{ service_name }} list mirrored into each. A list only
+                              ever accepts write-back from one collection, because two
+                              would each create their own copy of every task and then
+                              undo each other on alternating syncs.
+                            </div>
+                          </div>
+
                         {% endif %}
                       </div>
                     {% endfor %}
@@ -187,17 +205,6 @@
                   </span>
                 </div>
 
-                <div class="alert alert-info mt-4">
-                  <span class="alert-icon" aria-hidden="true">i</span>
-                  <div class="grow small">
-                    Ticking a collection keeps that list and the collection in step
-                    <span class="strong">both ways</span>, and you can tick as many
-                    collections as you like — the same {{ service_name }} list mirrored
-                    into each. A list only ever accepts write-back from one
-                    collection, because two would each create their own copy of every
-                    task and then undo each other on alternating syncs.
-                  </div>
-                </div>
               </form>
 
 {%- endmacro %}

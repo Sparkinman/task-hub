@@ -81,7 +81,12 @@ EMPTY_LIST_NOTES: dict[str, dict[str, str]] = {
             "services feed each collection. The lists appear in Reminders under "
             "a Task Hub account rather than under iCloud — same app, same "
             "ticking off, and no upgrade problem. Only Siri, the Apple Watch "
-            "and family sharing need the lists to be iCloud's."
+            "and family sharing need the lists to be iCloud's. "
+            "Note that a device signs in to Task Hub as an account rather than "
+            "as a list, so it sees every collection there is — an iPhone or "
+            "iPad shows all of them in Reminders and Calendar, and there is no "
+            "per-device selection to offer. To keep one off your devices, "
+            "delete it under Collections."
         ),
     },
 }
