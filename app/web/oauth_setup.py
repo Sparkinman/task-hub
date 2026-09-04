@@ -12,6 +12,7 @@ entry rather than another copy of the flow.
 
 from __future__ import annotations
 
+import logging
 import secrets
 from dataclasses import dataclass
 from typing import Callable
@@ -32,6 +33,8 @@ from app.db.session import get_db
 from app.web import deps
 from app.web.disconnect import disconnect_accounts, wants_cleanup
 from app.web.forwarded import LOOPBACK_HOSTS
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -281,14 +284,26 @@ def start_oauth(
 def _handle_callback(
     service: OAuthService,
     request: Request,
+    *,
     db: Session,
     code: str | None,
     state: str | None,
     error: str | None,
 ):
+    """Finish an OAuth sign-in and store the account.
+
+    Everything after ``request`` is keyword-only, and that is not tidiness. The
+    signature used to take four interchangeable-looking arguments positionally,
+    and the Microsoft caller passed them in a different order from the other
+    two -- so the database session arrived as ``error``, which is truthy, and
+    every Microsoft connection was refused before its code was ever examined.
+    It failed identically every time, silently, and no test noticed because
+    nothing tested how the routes call this.
+    """
     page = f"/services/{service.kind.value}"
 
     if error:
+        logger.warning("%s OAuth callback refused: %s", service.name, error)
         deps.flash(request, f"{service.name} refused the connection: {error}", "error")
         return deps.redirect(page)
 
@@ -297,6 +312,14 @@ def _handle_callback(
     request.session.pop("oauth_service", None)
 
     if not state or not expected or state != expected:
+        # Almost always the session cookie not surviving the round trip through
+        # the service, which also loses the flash below -- so the server log is
+        # the only place this is ever visible.
+        logger.warning(
+            "%s OAuth callback state mismatch: state=%s expected=%s slot=%s",
+            service.name, "present" if state else "missing",
+            "present" if expected else "missing (session lost)", slot,
+        )
         deps.flash(
             request,
             "That sign-in did not match the one this page started. Nothing was "
@@ -305,6 +328,7 @@ def _handle_callback(
         )
         return deps.redirect(page)
     if not code:
+        logger.warning("%s OAuth callback carried no code", service.name)
         deps.flash(request, f"{service.name} sent no authorization code.", "error")
         return deps.redirect(page)
 
@@ -314,6 +338,7 @@ def _handle_callback(
             client_id, client_secret, code, redirect_uri_for(request, service)
         )
     except ConnectorError as exc:
+        logger.warning("%s token exchange failed: %s", service.name, exc)
         deps.flash(request, str(exc), "error")
         return deps.redirect(page)
 
@@ -375,7 +400,8 @@ def todoist_callback(
     db: Session = Depends(get_db),
 ):
     return _handle_callback(
-        SERVICES[ServiceKind.TODOIST.value], request, db, code, state, error
+        SERVICES[ServiceKind.TODOIST.value], request,
+        db=db, code=code, state=state, error=error,
     )
 
 
@@ -388,7 +414,8 @@ def ticktick_callback(
     db: Session = Depends(get_db),
 ):
     return _handle_callback(
-        SERVICES[ServiceKind.TICKTICK.value], request, db, code, state, error
+        SERVICES[ServiceKind.TICKTICK.value], request,
+        db=db, code=code, state=state, error=error,
     )
 
 
@@ -401,7 +428,8 @@ def microsoft_callback(
     db: Session = Depends(get_db),
 ):
     return _handle_callback(
-        SERVICES[ServiceKind.MICROSOFT.value], request, code, state, error, db
+        SERVICES[ServiceKind.MICROSOFT.value], request,
+        db=db, code=code, state=state, error=error,
     )
 
 
