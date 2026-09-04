@@ -262,7 +262,6 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.THINGS3.value,
         name="Things 3",
-        hidden=True,
         untested=True,
         colour="black",
         supports_tasks=True,
