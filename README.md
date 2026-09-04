@@ -21,10 +21,10 @@
 
 |  | Tasks | Calendar |  |
 | --- | :---: | :---: | --- |
-| **Google** | ✓ | ✓ | Tasks and Calendar |
-| **Todoist** | ✓ | — | |
-| **TickTick** | ✓ | — | |
-| **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar |
+| **Google** | ✓ | ✓ | Tasks and Calendar. Google Tasks keeps only the date, never a time of day — Task Hub holds the time separately so Google cannot erase it |
+| **Todoist** | ✓ | — | Projects and tasks. The quickest of the lot to connect — paste a personal API token, no app to register |
+| **TickTick** | ✓ | — | Lists and tasks. Its public API does not expose the calendar, and will not return tags |
+| **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar. Registering the app needs an Entra ID directory, which a personal account does not have — [the options](docs/microsoft.md) |
 | **Apple** | ✓ | ✓ | iCloud Calendar and iCloud task lists, over CalDAV — [one caveat](docs/apple.md) |
 | **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
