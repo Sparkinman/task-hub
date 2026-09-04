@@ -50,6 +50,7 @@ from app.connectors.base import (
 )
 from app.db.models import CollectionKind, ItemStatus, ServiceKind
 from app.services.ical_model import CanonicalRecord, new_uid
+from app.services.timezones import wall_time
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +263,7 @@ class GoogleConnector(Connector):
         sync_state: dict | None = None,
         client_id: str = "",
         client_secret: str = "",
+        default_timezone: str | None = None,
     ):
         super().__init__(account_id, credentials, sync_state)
         if not client_id or not client_secret:
@@ -270,6 +272,10 @@ class GoogleConnector(Connector):
                 "Secret on the Google service page first."
             )
         self.auth = GoogleAuth(client_id, client_secret, credentials)
+        # The zone to assume when Google names none. It always does name one on
+        # a timed event, so this is a fallback rather than the normal path, but
+        # falling back to UTC would relabel the instant rather than lose it.
+        self.default_timezone = default_timezone
         self._client = httpx.Client(timeout=30)
 
     def close(self) -> None:
@@ -513,13 +519,27 @@ class GoogleConnector(Connector):
             )
         return PullResult(items=items, incremental=incremental)
 
-    @staticmethod
-    def _split_endpoint(value: dict | None) -> tuple[dt.date | None, dt.time | None, str | None]:
-        """Decompose a Google start/end object into date, time and timezone."""
+    def _split_endpoint(
+        self, value: dict | None
+    ) -> tuple[dt.date | None, dt.time | None, str | None]:
+        """Decompose a Google start/end object into date, time and timezone.
+
+        The conversion is the whole job. Google stores the instant and names the
+        zone separately, so a ten o'clock event in London during British Summer
+        Time comes back as ``2026-09-09T09:00:00Z`` with ``timeZone:
+        Europe/London``. Reading the clock face off that string and pairing it
+        with the zone label gives nine o'clock -- an event an hour earlier than
+        the one the user created, which is then written back to every other
+        service as though somebody had moved it.
+
+        It is a summer-only fault, which is what let it survive: in winter
+        London is UTC and the unconverted value is accidentally right.
+        """
         if not value:
             return None, None, None
         if value.get("date"):
-            # An all-day endpoint. No time, and no timezone to apply.
+            # An all-day endpoint. No time, and no timezone to apply -- and
+            # converting one would move the date for anyone west of UTC.
             try:
                 return dt.date.fromisoformat(value["date"]), None, None
             except ValueError:
@@ -527,11 +547,7 @@ class GoogleConnector(Connector):
         raw = value.get("dateTime")
         if not raw:
             return None, None, None
-        try:
-            moment = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        except ValueError:
-            return None, None, None
-        return moment.date(), moment.time(), value.get("timeZone")
+        return wall_time(raw, value.get("timeZone"), self.default_timezone)
 
     def _event_to_record(self, entry: dict) -> CanonicalRecord:
         start_date, start_time, start_tz = self._split_endpoint(entry.get("start"))

@@ -268,6 +268,21 @@ class TickTickConnector(Connector):
             stores_uid=False,
         )
 
+    def echo_of(self, record: CanonicalRecord, kind: CollectionKind) -> CanonicalRecord:
+        """TickTick keeps the zone but coarsens the priority.
+
+        Unlike Todoist it does return ``timeZone``, so a timed value round-trips
+        intact and is left alone here. Its five priority levels still cannot
+        carry iCalendar's nine, and a 2 comes back as a 1.
+        """
+        from copy import deepcopy
+
+        echoed = deepcopy(record)
+        echoed.priority = ticktick_priority_to_canonical(
+            canonical_priority_to_ticktick(record.priority)
+        )
+        return echoed
+
     def supports_kind(self, kind: CollectionKind) -> bool:
         return kind == CollectionKind.TASKS
 

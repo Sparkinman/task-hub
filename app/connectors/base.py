@@ -221,6 +221,30 @@ class Connector(abc.ABC):
         """Whether this service handles tasks, calendars, or both."""
         return True
 
+    def echo_of(self, record: CanonicalRecord, kind: CollectionKind) -> CanonicalRecord:
+        """What this service will report back after being told ``record``.
+
+        :class:`Capabilities` says which fields a service can hold at all. This
+        says what it does to the ones it can, and it exists because those are
+        different problems. Todoist stores a due time as a floating clock face
+        and returns no zone; its four priorities cannot express iCalendar's
+        nine, so a 2 comes back as a 1. Nothing is lost that the service ever
+        claimed to keep, and neither value is an edit -- but both differ from
+        what was sent, and the echo check compares what was sent.
+
+        The baseline recorded against a link is therefore taken from this rather
+        than from the record itself. Get it wrong in the direction of saying too
+        little and the only cost is a redundant write; get it wrong in the other
+        direction and a real edit made in that service is mistaken for an echo
+        and silently dropped, so an override should only ever describe changes
+        the service is *certain* to make.
+
+        Returning the record unchanged, as the default does, is right for any
+        service that round-trips faithfully -- Radicale, and Google Calendar
+        now that it converts zones properly on the way back.
+        """
+        return record
+
     # -- Discovery ------------------------------------------------------------
 
     @abc.abstractmethod

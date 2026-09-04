@@ -349,6 +349,29 @@ class TodoistConnector(Connector):
             stores_uid=False,
         )
 
+    def echo_of(self, record: CanonicalRecord, kind: CollectionKind) -> CanonicalRecord:
+        """Todoist forgets the zone and coarsens the priority. Both are certain.
+
+        A due time is stored as a floating clock face -- the API returns
+        ``"timezone": null`` alongside the value it was given -- so the zone
+        label never survives. And four priority levels cannot carry iCalendar's
+        nine, so the value comes back as whichever of the four it landed in.
+
+        Measured against a real account: both differences appeared on the very
+        first read-back of every timed, prioritised task, and each one was
+        costing a redundant write to every other service in the group.
+        """
+        from copy import deepcopy
+
+        echoed = deepcopy(record)
+        echoed.due_tz = None
+        echoed.start_tz = None
+        echoed.end_tz = None
+        echoed.priority = todoist_priority_to_canonical(
+            canonical_priority_to_todoist(record.priority)
+        )
+        return echoed
+
     def supports_kind(self, kind: CollectionKind) -> bool:
         return kind == CollectionKind.TASKS
 

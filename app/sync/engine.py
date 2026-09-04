@@ -223,6 +223,8 @@ def build_connector(session: Session, account: Account) -> Connector:
         from app.connectors.google import GoogleConnector
         from app.web.google_setup import get_google_client_credentials
 
+        from app.db import settings_store
+
         client_id, client_secret = get_google_client_credentials(session)
         return GoogleConnector(
             account.id,
@@ -230,6 +232,8 @@ def build_connector(session: Session, account: Account) -> Connector:
             account.sync_state,
             client_id=client_id,
             client_secret=client_secret,
+            # Only used when Google names no zone at all; it normally does.
+            default_timezone=settings_store.get(session, settings_store.TIMEZONE),
         )
 
     if account.service == ServiceKind.OBSIDIAN:
@@ -1002,7 +1006,9 @@ class SyncEngine:
                 # never match, so every item is pushed on every pass for ever.
                 if content_hash(remote.record, caps) == content_hash(canonical, caps):
                     link.last_pushed_hash = content_hash(canonical, caps, caps.push_fields())
-                    link.last_pushed_fields = baseline_fingerprints(canonical, caps)
+                    link.last_pushed_fields = baseline_fingerprints(
+                        part.connector.echo_of(canonical, part.kind), caps
+                    )
 
             if complete:
                 self._detect_deletions(group, part, seen_remote_ids, stats)
@@ -1479,9 +1485,14 @@ class SyncEngine:
         link.remote_etag = outcome.etag
         link.remote_updated_at = outcome.remote_updated_at or utcnow()
         link.last_pushed_hash = desired_hash
-        # Remember exactly what this service was told, field by field, so that
-        # the next pull can tell a real edit from an echo of our own write.
-        link.last_pushed_fields = baseline_fingerprints(record, caps)
+        # Remember what this service will say when asked, field by field, so the
+        # next pull can tell a real edit from an echo of our own write. Not what
+        # it was told: a service that stores a due time without its zone, or on
+        # a coarser priority scale, answers with something that differs from
+        # what we sent through no edit of anyone's.
+        link.last_pushed_fields = baseline_fingerprints(
+            part.connector.echo_of(record, part.kind), caps
+        )
         link.last_seen_at = utcnow()
         stats.pushed += 1
 
