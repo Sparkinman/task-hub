@@ -43,13 +43,13 @@ delivered that page to you.
 
 Every service is fussy in its own way, and none of them tells you clearly.
 
-| How you reach Task Hub | Google | Microsoft | Todoist | TickTick | Phones and calendar apps |
-| --- | --- | --- | --- | --- | --- |
-| `http://192.168.1.50:8080` | ✗ | ✗ | ✓ | ✓ | ✓ |
-| `http://192-168-1-50.sslip.io:8080` | ✗ | ✗ | ✓ | ✓ | ✓ |
-| `http://localhost:8080` | ✓ | ✓ | ✓ | ✓ | only on that machine |
-| `https://name.tailnet.ts.net` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `https://tasks.example.com` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| How you reach Task Hub | Google | Microsoft | Todoist | TickTick | Android, Thunderbird | iPhone, iPad, Mac |
+| --- | --- | --- | --- | --- | --- | --- |
+| `http://192.168.1.50:8080` | ✗ | ✗ | ✓ | ✓ | ✓ | **✗** |
+| `http://192-168-1-50.sslip.io:8080` | ✗ | ✗ | ✓ | ✓ | ✓ | **✗** |
+| `http://localhost:8080` | ✓ | ✓ | ✓ | ✓ | only on that machine | only on that machine |
+| `https://name.tailnet.ts.net` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `https://tasks.example.com` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 The two rules behind that table:
 
@@ -65,6 +65,20 @@ The two rules behind that table:
   Only Google applies this rule. An earlier version of this page said TickTick
   did too; it does not, and a numeric redirect URI saves in the TickTick
   Developer Center without complaint.
+
+- **Apple devices need HTTPS for calendars and reminders.** This is the rule
+  that catches people out, because iOS does not say so. Given a plain `http`
+  address it offers to continue without SSL, saves the account, warns that it
+  may not sync — and then never sends the password at all. The server sees one
+  unauthenticated request, answers `401`, and hears nothing more. What the phone
+  shows is *"CalDAV account verification failed"*, which reads exactly like a
+  wrong password and is not one. Android's DAVx⁵ and Thunderbird are happy over
+  plain `http`; Apple's clients are not, and no amount of retyping changes it.
+
+  Task Hub can give you an HTTPS address without a terminal: **Settings →
+  Remote access** runs a Cloudflare tunnel from inside the container. Tick the
+  box, paste a token from Cloudflare's dashboard, and the address it gives you
+  works for iPhones, for Google and for Microsoft all at once.
 
 **You only need an acceptable address at the moment you connect a service.**
 Afterwards it keeps working from any address for ever, because renewing a

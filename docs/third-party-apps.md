@@ -79,6 +79,30 @@ source and long-established.
 
 Nothing to install. Apple's own apps speak CalDAV.
 
+> ## ⚠️ Apple devices need an HTTPS address
+>
+> Read this before you start, because iOS will not tell you and the error it
+> gives points somewhere else entirely.
+>
+> Given a plain `http://` address, iOS offers to "continue without SSL", saves
+> the account, warns that it may not sync — and then **never sends your password
+> at all**. The server receives one unauthenticated request, answers `401`, and
+> hears nothing more. The phone reports **"CalDAV account verification failed"**,
+> which reads exactly like a wrong password.
+>
+> It is not a wrong password, and retyping it, resetting it and retyping it again
+> will not help. Android's DAVx⁵ and Thunderbird work perfectly over plain
+> `http`; Apple's clients do not.
+>
+> **The fix, with no terminal:** **Settings → Remote access** in Task Hub runs a
+> Cloudflare tunnel from inside the container. Tick the box, paste a token from
+> Cloudflare's dashboard, and use the `https://` address it gives you. That one
+> address also satisfies Google and Microsoft, so it is worth doing once and
+> being finished with the whole class of problem.
+>
+> Tailscale works too, if you would rather: it gives every device an
+> `https://name.tailnet.ts.net` address with a real certificate.
+
 1. **Settings** → **Apps** → **Calendar** → **Calendar Accounts** → **Add
    Account** → **Other**.
 
