@@ -43,10 +43,24 @@ is unaffected; what you lose is Apple's app as the place you look at them.
 it](docs/apple.md) — the simpler being to point your iPhone at Task Hub's own
 CalDAV server, where the whole question does not arise.
 
-And because the hub is a real CalDAV server, anything that speaks CalDAV can
-join without a connector at all: **iPhone, iPad and Mac**, Android through
-DAVx⁵, Thunderbird, and e-ink tablets — [how to connect
-them](docs/third-party-apps.md).
+And because the hub is a real CalDAV server, anything that speaks CalDAV joins
+without a connector at all:
+
+| App | | |
+| --- | --- | --- |
+| **Apple Calendar and Reminders** | iPhone, iPad, Mac | Built in, nothing to install |
+| **DAVx⁵** | Android | The sync layer; pair it with Tasks.org or your calendar app |
+| **Thunderbird** | Windows, macOS, Linux | Calendars and tasks both |
+| **Super Productivity** | Desktop | Reads your tasks and syncs completion back. It cannot *create* tasks on the server, so treat it as a place to work through them |
+| **GNOME Calendar / GNOME To Do** | Linux | |
+| **Supernote and other e-ink tablets** | | Anything with a CalDAV client |
+
+[How to connect each of them](docs/third-party-apps.md).
+
+**Vikunja does not fit here**, and it is asked about often enough to be worth
+saying: Vikunja is itself a CalDAV *server*, not a client, so it cannot
+subscribe to Task Hub. The two do the same job at that layer rather than
+complementing each other.
 
 ---
 

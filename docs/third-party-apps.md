@@ -213,6 +213,46 @@ straight to the right settings page.
 
 ---
 
+# Super Productivity — Windows, Mac and Linux
+
+Super Productivity is a task manager with a timer built around working through
+one thing at a time, and it speaks CalDAV, so it can pull your Task Hub tasks in
+as things to do today.
+
+**Know its limit before you set it up.** Its CalDAV support is deliberately
+one-and-a-half directions: it reads tasks from the server and syncs completion
+back, and it **cannot create a task on the server**. A task you invent inside
+Super Productivity stays inside Super Productivity. That makes it a good place
+to *work through* tasks and a poor place to capture them — capture somewhere
+that writes back, and let this show you the list.
+
+1. Press **P**, or click the triskelion **Show/hide issue provider panel**
+   button.
+2. Under **Setup Issue Provider**, click **CalDAV Todo**.
+3. Fill in the CalDAV address from Task Hub's **Radicale** tab, your CalDAV
+   username, and the CalDAV password.
+4. Choose the collection you want it to pull from.
+
+Completing a task there ticks it off everywhere else on the next sync, which is
+the part that makes it worth connecting at all.
+
+---
+
+# Vikunja — why it is not on this list
+
+Vikunja comes up often, and it does not connect to Task Hub. Vikunja is itself a
+CalDAV **server**: it exposes its own projects for other applications to
+subscribe to, and it has no way to subscribe to somebody else's. It is the same
+kind of thing as the Radicale server inside Task Hub rather than a client of it,
+so the two sit at the same layer and cannot be pointed at each other.
+
+If you already run Vikunja and want its tasks in Task Hub, there is no supported
+route today. Community bridges exist that copy between a Vikunja instance and a
+CalDAV server, but none of them is part of either project and none has been
+tried here.
+
+---
+
 # Thunderbird — Windows, Mac and Linux
 
 Free, and the most capable desktop option. Version 115 or later handles tasks
