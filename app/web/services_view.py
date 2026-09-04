@@ -566,7 +566,12 @@ def _mapping_context(db, accounts) -> dict:
         # the user can fix. "No task lists in this account" reads as something
         # to go and correct; for an upgraded Apple ID there is nothing to
         # correct, and saying so saves the search.
-        "empty_notes": EMPTY_LIST_NOTES.get(definition.key, {}),
+        # Taken from the accounts rather than passed in: every account on a
+        # service page belongs to that one service, and deriving it here keeps
+        # all four callers of this helper unchanged.
+        "empty_notes": EMPTY_LIST_NOTES.get(
+            accounts[0].service.value if accounts else "", {}
+        ),
     }
 
 
