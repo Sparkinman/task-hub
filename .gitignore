@@ -13,10 +13,12 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
-# Editors / OS
+# Editors, tools and OS. Some of these hold local settings that quote whole
+# commands, which have included real passwords, so none of them belongs here.
 .DS_Store
 .idea/
 .vscode/
+.claude/
 
 # Local-only compose overrides. Building from source is a developer's choice,
 # not something an installed copy should inherit.
@@ -30,11 +32,6 @@ docker-compose.override.yml
 *.tar.gz
 *.tgz
 *.zip
-
-# Claude Code's local settings. Its permission rules quote whole commands,
-# which here included a real CalDAV password -- so this directory is personal
-# to a machine and never belongs in the repository.
-.claude/
 
 # Personal working files: a handover note describing one particular install,
 # an editor workspace, and a snapshot script that also archives conversations.

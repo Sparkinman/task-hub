@@ -69,12 +69,12 @@ def setup_world():
         db.commit()
 
         collection = RadicaleCollection(
-            radicale_user="paul", collection_id="claude-task",
-            display_name="Claude Task", kind=CollectionKind.TASKS,
+            radicale_user="paul", collection_id="anchor-task",
+            display_name="Anchor Task", kind=CollectionKind.TASKS,
         )
         second = RadicaleCollection(
-            radicale_user="paul", collection_id="claude-task-2",
-            display_name="Claude Task 2", kind=CollectionKind.TASKS,
+            radicale_user="paul", collection_id="anchor-task-2",
+            display_name="Anchor Task 2", kind=CollectionKind.TASKS,
         )
         db.add_all([collection, second])
         db.commit()
@@ -174,8 +174,8 @@ print("\nThe Radicale anchor keeps reading AND writing")
 # It is the canonical store: everything pulled from a service is written into
 # it. A save on a service page that cleared its write flag would silently stop
 # every sync, which is exactly the regression this check exists to catch.
-check("the anchor still writes", state.get("Claude Task") == (True, True),
-      str(state.get("Claude Task")))
+check("the anchor still writes", state.get("Anchor Task") == (True, True),
+      str(state.get("Anchor Task")))
 
 print("\nTwo collections may not write to the same list")
 with get_session_factory()() as db:
@@ -190,8 +190,8 @@ writers = [name for name, (_, w) in state.items()
            if w and name == "Test sync list 2"]
 check("the target still has at most one writer", len(writers) <= 1, str(state))
 check("both anchors still write",
-      state.get("Claude Task") == (True, True)
-      and state.get("Claude Task 2", (True, True))[1] is True,
+      state.get("Anchor Task") == (True, True)
+      and state.get("Anchor Task 2", (True, True))[1] is True,
       str(state))
 
 print("\nUnticking everything clears that account's mappings")
@@ -200,9 +200,9 @@ with get_session_factory()() as db:
 with get_session_factory()() as db:
     state = mappings(db)
 check("no service list is mapped any more",
-      all(name.startswith("Claude Task") for name in state), str(state))
-check("the anchor survives", state.get("Claude Task") == (True, True),
-      str(state.get("Claude Task")))
+      all(name.startswith("Anchor Task") for name in state), str(state))
+check("the anchor survives", state.get("Anchor Task") == (True, True),
+      str(state.get("Anchor Task")))
 
 print("\nA row marked \"changes only\" stops introducing new tasks")
 with get_session_factory()() as db:
@@ -216,7 +216,7 @@ with get_session_factory()() as db:
 check("the target no longer creates from remote", flags.get("Test sync list 2") is False,
       str(flags))
 check("the source still does", flags.get("Test sync list") is True, str(flags))
-check("the anchor still does", flags.get("Claude Task") is True, str(flags))
+check("the anchor still does", flags.get("Anchor Task") is True, str(flags))
 
 print("\nA write target in ANOTHER service is set up completely from here")
 # Nothing on the Google page can tick a Todoist list's boxes -- it has no row
@@ -294,8 +294,8 @@ check("THEIR LIST IS STILL TWO-WAY AFTER OUR SAVE",
       state.get("TickTick Work") == (True, True), str(state.get("TickTick Work")))
 check("and ours is unaffected", state.get("Test sync list") == (True, True),
       str(state.get("Test sync list")))
-check("the anchor survives", state.get("Claude Task") == (True, True),
-      str(state.get("Claude Task")))
+check("the anchor survives", state.get("Anchor Task") == (True, True),
+      str(state.get("Anchor Task")))
 
 print("\nA list synced with two collections gets exactly one writer")
 with get_session_factory()() as db:
@@ -326,8 +326,8 @@ check("a full member carries no filter and holds everything",
       filters.get("Test sync list") is None, str(filters.get("Test sync list")))
 check("THE AGGREGATE IS LIMITED TO THE LIST THAT NAMED IT",
       filters.get("Test sync list 2") == [src], str(filters.get("Test sync list 2")))
-check("the anchor carries no filter", filters.get("Claude Task") is None,
-      str(filters.get("Claude Task")))
+check("the anchor carries no filter", filters.get("Anchor Task") is None,
+      str(filters.get("Anchor Task")))
 
 print("\nA list that is both a member and a target keeps the whole collection")
 # Being explicitly synced with the collection is the stronger statement: it says
