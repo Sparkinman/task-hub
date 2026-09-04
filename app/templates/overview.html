@@ -10,7 +10,11 @@
 {% endblock %}
 
 {% block page_actions %}
-  <form method="post" action="/sync/run">
+  {# data-no-lock: this form is intercepted and sent by fetch, so the page
+   never navigates. The generic anti-double-submit handler assumes it
+   does and disables the button for good, leaving a dead control on a
+   page that is still perfectly usable. The fetch re-enables it itself. #}
+  <form method="post" action="/sync/run" data-no-lock>
     <button type="submit" class="btn btn-primary">
       {{ ico.icon('refresh') }} Sync now
     </button>
