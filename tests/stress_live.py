@@ -776,7 +776,16 @@ def edit_from_every_service(session, group_id: int, round_number: int) -> int:
             continue  # Obsidian and anything else that may only tick a box.
         for remote_list_id, remote_id in targets:
             record = CanonicalRecord(
-                uid="", kind=CollectionKind.TASKS,
+                # Not blank. A CalDAV write is addressed by UID, so an empty one
+                # produces a PUT to ".ics" holding a VTODO with no UID, which
+                # Radicale rejects with a 400 -- correctly. Every edit this phase
+                # aimed at Radicale was being thrown away, and because the edits
+                # are made through the connector rather than the engine, nothing
+                # counted them as failures: the phase reported the writes it
+                # attempted, not the ones that landed. For CalDAV services the
+                # remote id is the UID, and for the rest it is ignored.
+                uid=remote_id,
+                kind=CollectionKind.TASKS,
                 title=f"Edited by {account.service.value} round {round_number}",
                 notes=f"Touched at {time.time_ns()} {MARKER}",
                 priority=(round_number % 4) + 1,
