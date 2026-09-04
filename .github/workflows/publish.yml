@@ -27,6 +27,16 @@
 # version-controlled like everything else rather than typed into a website and
 # forgotten. The README is not used for it directly: its links and its logo are
 # relative to the repository and would be broken on Docker Hub.
+#
+# That last step may not be able to do its job, and says so in the log when it
+# cannot. Docker Hub treats editing a repository's description as an account
+# operation rather than a registry one, and a personal access token is often
+# refused for it even with write permission -- the API wants a session from a
+# username and password, which an account with two-factor authentication cannot
+# produce and which has no business being in a CI secret anyway. If the log says
+# it could not authenticate, set the two fields once by hand on
+# hub.docker.com -> the repository -> Edit, pasting .docker/hub-overview.md into
+# the Overview box. It is a one-off: the page persists across every later push.
 
 name: Publish image
 
