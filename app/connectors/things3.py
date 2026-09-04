@@ -142,12 +142,29 @@ class ThingsConnector(Connector):
 
         if response.status_code in (401, 403):
             raise ConnectorAuthError(
-                "Things Cloud rejected that email and password. Check them at "
-                "culturedcode.com — this is your Things Cloud account, which "
-                "may not be the same as your Apple ID."
+                "Things Cloud knows that email address but rejected the "
+                "password. It is your Things Cloud password, which is not your "
+                "Apple ID password and not the account you bought Things with "
+                "-- it is the one you set when you turned Things Cloud on. If "
+                "you are not sure, reset it at culturedcode.com/things/cloud "
+                "and Things will ask your devices to sign in again."
             )
         if response.status_code == 429:
             raise RateLimitError("Things Cloud is rate limiting this account.")
+        if response.status_code == 400:
+            # Confirmed against the live endpoint: an address with no Things
+            # Cloud account answers 400, where a wrong password answers 401. The
+            # two need opposite advice, and telling somebody their endpoint has
+            # changed when they have simply never made an account would send
+            # them looking in entirely the wrong place.
+            raise ConnectorAuthError(
+                "Things Cloud has no account for that email address. Things "
+                "Cloud is a separate account you create inside the Things app "
+                "-- buying Things does not create one. On a Mac open Things -> "
+                "Settings -> Things Cloud, or on an iPhone open Things -> "
+                "Settings -> Things Cloud, and sign up or sign in there first. "
+                "Check the address you used matches the one this shows."
+            )
         if response.status_code >= 400:
             raise ConnectorError(
                 f"Things Cloud refused the sign-in (HTTP {response.status_code}). "
