@@ -11,9 +11,16 @@ This is the table from docs/addresses.md, executable. If the two ever disagree,
 one of them is lying to somebody who is about to spend an evening on it.
 
 The rules are not the same shape for every service, which is the whole reason
-they are worth testing rather than assuming: TickTick wants a name but tolerates
-plain http, Microsoft wants https but tolerates a bare number, Google wants
-both, and Todoist minds neither.
+they are worth writing down rather than assuming: Google insists on HTTPS and on
+a name rather than a bare number, Microsoft insists on HTTPS but is content with
+a number, and Todoist and TickTick insist on neither. Every one of them exempts
+loopback.
+
+TickTick's row was wrong here once, in the cautious direction: this file claimed
+it refused a bare IP, on the strength of a note in docs/addresses.md. Registering
+a numeric redirect URI in the TickTick Developer Center showed it saving without
+complaint, so the claim was removed. Worth remembering as the reason these are
+tested against something rather than reasoned about.
 """
 
 from __future__ import annotations
@@ -38,8 +45,11 @@ def check(name: str, condition: bool, detail: str = "") -> None:
 #: in docs/addresses.md. Loopback is a special case handled separately: every
 #: console accepts it, and Task Hub warns about it only as advice about phones.
 ACCEPTS = {
+    # TickTick accepts a bare number: confirmed by registering one in its
+    # Developer Center and watching it save. Google is the only service that
+    # insists on a name, and it wants HTTPS as well.
     "http://192.168.1.50:8080": {
-        "Google": False, "Microsoft": False, "Todoist": True, "TickTick": False,
+        "Google": False, "Microsoft": False, "Todoist": True, "TickTick": True,
     },
     "http://192-168-1-50.sslip.io:8080": {
         "Google": False, "Microsoft": False, "Todoist": True, "TickTick": True,
@@ -96,12 +106,11 @@ for service_name in ("Google", "Microsoft", "Todoist", "TickTick"):
     check(f"{service_name}'s localhost note says it is accepted",
           "accepts it" in message, message)
 
-print("\nA bare IP is named as such, and a way out is offered")
-service = next(s for s in SERVICES.values() if s.name == "TickTick")
-message = oauth_problem(
-    f"http://192.168.1.50:8080{service.callback_path}", service) or ""
-check("TickTick's message offers the sslip.io name for that exact address",
-      "192-168-1-50.sslip.io" in message, message)
+print("\nGoogle is the only service that insists on a name")
+check("Google refuses a bare IP even over HTTPS",
+      not accepted_by("Google", "https://192.168.1.50"))
+check("TickTick does not, and says nothing about one",
+      accepted_by("TickTick", "http://192.168.1.50:8080"))
 
 print("\nAn address Task Hub cannot work out at all is reported, not ignored")
 for service in SERVICES.values():

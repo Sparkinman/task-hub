@@ -95,8 +95,10 @@ def redirect_uri_problem(uri: str) -> str | None:
             f"http://localhost:8080 to connect Google, or put it behind HTTPS."
         )
 
-    # A bare IP address is refused even over HTTPS.
-    if host.replace(".", "").isdigit() or ":" in host:
+    # A bare IP address is refused even over HTTPS. Tested properly rather
+    # than guessed at from punctuation: the old check read any host with a
+    # colon in it as an address, which a hostname with a port would be.
+    if is_bare_ip(host):
         return (
             "Google will reject this address because it is a raw IP address. "
             "Use localhost, or a real domain name with HTTPS."

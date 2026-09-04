@@ -20,6 +20,12 @@ STAMP="$(date +%s)-$$"
 # Copied to /app/ rather than /app/tests: the destination already exists,
 # so naming it would nest the copy as /app/tests/tests and every suite
 # would keep running whatever version was there before.
+# Both, and to /app/ rather than /app/tests: the destination already exists,
+# so naming it would nest the copy as /app/tests/tests and every suite would
+# keep running whatever version was there before. The application is copied
+# too, or the suites test the code as it was at the last image build rather
+# than the code as it is now -- which is a test run that proves nothing.
+docker compose cp app taskhub:/app/ >/dev/null 2>&1
 docker compose cp tests taskhub:/app/ >/dev/null 2>&1
 
 failed=0

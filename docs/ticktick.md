@@ -63,26 +63,19 @@ Hub's links to TickTick open in a new tab for exactly this reason.
 
 ## Before you start: which address are you using?
 
-TickTick is relaxed about `https` — plain `http` is fine, which is why it is
-easier to connect than Google or Microsoft. It is fussy about one other thing:
-it wants a **name** rather than a bare number.
+TickTick is the least fussy of the lot. It accepts plain `http`, and it accepts
+a bare IP address, so whatever address you already use will work. This was
+confirmed by registering a numeric redirect URI in the Developer Center and
+watching it save without complaint.
 
 | Address you use | TickTick accepts it? |
 |---|---|
 | `http://localhost:8080` | Yes |
-| `http://192.168.1.42:8080` | **Probably not** — a bare number, not a name |
-| `http://192-168-1-42.sslip.io:8080` | Yes — the same machine, with a name |
+| `http://192.168.1.42:8080` | Yes |
 | `https://tasks.example.com` | Yes |
 
-If you reach Task Hub at a numeric address, `sslip.io` turns it into a name for
-free with nothing to install and no sign-up: `192-168-1-42.sslip.io` resolves
-straight back to `192.168.1.42`. Swap the dots for dashes and add `.sslip.io`.
-Because TickTick does not insist on `https`, that one change is enough to get it
-connected — which is exactly why the same trick does **not** get Google
-connected, since Google wants HTTPS as well as a name.
-
-The Task Hub page tells you which of these you are on and says so before you
-start, so you do not have to work it out from this table.
+That makes TickTick the easy one: no HTTPS to arrange, no name to obtain, no
+borrowing `localhost` for the setup the way Google needs.
 
 The one absolute rule: **the redirect URI registered with TickTick must match the
 address you actually use, character for character.** `http` and `https` differ. A

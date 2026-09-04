@@ -31,7 +31,7 @@ from app.db.models import Account, AccountStatus, CollectionKind, RemoteList, Se
 from app.db.session import get_db
 from app.web import deps
 from app.web.disconnect import disconnect_accounts, wants_cleanup
-from app.web.forwarded import LOOPBACK_HOSTS, is_bare_ip
+from app.web.forwarded import LOOPBACK_HOSTS
 
 router = APIRouter()
 
@@ -59,11 +59,6 @@ class OAuthService:
     #: loopback, which every console accepts precisely so that software running
     #: on somebody's own machine can be connected at all.
     requires_https: bool = False
-    #: Whether a bare IP address is refused and a name is required. A separate
-    #: rule from HTTPS, and services differ on which they apply: TickTick wants
-    #: a name but not HTTPS, Microsoft wants HTTPS but not a name, Google wants
-    #: both, and Todoist wants neither.
-    requires_hostname: bool = False
 
     #: Whether this service also offers a personal token that can simply be
     #: pasted, skipping app registration entirely.
@@ -95,10 +90,6 @@ SERVICES: dict[str, OAuthService] = {
         authorization_url=ticktick_api.authorization_url,
         exchange_code=ticktick_api.exchange_code,
         callback_path="/oauth/ticktick/callback",
-        # TickTick refuses a bare number but is content with plain http, which
-        # is why an sslip.io name gets it working where it will not get Google
-        # working. See docs/addresses.md.
-        requires_hostname=True,
         allows_paste_back=True,
     ),
     ServiceKind.MICROSOFT.value: OAuthService(
@@ -185,20 +176,6 @@ def redirect_uri_problem(uri: str, service: OAuthService) -> str | None:
             "localhost with an SSH port forward just long enough to connect."
         )
 
-    if service.requires_hostname and is_bare_ip(host):
-        # Worded as a caution rather than a certainty on purpose. That TickTick
-        # refuses a bare number is a finding from use rather than from anything
-        # it documents, so the message has to be useful if it is right and
-        # harmless if it is wrong -- telling somebody their working address is
-        # rejected would send them off fixing what was never broken.
-        return (
-            f"{service.name} may refuse this address because it is a bare IP "
-            "address rather than a name. If the connection fails, sslip.io "
-            "gives you a name free with nothing to install: "
-            f"{host.replace('.', '-')}.sslip.io resolves straight back to "
-            f"{host}, so http://{host.replace('.', '-')}.sslip.io:{parts.port or 8080} "
-            "reaches the same machine."
-        )
     return None
 
 

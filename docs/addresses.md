@@ -45,7 +45,7 @@ Every service is fussy in its own way, and none of them tells you clearly.
 
 | How you reach Task Hub | Google | Microsoft | Todoist | TickTick | Phones and calendar apps |
 | --- | --- | --- | --- | --- | --- |
-| `http://192.168.1.50:8080` | ✗ | ✗ | ✓ | ✗ | ✓ |
+| `http://192.168.1.50:8080` | ✗ | ✗ | ✓ | ✓ | ✓ |
 | `http://192-168-1-50.sslip.io:8080` | ✗ | ✗ | ✓ | ✓ | ✓ |
 | `http://localhost:8080` | ✓ | ✓ | ✓ | ✓ | only on that machine |
 | `https://name.tailnet.ts.net` | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -56,11 +56,15 @@ The two rules behind that table:
 - **HTTPS is required by Google and Microsoft**, with one exception: both always
   accept `localhost`. That exception exists precisely for software running on
   your own machine, and it is the reason the trick below works.
-- **A bare number is rejected** by Google even over HTTPS, and by TickTick. A
-  name is required. `sslip.io` provides one free: `192-168-1-50.sslip.io`
-  resolves to `192.168.1.50` with no sign-up and nothing to install. It solves
-  the name rule but not the HTTPS rule, which is why it gets TickTick working
-  and not Google.
+- **A bare number is rejected by Google**, even over HTTPS. A name is required.
+  `sslip.io` provides one free: `192-168-1-50.sslip.io` resolves to
+  `192.168.1.50` with no sign-up and nothing to install. On its own it is not
+  enough for Google, which wants HTTPS as well — but it is what turns a numeric
+  address into something a certificate can be issued for.
+
+  Only Google applies this rule. An earlier version of this page said TickTick
+  did too; it does not, and a numeric redirect URI saves in the TickTick
+  Developer Center without complaint.
 
 **You only need an acceptable address at the moment you connect a service.**
 Afterwards it keeps working from any address for ever, because renewing a
