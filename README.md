@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>One place where all your tasks and calendars agree.</strong><br>
-  Self-hosted. One container. No configuration file.
+  Runs on your own hardware. Your data never leaves it.
 </p>
 
 <p align="center">
@@ -14,6 +14,28 @@
   <img src="https://img.shields.io/badge/licence-GPLv3-blue" alt="GPLv3">
   <img src="https://img.shields.io/badge/arch-amd64%20%7C%20arm64-lightgrey" alt="amd64 and arm64">
 </p>
+
+---
+
+## Syncs with
+
+|  | Tasks | Calendar |  |
+| --- | :---: | :---: | --- |
+| **Google** | ✓ | ✓ | Tasks and Calendar |
+| **Todoist** | ✓ | — | |
+| **TickTick** | ✓ | — | |
+| **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar |
+| **Apple** | — | ✓ | iCloud Calendar. Reminders only on an Apple ID that was never "upgraded" — [why](docs/apple.md) |
+| **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
+| **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
+
+Every one of those has been run against a real account. **Things 3** is written
+but unproven and stays off the list until somebody connects one.
+
+And because the hub is a real CalDAV server, anything that speaks CalDAV can
+join without a connector at all: **iPhone, iPad and Mac**, Android through
+DAVx⁵, Thunderbird, and e-ink tablets — [how to connect
+them](docs/third-party-apps.md).
 
 ---
 
@@ -58,6 +80,37 @@ Everything converges on a **built-in CalDAV server**, which your phone, your
 laptop's calendar and any standards-respecting app can talk to directly. Your
 tasks end up in Apple Reminders or on an e-ink tablet without those devices
 knowing Todoist exists.
+
+## Your data stays yours
+
+Task Hub is a container you run. There is no Task Hub account, no hosted
+service, no free tier, and nothing to sign up to — because there is no company
+in the middle to sign up to.
+
+- **Everything lives on your hardware.** Tasks, calendars, sync history and
+  settings are in a Docker volume on your own machine. Nobody else has a copy,
+  and nobody can take it away, change the terms, or shut it down.
+- **Nothing is sent anywhere except the services you connect.** No telemetry, no
+  analytics, no phoning home, not even a version check. The only outbound
+  traffic is to the accounts you asked it to sync, and you can watch every
+  request in the sync history.
+- **Your service logins are encrypted at rest**, with the key in a separate file
+  from the database — copying one without the other yields nothing useful.
+- **The CalDAV server is yours too.** Your phone talks to *your* server on your
+  network. Your tasks are not routed through anybody's cloud on the way to your
+  own pocket, and they keep working if the internet does not.
+- **One file backs it all up**, from the web interface, and restores onto a
+  different machine just as easily. Leaving is as easy as arriving.
+- **The source is all here**, under the GPL, with every dependency pinned. If
+  this project stops tomorrow, the image you have keeps running and the code to
+  build another is in front of you.
+
+The one caveat worth stating plainly: if you choose to reach it from outside
+your network — a Cloudflare tunnel, Tailscale, your own reverse proxy — then
+that route is yours to pick and yours to trust. Task Hub does not require any of
+them, and on a home network it needs none.
+
+---
 
 ## What it is like to run
 
@@ -201,16 +254,23 @@ finished once it has been run against a real account — not when its code is
 written. One has not passed that point yet, and this table is the honest state
 of each.
 
-| Service | Tasks | Calendar | State |
-| --- | --- | --- | --- |
-| **Google** | ✓ | ✓ | **Working.** Tested against a live account. |
-| **Todoist** | ✓ | — | **Working.** Tested against a live account. |
-| **TickTick** | ✓ | — | **Working.** Tested against a live account. |
-| **Obsidian** | ✓ | — | **Working.** Tested against live vaults. Read-only unless you turn write-back on. |
-| **Radicale** (built in) | ✓ | ✓ | **Working.** This is where everything meets. |
-| **Apple** | — | ✓ | **Calendars working.** Tested against a live iCloud account. Reminders cannot be reached at all if that Apple ID's Reminders were ever "upgraded" — Apple moved them out of CalDAV permanently. [Why, and what to do instead](docs/apple.md). |
-| **Microsoft** | ✓ | ✓ | **Working.** Tested against a live account. Registering the app now needs an Entra ID directory, which a personal Microsoft account does not have — [the guide covers the options](docs/microsoft.md). |
-| Things 3 | — | — | **Not finished.** Written, never run against a real account, and it talks to an endpoint Things does not publish. Hidden in the interface until somebody tries it. |
+Which services carry which fields is in [Syncs with](#syncs-with) above; this
+is what each has actually been put through, which is a different question.
+
+- **Google, Todoist, TickTick, Obsidian and the built-in Radicale** have all
+  been driven against live accounts, including a two-hundred-task,
+  two-hundred-event stress run measuring memory, processor time and query counts
+  per pass.
+- **Apple** has been run against a live iCloud account. Calendars work. Its
+  Reminders cannot be reached at all if that Apple ID's Reminders were ever
+  "upgraded" — Apple moved them out of CalDAV permanently, and no application
+  can reach them remotely again.
+  [Why, and what to do instead](docs/apple.md).
+- **Microsoft** has been run against a live account and works. Registering the
+  app now needs an Entra ID directory, which a personal Microsoft account does
+  not have — [the guide covers the options and what each costs](docs/microsoft.md).
+- **Things 3** has never been connected to anything. It also talks to an
+  endpoint Things does not publish, which can stop working without warning.
 
 **Things 3 is the one still to prove.** It is kept off the services list, says
 so on its own page and at the top of its guide, and can still be reached
