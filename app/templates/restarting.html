@@ -1,0 +1,59 @@
+{# Shown while Task Hub is stopping and Docker is starting it again.
+
+   The page cannot be served by the application it is waiting for, so it is
+   rendered and delivered first and then waits on its own. It polls the health
+   check until it answers, which is the only reliable signal that the new
+   process is actually serving rather than merely started. #}
+{% extends "layout.html" %}
+
+{% block title %}{{ heading }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ heading }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 560px;">
+  <div class="card-body">
+    <p id="restart-status" class="strong">{{ detail }}</p>
+    <p class="small text-muted" id="restart-progress">Waiting for Task Hub to come back…</p>
+    <p class="small text-muted" id="restart-slow" hidden>
+      This is taking longer than usual. If Task Hub does not come back on its
+      own, it is because Docker was not told to restart it — start it again
+      the way you started it, and nothing will have been lost.
+    </p>
+  </div>
+</div>
+
+<script>
+  // Poll rather than guess at a delay: a Raspberry Pi takes appreciably longer
+  // to come back than a desktop, and a fixed wait would either be too short
+  // there or needlessly slow everywhere else.
+  (function () {
+    var started = Date.now();
+    var progress = document.getElementById('restart-progress');
+    var slow = document.getElementById('restart-slow');
+
+    function check() {
+      // cache: 'no-store' matters -- a cached 200 from before the restart
+      // would end the wait immediately and reload into a dead connection.
+      fetch('/healthz', { cache: 'no-store' })
+        .then(function (response) {
+          if (response.ok) {
+            progress.textContent = 'Task Hub is back. Loading…';
+            window.location.href = '/';
+            return;
+          }
+          throw new Error('not ready');
+        })
+        .catch(function () {
+          var seconds = Math.round((Date.now() - started) / 1000);
+          progress.textContent = 'Waiting for Task Hub to come back… ' + seconds + 's';
+          if (seconds > 90) { slow.hidden = false; }
+          setTimeout(check, 2000);
+        });
+    }
+
+    // A moment's grace before the first attempt, so the still-running process
+    // does not answer its own health check and declare itself restarted.
+    setTimeout(check, 3000);
+  })();
+</script>
+{% endblock %}

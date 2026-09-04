@@ -83,20 +83,46 @@ class Provenance:
 
 @dataclass
 class FieldChange:
+    """One field actually changing value, and which service caused it.
+
+    Recorded rather than merely applied, because the sync history page has to
+    be able to answer "why is my task different?" long after the fact. Knowing
+    that a due date changed is not much use on its own; knowing it changed
+    because Todoist said so is what makes the record worth keeping.
+    """
+
     field: str
+    #: What Task Hub held before this merge.
     old: Any
+    #: What it holds afterwards.
     new: Any
+    #: The service whose copy won this field.
     source: ServiceKind
 
 
 @dataclass
 class MergeResult:
+    """What one merge decided: what changed, and what was refused.
+
+    Both halves matter. The changes drive what gets written out to the other
+    services; the conflicts are the fields where an incoming value lost, which
+    is normal and expected rather than an error -- every service echoes back
+    stale copies of fields it was told about earlier, and refusing them is the
+    entire point of the exercise.
+    """
+
     changes: list[FieldChange] = field(default_factory=list)
     #: Fields where an incoming value was rejected as older than what we hold.
     conflicts: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
+        """Whether anything at all was accepted.
+
+        Used to decide whether this item needs writing out again. A merge that
+        changed nothing must not trigger a push, or every sync would rewrite
+        every item for ever and no system would ever settle.
+        """
         return bool(self.changes)
 
 
@@ -109,6 +135,19 @@ class MergeResult:
 
 
 def get_field(record: CanonicalRecord, name: str) -> Any:
+    """Read one logical field, as a single value the merge can compare.
+
+    The returned shape matters as much as the value. Fields that span several
+    database columns come back as a tuple, so that comparing "the start" is one
+    decision rather than three independent ones. Empty values are normalised
+    here too -- an empty title reads as ``""`` and an empty note as ``None`` --
+    so that the merge never has to decide whether ``None`` and ``""`` mean the
+    same thing while it is also deciding which service is newer.
+
+    Raises ``KeyError`` for an unknown field rather than returning ``None``: a
+    typo in a field name would otherwise look like a permanently empty value
+    and silently stop that field ever syncing.
+    """
     if name == F_TITLE:
         return record.title or ""
     if name == F_NOTES:
@@ -135,6 +174,14 @@ def get_field(record: CanonicalRecord, name: str) -> Any:
 
 
 def set_field(record: CanonicalRecord, name: str, value: Any) -> None:
+    """Write one logical field back, undoing what :func:`get_field` packed up.
+
+    The inverse of :func:`get_field`, and deliberately its mirror image: a
+    field that reads as a tuple is written back as a tuple, so a merged start
+    date and start time are stored together or not at all. Keeping the two
+    functions symmetrical is what stops a half-applied value -- a date from one
+    service paired with a time from another -- reaching the database.
+    """
     if name == F_TITLE:
         record.title = value or ""
     elif name == F_NOTES:
@@ -411,6 +458,15 @@ def content_hash(
 
 
 def _json_safe(value: Any) -> Any:
+    """Convert a field value into something JSON can store.
+
+    Provenance is written to the database as JSON, and dates, times and status
+    enumerations are not JSON types. Converting them to strings here keeps that
+    knowledge in one place rather than at every point that saves provenance.
+
+    Anything else is returned untouched, on the assumption that the remaining
+    field types -- strings, numbers, lists of tags -- are already storable.
+    """
     if isinstance(value, (dt.date, dt.time, dt.datetime)):
         return value.isoformat()
     if isinstance(value, ItemStatus):

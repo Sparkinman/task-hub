@@ -175,12 +175,18 @@ Build, or `docker compose pull && docker compose up -d` in a terminal. With the
 form method: download the `latest` tag again, then stop, clear and restart the
 container.
 
-**Backing up.** This is the reason for Step 3. Point your NAS's normal backup
-task — Hyper Backup, Hybrid Backup Sync, whatever you already use — at the
-folder holding Task Hub's data, and you are done.
+**Backing up.** Settings → Backup and restore → **Download backup** gives you
+one file holding everything, and needs no terminal. Because Step 3 put the data
+in a folder you can see, you can also simply point your NAS's own backup task
+— Hyper Backup, Hybrid Backup Sync, whatever you already use — at that folder
+and let it run on a schedule. Doing both is not excessive.
 
-> That folder contains the key that decrypts every service login you have
-> saved. Back it up somewhere you would be comfortable keeping passwords.
+> That folder, and the backup file, both contain the key that decrypts every
+> service login you have saved. Back them up somewhere you would be
+> comfortable keeping passwords.
+
+**Restoring.** Settings → Backup and restore, choose the file, type RESTORE.
+Task Hub replaces everything and restarts itself.
 
 **Moving it.** Copy the folder to the new machine, point a new container at it,
 and Task Hub picks up exactly where it left off.

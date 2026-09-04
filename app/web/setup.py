@@ -472,6 +472,23 @@ def sync_submit(
     settings_store.set_sync_interval(db, requested)
     settings_store.set_bool(db, settings_store.SYNC_ENABLED, sync_enabled == "1")
 
+    # Refuse to finish without an account to sign in with. Marking setup
+    # complete closes the wizard for good, and there is no password reset --
+    # Task Hub has no mail server -- so completing it with no user would lock
+    # everybody out of an installation permanently, with no way back in short
+    # of deleting the data volume. Following the wizard normally cannot reach
+    # this state, because a rejected account step re-renders rather than
+    # advancing; a reload, a stale form or a resubmitted step can.
+    if db.execute(select(User)).scalars().first() is None:
+        return _render_step(
+            request, db, "account",
+            errors=[
+                "No sign-in account has been created yet, and setup cannot "
+                "finish without one -- there is no way to add it afterwards. "
+                "Please choose a username and password."
+            ],
+        )
+
     # Everything needed is now in place; the application opens up.
     settings_store.set_bool(db, settings_store.ONBOARDING_COMPLETE, True)
     settings_store.set_value(db, SETUP_STEP_KEY, "done")

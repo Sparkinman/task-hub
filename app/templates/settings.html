@@ -359,6 +359,118 @@
 </div>
 {% endif %}
 
+{# --- Backup, restore and restart ---------------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Backup and restore</div>
+      <div class="card-hint">
+        Everything Task Hub holds, in one file you can keep somewhere else.
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+
+    <div class="alert alert-warning mb-4">
+      <span class="alert-icon" aria-hidden="true">!</span>
+      <div class="grow small">
+        <span class="strong">A backup file can unlock every service you have
+        connected.</span> It contains the key that decrypts your saved logins,
+        so anyone who has the file has those logins. Keep it somewhere you
+        would keep passwords, not in a shared folder.
+      </div>
+    </div>
+
+    <div class="field" style="max-width: 520px;">
+      <span class="strong">What a backup contains</span>
+      <table class="data mt-2">
+        <tbody>
+        {% for name, size in backup_sizes.items() %}
+          <tr>
+            <td>{{ name }}</td>
+            <td class="mono" style="text-align: right;">{{ size }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <span class="field-hint">
+        Your tasks and calendar entries, every service login, the encryption
+        key that makes them readable, and your settings. Restoring it on
+        another machine reproduces this installation exactly.
+      </span>
+    </div>
+
+    <a href="/settings/backup/download" class="btn btn-primary">Download backup</a>
+
+    <hr class="mt-5 mb-4">
+
+    <div class="alert alert-warning mb-4">
+      <span class="alert-icon" aria-hidden="true">!</span>
+      <div class="grow small">
+        <span class="strong">Restoring replaces everything.</span> Your current
+        tasks, connected services, settings and sign-in password are all
+        replaced by the ones in the backup — including the password you use
+        to sign in to this page. Take a backup first if there is anything here
+        you would miss.
+      </div>
+    </div>
+
+    <form method="post" action="/settings/backup/restore" enctype="multipart/form-data"
+          style="max-width: 520px;">
+      <div class="field">
+        <label for="archive">Backup file</label>
+        <input type="file" id="archive" name="archive" accept=".gz,.tgz,application/gzip" required>
+        <span class="field-hint">
+          The .tar.gz file from the Download backup button. It is checked
+          before anything is changed, so choosing the wrong file costs you an
+          error message rather than your data.
+        </span>
+      </div>
+      <div class="field">
+        <label for="confirm">Type <span class="mono strong">RESTORE</span> to confirm</label>
+        <input type="text" id="confirm" name="confirm" autocomplete="off"
+               placeholder="RESTORE" required>
+      </div>
+      <button type="submit" class="btn btn-danger">Replace everything with this backup</button>
+    </form>
+
+    {% if rollback_bytes %}
+      <div class="alert alert-info mt-4">
+        <span class="alert-icon" aria-hidden="true">i</span>
+        <div class="grow small">
+          The data replaced by your last restore is still on disk, taking
+          <span class="mono">{{ rollback_size }}</span>. It is kept in case the
+          restore turned out to be the wrong one.
+          <form method="post" action="/settings/backup/discard-rollback" class="mt-2">
+            <button type="submit" class="btn btn-sm">Delete it and free the space</button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+
+    <hr class="mt-5 mb-4">
+
+    <div class="field">
+      <span class="strong">Restart Task Hub</span>
+      <span class="field-hint">
+        Occasionally useful if something looks stuck. Nothing is lost — your
+        data is on disk, and a sync in progress simply runs again.
+      </span>
+    </div>
+    {% if restart_supported %}
+      <form method="post" action="/settings/restart">
+        <button type="submit" class="btn">Restart now</button>
+      </form>
+    {% else %}
+      <p class="small text-muted">
+        Not available here. Restarting works by stopping and letting Docker
+        start Task Hub again; running outside Docker it would simply stop.
+      </p>
+    {% endif %}
+
+  </div>
+</div>
+
 {# --- Password ----------------------------------------------------------- #}
 <div class="card">
   <div class="card-header">

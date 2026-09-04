@@ -321,26 +321,40 @@ one being cleaned up.
 
 ## Backing up
 
-Everything Task Hub stores lives in one Docker volume named `taskhub-data`: the
-database, your settings, the encryption key for your saved credentials, and
-every task and calendar in Radicale.
+**Settings → Backup and restore → Download backup.** Your browser saves one
+file holding everything Task Hub stores: the database, your settings, the
+encryption key for your saved logins, and every task and calendar. Copy it
+somewhere other than the machine Task Hub runs on.
 
-To back it up, run this in the Task Hub folder:
+> **That file can unlock every service you have connected.** It contains the
+> key that decrypts your saved logins. Keep it where you would keep passwords.
+
+To restore it — onto this machine or a completely fresh installation — use the
+Restore section of the same page, choose the file, and type RESTORE to confirm.
+Task Hub checks the archive before touching anything, replaces its data, sets
+the old data aside in case you chose the wrong file, and restarts itself.
+Afterwards you sign in with the password from the backup rather than the one
+you were using before.
+
+The settings page shows how large a backup will be before you download it, so
+a large Obsidian vault is not a surprise on a slow connection.
+
+### If you would rather script it
+
+The data lives in a Docker volume, and this archives it from the command line:
 
 ```
 docker run --rm --volumes-from taskhub -v "$(pwd)":/backup alpine tar czf /backup/taskhub-backup.tar.gz -C /data .
 ```
 
-That writes `taskhub-backup.tar.gz` into the folder. Copy it somewhere safe.
+**Check the file size.** A real backup is megabytes; a file of a couple of
+hundred bytes backed up nothing. `--volumes-from taskhub` asks the container
+itself where its data lives, which is why it is written that way — naming the
+volume directly is fragile, because Docker Compose prefixes volume names with
+the folder Task Hub sits in, and naming a volume that does not exist creates a
+new empty one and archives that instead. Silently.
 
-**Check the file size.** A real backup is megabytes; if you get a file of a
-couple of hundred bytes, it backed up nothing. `--volumes-from taskhub` asks the
-container itself where its data lives, which is why it is written that way —
-naming the volume directly is fragile, because Docker Compose prefixes volume
-names with the folder Task Hub sits in, and naming a volume that does not exist
-creates a new empty one and archives that instead. Silently.
-
-To restore it onto a fresh installation, stop Task Hub first:
+To restore that way, stop Task Hub first:
 
 ```
 docker compose stop

@@ -121,10 +121,19 @@ if command -v docker >/dev/null 2>&1; then
     bad "Compose is missing. Reinstalling Docker from get.docker.com adds it."
   fi
 else
-  bad "Not installed. On Linux and Raspberry Pi OS:
+  # Root already has full access, so telling root to add itself to the docker
+  # group is noise at best and confusing at worst -- the advice differs enough
+  # to be worth two messages rather than one with a caveat.
+  if [ "$(id -u)" -eq 0 ]; then
+    bad "Not installed. You are running as root, so:
+        curl -fsSL https://get.docker.com | sh
+      and that is all -- no group change is needed for root."
+  else
+    bad "Not installed. On Linux and Raspberry Pi OS:
         curl -fsSL https://get.docker.com | sh
         sudo usermod -aG docker $(id -un)
       then log out and back in."
+  fi
 fi
 
 # --- The port -----------------------------------------------------------------

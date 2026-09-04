@@ -398,11 +398,42 @@ def ensure_radicale_account(session: Session) -> Account | None:
 
 
 class SyncEngine:
+    """Runs one complete synchronisation across every connected service.
+
+    A run happens in four passes, in this order, and the order is what makes
+    the result correct rather than merely plausible:
+
+    1. **Pull.** Every participating list is read. Nothing is decided yet; this
+       pass only gathers what each service currently believes.
+    2. **Merge.** Each item is reconciled field by field, in
+       :mod:`app.sync.merge`. This is where "who is newer" is settled, and
+       where a service echoing back a value it was given earlier is
+       distinguished from someone actually editing it.
+    3. **Push.** Only fields that genuinely changed are written out, and only
+       to services that can represent them. A pass that changed nothing writes
+       nothing, which is what allows a stable system to settle instead of
+       rewriting every item for ever.
+    4. **Deletions.** Handled last and most cautiously, because a deletion that
+       turns out to be a service having a bad day is not recoverable. Guards
+       live in ``_detect_deletions`` and ``_resolve_vanished``.
+
+    One engine instance handles one run. It holds the database session and the
+    :class:`SyncRun` row that everything is logged against, so that the sync
+    history page can reconstruct afterwards what happened and why.
+    """
+
     def __init__(self, session: Session):
         self.session = session
+        #: The database row this run logs to. None until run_sync starts.
         self.run: SyncRun | None = None
+        #: Optional callback, invoked with the run id once the run exists, so
+        #: the web interface can show progress while a sync is still going.
         self.on_start = None
-        #: Filled during a push pass and settled by _resolve_vanished.
+        #: Items a service stopped reporting during this run, collected during
+        #: the push pass and judged afterwards by _resolve_vanished. They are
+        #: held rather than acted on immediately because "gone" and "deleted"
+        #: look identical at the moment they are noticed, and telling them
+        #: apart needs the whole picture.
         self._vanished: dict[tuple[int, int], list[tuple[Participant, str, Item]]] = {}
 
     # -- Logging ---------------------------------------------------------------
@@ -567,6 +598,18 @@ class SyncEngine:
     # -- One group -------------------------------------------------------------
 
     def participants(self, group: SyncGroup) -> list[Participant]:
+        """Every list taking part in this group, each with a live connector.
+
+        A participant is one remote list plus the connector that can talk to
+        it, and whether it is being read from, written to, or both. Building
+        them all up front means a service that cannot be reached is discovered
+        before any merging starts, rather than half way through a run with some
+        items already reconciled against a partial picture.
+
+        Connectors opened here must be closed by the caller. ``sync_group``
+        does so on every path, including the early return when a group has too
+        few members to reconcile.
+        """
         mappings = (
             self.session.execute(
                 select(ListMapping).where(ListMapping.sync_group_id == group.id)
@@ -619,6 +662,18 @@ class SyncEngine:
         return built
 
     def sync_group(self, group: SyncGroup) -> GroupStats:
+        """Reconcile one sync group: pull, merge, push, then deletions.
+
+        A group is a set of lists that should agree with each other. Fewer than
+        two connected lists is not an error -- it is what a half-finished setup
+        looks like, and it is reported and skipped rather than treated as a
+        failure, because a group nobody has finished configuring should not
+        make a whole run look broken.
+
+        Each group is independent, so one service being down affects only the
+        groups it belongs to. The returned statistics are what the sync history
+        page shows.
+        """
         stats = GroupStats()
         parts = self.participants(group)
 
@@ -773,6 +828,20 @@ class SyncEngine:
         pulls: dict[int, tuple[Participant, list[RemoteItem], bool]],
         stats: GroupStats,
     ) -> None:
+        """Reconcile everything that was pulled, one item at a time.
+
+        For each remote item this decides which local item it is -- by existing
+        link, then by identity, then by title as a last resort -- and merges it
+        field by field. New items are created; items that vanished are noted
+        for the deletion pass rather than acted on here.
+
+        The ``complete`` flag on each pull matters more than it looks. It says
+        whether the service returned its whole list or only part of it. An item
+        missing from a partial listing means nothing at all, so deletion
+        detection is skipped for that list entirely -- otherwise a service
+        paginating, filtering or simply having a bad day would read as the user
+        deleting everything.
+        """
         for _list_id, (part, items, complete) in pulls.items():
             seen_remote_ids: set[str] = set()
 

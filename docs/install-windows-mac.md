@@ -134,31 +134,26 @@ docker compose pull
 docker compose up -d
 ```
 
-**Backing up.** Everything is in one Docker volume. This writes it to a file in
-the current folder:
+**Backing up.** Settings → Backup and restore → **Download backup**. One file,
+saved by your browser, containing everything Task Hub owns: the database, your
+saved service logins, the key that decrypts them, every calendar and task, and
+your settings. Keep it somewhere other than this machine.
 
-```
-docker compose stop
-docker run --rm --volumes-from taskhub -v "${PWD}:/backup" alpine tar czf /backup/taskhub-backup.tar.gz -C /data .
-docker compose start
-```
-
-> That file can decrypt every service login you have saved. Treat it like a
+> That file can unlock every service you have connected. Treat it like a
 > password list, because that is what it is.
 
-**Moving to a Pi or a NAS later.** Install Task Hub there, copy the backup file
-across, stop it, and restore:
+**Restoring.** Same page: choose the file, type RESTORE to confirm, and Task
+Hub replaces everything and restarts itself. The archive is checked before
+anything is touched, and the data being replaced is set aside rather than
+deleted. Afterwards you sign in with the password from the backup.
 
-```
-docker compose stop
-docker run --rm --volumes-from taskhub -v "${PWD}:/backup" alpine tar xzf /backup/taskhub-backup.tar.gz -C /data
-docker compose start
-```
+**Restarting.** Settings → Backup and restore → **Restart now**.
 
-Note `--volumes-from taskhub` rather than a volume name. Compose puts the
-folder's name in front of volume names, and naming one that does not exist does
-not fail — Docker quietly creates an empty volume and uses that. A restore that
-appears to have worked, into nothing, is the failure to avoid.
+None of this needs a terminal.
+
+**Moving to a Pi or a NAS later.** Install Task Hub there, download a backup
+from this machine, and upload it under Restore on the new one. Everything moves
+across: your tasks, your connected services and your settings.
 
 ---
 

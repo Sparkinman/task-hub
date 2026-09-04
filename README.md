@@ -129,10 +129,15 @@ changes the day it syncs.
 
 Everything else in the project is finished: the sync engine, the field-level
 merge, scheduling, sync groups and history, the embedded CalDAV server, the
-task and calendar views, and orphan cleanup on disconnect. Backup and restore
-from the web interface is the one planned feature still outstanding, so backups
-are for now the Docker commands in the install guides — the last thing that
-needs a terminal.
+task and calendar views, orphan cleanup on disconnect, and backup, restore and
+restart from the web interface.
+
+**Running Task Hub needs no terminal.** Once it is installed, everything is
+done from its own pages — including taking a backup, restoring one, and
+restarting it. The one exception is applying an update, because a container
+cannot replace itself: that remains `docker compose pull && docker compose up
+-d`, or a single click in Docker Desktop, Portainer or your NAS's own Docker
+interface.
 
 ---
 

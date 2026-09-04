@@ -1,19 +1,31 @@
-"""Application settings: region, sync cadence, appearance and the web password."""
+"""Application settings: region, sync cadence, appearance, backups and the password."""
 
 from __future__ import annotations
 
+import logging
+import tempfile
 import zoneinfo
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from app.crypto import decrypt_json, encrypt_json, hash_password, verify_password
 from app.db import settings_store
 from app.db.session import get_db
-from app.web import deps, maintenance
+from app.web import backup, deps, maintenance
 from app.web.setup import MIN_PASSWORD_LENGTH, _timezones
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/settings")
+
+#: Refused above this size. A real backup of a large installation is tens of
+#: megabytes; anything approaching a gigabyte is a mistaken upload, and finding
+#: that out after filling the disk of a Raspberry Pi is not the way to find out.
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 
 
 @router.get("")
@@ -36,6 +48,13 @@ def index(request: Request, db: Session = Depends(get_db)):
         minimum_interval=settings_store.MIN_SYNC_INTERVAL_MINUTES,
         sync_interval=settings_store.get_sync_interval(db),
         sync_enabled=settings_store.get_bool(db, settings_store.SYNC_ENABLED),
+        backup_sizes={
+            name: backup.human_size(size)
+            for name, size in backup.size_breakdown().items()
+        },
+        restart_supported=backup.restart_supported(),
+        rollback_bytes=backup.rollback_size(),
+        rollback_size=backup.human_size(backup.rollback_size()),
     )
 
 
@@ -278,3 +297,156 @@ def change_password(
     db.commit()
     deps.flash(request, "Password changed.", "success")
     return deps.redirect("/settings")
+
+
+# --- Backup, restore and restart ----------------------------------------------
+#
+# These exist so that operating Task Hub never requires a terminal. Everything
+# here was previously a docker command in the install guides, which meant that
+# in practice backups did not happen -- and the thing not being backed up is
+# the set of service logins, which cannot be recovered any other way.
+
+
+@router.get("/backup/download")
+def download_backup(request: Request, db: Session = Depends(get_db)):
+    """Send the whole installation as a single file the browser saves.
+
+    Written to a temporary file rather than streamed, because the archive has
+    to be complete before it can be trusted: an error half way through a
+    streamed response arrives as a truncated download that looks successful.
+    The temporary file is deleted once the browser has it, whether or not the
+    transfer finished.
+    """
+    handle = tempfile.NamedTemporaryFile(
+        prefix="taskhub-backup-", suffix=".tar.gz", delete=False
+    )
+    handle.close()
+    archive = Path(handle.name)
+
+    try:
+        backup.write_backup(archive)
+    except Exception as exc:
+        archive.unlink(missing_ok=True)
+        logger.exception("Backup failed")
+        deps.flash(request, f"The backup could not be created: {exc}", "error")
+        return deps.redirect("/settings")
+
+    return FileResponse(
+        archive,
+        media_type="application/gzip",
+        filename=backup.suggested_filename(),
+        background=BackgroundTask(archive.unlink, missing_ok=True),
+    )
+
+
+@router.post("/backup/restore")
+async def restore_backup(
+    request: Request,
+    archive: UploadFile,
+    confirm: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Replace everything with the contents of an uploaded backup.
+
+    This throws away the current installation, so it asks for the word RESTORE
+    to be typed rather than relying on a button being clicked deliberately.
+    What it replaces includes the encryption key, which means every service
+    login afterwards is the one from the backup, not the one from now.
+    """
+    if confirm.strip().upper() != "RESTORE":
+        deps.flash(
+            request,
+            "Type RESTORE in the confirmation box to replace your data. "
+            "Nothing has been changed.",
+            "error",
+        )
+        return deps.redirect("/settings")
+
+    handle = tempfile.NamedTemporaryFile(
+        prefix="taskhub-upload-", suffix=".tar.gz", delete=False
+    )
+    upload = Path(handle.name)
+    written = 0
+    try:
+        while chunk := await archive.read(1024 * 1024):
+            written += len(chunk)
+            if written > MAX_UPLOAD_BYTES:
+                raise backup.BackupError(
+                    "That file is larger than 2 GB, which no Task Hub backup "
+                    "is. Nothing has been changed."
+                )
+            handle.write(chunk)
+        handle.close()
+
+        if written == 0:
+            raise backup.BackupError("No file was chosen. Nothing has been changed.")
+
+        # Checked before anything is touched, so an unusable archive costs the
+        # user an error message rather than their installation.
+        backup.inspect_archive(upload)
+        backup.close_database()
+        backup.restore_archive(upload)
+    except backup.BackupError as exc:
+        deps.flash(request, str(exc), "error")
+        return deps.redirect("/settings")
+    except Exception as exc:
+        logger.exception("Restore failed")
+        deps.flash(
+            request,
+            f"The restore failed and your existing data has been left alone: {exc}",
+            "error",
+        )
+        return deps.redirect("/settings")
+    finally:
+        handle.close()
+        upload.unlink(missing_ok=True)
+
+    # The database on disk is now the restored one, but this process is still
+    # holding the old one's state, so it has to start again to see it.
+    backup.request_restart()
+    return deps.render(
+        request, db, "restarting.html",
+        heading="Restoring your backup",
+        detail=(
+            "Your data has been replaced and Task Hub is restarting to load it. "
+            "You will need to sign in with the password from the backup, not the "
+            "one you were using a moment ago."
+        ),
+    )
+
+
+@router.post("/backup/discard-rollback")
+def discard_rollback(request: Request, db: Session = Depends(get_db)):
+    """Delete the copy of the data that a previous restore set aside."""
+    removed = backup.discard_rollbacks()
+    if removed:
+        deps.flash(request, "The data set aside by the last restore has been deleted.", "success")
+    else:
+        deps.flash(request, "There was nothing set aside to delete.", "info")
+    return deps.redirect("/settings")
+
+
+@router.post("/restart")
+def restart(request: Request, db: Session = Depends(get_db)):
+    """Stop the application so that Docker starts it again.
+
+    A container has no other way to restart itself. Outside Docker this would
+    simply stop, so the button is not offered there and the request is refused
+    if it arrives anyway.
+    """
+    if not backup.restart_supported():
+        deps.flash(
+            request,
+            "Restarting from this page only works when Task Hub is running "
+            "under Docker, because it works by stopping and letting Docker "
+            "start it again. Outside Docker it would just stop.",
+            "error",
+        )
+        return deps.redirect("/settings")
+
+    backup.request_restart()
+    return deps.render(
+        request, db, "restarting.html",
+        heading="Restarting Task Hub",
+        detail="This normally takes about fifteen seconds.",
+    )

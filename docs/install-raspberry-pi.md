@@ -131,6 +131,13 @@ the machine and changes nothing:
 curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/check-system.sh | sh
 ```
 
+If that answers `curl: command not found` — unusual on Raspberry Pi OS, but it
+happens on a cut-down installation — install it first and try again:
+
+```
+sudo apt update && sudo apt install -y curl
+```
+
 It prints something like this:
 
 ```
@@ -415,42 +422,50 @@ docker image prune -f
 
 ### Backing up
 
-Everything Task Hub owns — the database, your saved logins, every collection —
-is in one Docker volume. This copies it into a file in the current folder:
+**Settings → Backup and restore → Download backup.** That is the whole
+procedure: your browser saves one file containing everything Task Hub owns —
+the database, your saved service logins, the key that decrypts them, every
+calendar and task, and your settings. Keep it somewhere other than the Pi,
+because a backup that only exists on the machine it is backing up is not a
+backup.
 
-```
-cd ~/taskhub
-docker compose stop
-docker run --rm --volumes-from taskhub -v "$PWD":/backup alpine \
-    tar czf /backup/taskhub-backup.tar.gz -C /data .
-docker compose start
-```
+> **That file can unlock every service you have connected.** It holds the key
+> that decrypts your saved logins, so anyone with the file has those logins.
+> Keep it where you would keep passwords, not in a shared folder.
 
-Copy that file somewhere else — that is the whole point of it. To put it back
-on this or any other machine:
+To put it back — on this Pi or on a completely different machine — go to the
+same page, choose the file under **Restore**, type RESTORE to confirm, and Task
+Hub replaces everything and restarts itself. The archive is checked before
+anything is touched, so choosing the wrong file costs you an error message
+rather than your data, and the data being replaced is set aside rather than
+deleted in case the restore turns out to be the wrong one.
 
-```
-docker compose stop
-docker run --rm --volumes-from taskhub -v "$PWD":/backup alpine \
-    tar xzf /backup/taskhub-backup.tar.gz -C /data
-docker compose start
-```
+After a restore you sign in with the password from the backup, not the one you
+were using beforehand.
 
-> **That file can decrypt every service login you have saved.** Treat it the
-> way you would treat a list of passwords, because that is what it is.
-
-Note `--volumes-from taskhub` rather than a volume name. Docker Compose puts
-the folder's name in front of volume names, and naming one that does not exist
-does not fail — Docker quietly creates an empty volume and uses that instead.
-A restore that appears to have worked, into nothing, is the failure to avoid.
+Nothing here needs a terminal. If you would rather script it, the data lives in
+the Docker volume `taskhub_taskhub-data` and can be archived with
+`docker run --rm --volumes-from taskhub …` — but note `--volumes-from taskhub`
+rather than a volume name, because naming a volume that does not exist does not
+fail: Docker quietly creates an empty one and uses that instead, and a restore
+that appears to have worked into nothing is the failure to avoid.
 
 ### Restarting, stopping, logs
 
+**Settings → Backup and restore → Restart now** restarts Task Hub from the web
+interface, which is all that is needed for the occasional stuck-looking moment.
+Nothing is lost: your data is on disk, and a sync that was in progress simply
+runs again.
+
+Sync activity is on the **History** page rather than in a log file, and it is
+more readable than container logs — it says what each service did and why.
+
+The rest is terminal-only, because a container cannot stop or replace itself:
+
 ```
-docker compose restart          # restart it
 docker compose stop             # stop it, keep everything
 docker compose start            # start it again
-docker compose logs -f          # watch what it is doing; Ctrl-C to stop watching
+docker compose logs -f          # container logs; Ctrl-C to stop watching
 docker compose down             # stop and remove the container, keep the data
 ```
 
