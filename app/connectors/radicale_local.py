@@ -46,6 +46,10 @@ class RadicaleConnector(Connector):
             raise ConnectorError("Radicale credentials are missing.")
         self.client = RadicaleClient(username, password)
 
+    def close(self) -> None:
+        """Hand the close on to the CalDAV client, which owns the session."""
+        self.client.close()
+
     def capabilities(self, kind: CollectionKind) -> Capabilities:
         """Everything, for both tasks and calendar entries.
 

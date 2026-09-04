@@ -157,6 +157,24 @@ class RemoteCalDAVConnector(Connector):
         return "The server rejected that username and password."
 
     def close(self) -> None:
+        """Release the HTTP session, not merely the reference to it.
+
+        Dropping the reference alone leaves the underlying requests session and
+        its urllib3 connection pool alive until a garbage collection happens to
+        take them, holding sockets open in the meantime. A connector is built
+        fresh for every account on every sync pass, so on a fifteen-minute
+        schedule that is four abandoned pools an hour, per CalDAV account, for
+        as long as the container runs.
+
+        It showed up as a slow rise in live objects across identical sync passes
+        -- weakrefs, thread locks and urllib3 pool dictionaries, never
+        application objects, which is what says "connections" rather than "data".
+        """
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:  # noqa: BLE001 - closing must never raise
+                pass
         self._principal = None
         self._client = None
 

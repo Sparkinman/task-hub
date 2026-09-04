@@ -89,6 +89,22 @@ class RadicaleClient:
 
     # -- Connection ------------------------------------------------------------
 
+    def close(self) -> None:
+        """Close the HTTP session this client opened.
+
+        The embedded server is reached over loopback, so an abandoned pool costs
+        no network resource -- but it is still a live requests session with its
+        own urllib3 pool and lock, retained for as long as anything references
+        this client. The sync engine builds one per pass.
+        """
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:  # noqa: BLE001 - closing must never raise
+                pass
+        self._client = None
+        self._principal = None
+
     def _connect(self) -> caldav.Principal:
         if self._principal is not None:
             return self._principal
