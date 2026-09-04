@@ -53,15 +53,44 @@ browser again, so you can go back to whatever address you normally use.
 
 # Part A — Register the application in Azure
 
+> ## ⚠️ Read this before you start: you need a directory
+>
+> **Since June 2024 an app registration must live inside a directory (an Entra
+> ID tenant), and a personal Microsoft account does not have one.** If you sign
+> in with an outlook.com, hotmail.com or live.com address and go straight to
+> App registrations, you will get:
+>
+> > *"The ability to create applications outside of a directory has been
+> > deprecated. You may get a new directory by joining the M365 Developer
+> > Program or signing up for Azure."*
+>
+> That is not something Task Hub can work around — it is a change to how
+> Microsoft issues credentials, and it applies to every application that talks
+> to a Microsoft account, not just this one.
+>
+> **Your options, honestly:**
+>
+> | Route | What it costs |
+> | --- | --- |
+> | **A work or school account** you already use | Nothing, if your administrator permits app registration. Easily the least effort. |
+> | **Sign up for a free Azure account** | No charge on the free tier, but Microsoft asks for a card to verify identity. This creates the directory and is the usual route. |
+> | **Microsoft 365 Developer Program** | A free sandbox tenant, but eligibility has narrowed and now generally expects a Visual Studio subscription. |
+>
+> **If you would rather not do any of that, do not.** Microsoft is worth
+> connecting only if you actually keep tasks in Microsoft To Do or appointments
+> in Outlook Calendar. Nothing else in Task Hub depends on it, and every other
+> service works without it.
+
 ## Step 1 — Sign in
 
 1. Go to **https://portal.azure.com** and sign in with the Microsoft account you
-   want to sync.
+   want to sync — one that has a directory, per the note above.
 2. In the search bar at the top, type `App registrations` and click it in the
    results.
 
-> You do **not** need an Azure subscription, and you will not be charged. App
-> registration is part of the free identity platform.
+> **App registration itself is free** and you will not be charged for it. What
+> changed is that the registration has to live in a directory, and obtaining a
+> directory is the step above.
 
 ## Step 2 — Create the registration
 

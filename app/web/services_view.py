@@ -238,6 +238,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
         phase=4,
         docs_slug="microsoft",
         caveats=[
+            "Registering the app needs a Microsoft directory (an Entra ID tenant). Since June 2024 Microsoft refuses to create app registrations outside one, and a personal outlook.com account does not have one -- the portal answers \"the ability to create applications outside of a directory has been deprecated\". A work or school account already has a directory; otherwise a free Azure sign-up creates one. The setup guide lays out the options.",
             "Microsoft To Do cannot store a time of day. Like Google Tasks it "
             "keeps only the date, and quietly discards a time that is sent to "
             "it. Task Hub remembers the time separately, so editing a task's "
