@@ -188,7 +188,10 @@ jobs:
           # that the log says exactly what Docker Hub answered. The action that
           # was here reported success while changing nothing, which is the worst
           # of both: the page stayed empty and the run stayed green.
-          summary="Self-hosted sync for tasks and calendars across Google, Todoist, TickTick, Microsoft, Apple, Obsidian and CalDAV. Your data stays on your hardware."
+          # Docker Hub caps this at 100 characters and rejects the whole
+          # request if it is longer, so it names the services rather than
+          # describing them. 88 characters.
+          summary="Self-hosted task and calendar sync: Google, Todoist, TickTick, Microsoft, Apple, CalDAV."
 
           token=$(curl -s -X POST https://hub.docker.com/v2/auth/token/ \
             -H "Content-Type: application/json" \
