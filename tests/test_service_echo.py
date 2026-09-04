@@ -29,6 +29,7 @@ from app.connectors.google import GoogleConnector
 from app.connectors.ticktick import (
     TickTickConnector, canonical_priority_to_ticktick, ticktick_priority_to_canonical,
 )
+from app.connectors.microsoft import MicrosoftConnector
 from app.connectors.todoist import (
     TodoistConnector, canonical_priority_to_todoist, todoist_priority_to_canonical,
 )
@@ -54,6 +55,10 @@ google = GoogleConnector(
 )
 todoist = TodoistConnector(account_id=0, credentials={"api_token": "x"})
 ticktick = TickTickConnector(account_id=0, credentials={"access_token": "x"})
+microsoft = MicrosoftConnector(
+    account_id=0, credentials={"access_token": "x"},
+    client_id="c", client_secret="s",
+)
 
 
 print("\nGoogle Calendar endpoints, using payloads the real API returned")
@@ -133,10 +138,19 @@ check("TickTick keeps the zone, which it does return",
 check("TickTick reports priority 2 as 1", echoed.priority == 1, str(echoed.priority))
 
 
+echoed = microsoft.echo_of(record, CollectionKind.TASKS)
+check("Microsoft reports priority 2 as 1, its three levels against nine",
+      echoed.priority == 1, str(echoed.priority))
+check("Microsoft leaves the times alone -- it never claimed a task's time, and "
+      "an event's zone is compared by instant",
+      echoed.due_time == record.due_time and echoed.due_date == record.due_date,
+      f"{echoed.due_date} {echoed.due_time}")
+
 print("\nAn echo of an echo must be the same echo")
 # If it were not, the baseline would keep moving and the write would come back
 # on the pass after the one that suppressed it.
-for connector, name in ((todoist, "Todoist"), (ticktick, "TickTick")):
+for connector, name in ((todoist, "Todoist"), (ticktick, "TickTick"),
+                        (microsoft, "Microsoft")):
     stable = True
     for value in range(0, 10):
         probe = CanonicalRecord(uid="u", kind=CollectionKind.TASKS, title="t",

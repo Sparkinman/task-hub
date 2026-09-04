@@ -257,6 +257,35 @@ class MicrosoftConnector(Connector):
 
     # -- Capabilities ----------------------------------------------------------
 
+    def echo_of(self, record: CanonicalRecord, kind: CollectionKind) -> CanonicalRecord:
+        """Microsoft coarsens the priority, and will say so when asked again.
+
+        To Do has three levels -- high, normal and low -- against iCalendar's
+        nine, so a 2 goes out as "high" and comes back as a 1. Nothing is lost
+        that To Do ever claimed to hold, and it is not an edit, but it differs
+        from what was sent and the echo check compares against what was sent.
+
+        Left undeclared, this cost 604 writes on the second pass of a 400-item
+        live run: every prioritised task looked edited the moment Microsoft
+        reported it back, so the canonical record was rewritten and the
+        "change" pushed out to every other service in the group. The same fault
+        was found and fixed for Todoist and TickTick before Microsoft had ever
+        been connected to anything, which is why it survived here.
+
+        The times need no such handling. A task's time of day is not claimed at
+        all, so projection drops it before this is reached, and an event comes
+        back relabelled to UTC rather than moved -- the merge compares timed
+        fields by the moment they denote, so the same instant under another
+        zone name is already recognised as unchanged.
+        """
+        from copy import deepcopy
+
+        echoed = deepcopy(record)
+        echoed.priority = _IMPORTANCE_TO_CANONICAL.get(
+            _CANONICAL_TO_IMPORTANCE.get(record.priority or 5, "normal"), 5
+        )
+        return echoed
+
     def capabilities(self, kind: CollectionKind) -> Capabilities:
         if kind == CollectionKind.TASKS:
             return Capabilities(

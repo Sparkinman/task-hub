@@ -229,7 +229,6 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.MICROSOFT.value,
         name="Microsoft",
-        untested=True,
         colour="black",
         supports_tasks=True,
         supports_calendar=True,
