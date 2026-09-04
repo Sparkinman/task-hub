@@ -48,9 +48,13 @@ class ServiceDefinition:
     docs_slug: str
     caveats: list[str] = field(default_factory=list)
     unofficial: bool = False
-    #: Kept out of the lists without being removed. The connector, its page and
-    #: its guide all still work and can be reached directly -- this only stops
-    #: it being offered before anyone has tried it against a real account.
+    #: Written, but never run against a real account. Kept out of the lists and
+    #: labelled as unfinished on its own page, without being removed: the
+    #: connector, its page and its guide all still work and can be reached
+    #: directly, so it can be tried deliberately. What this prevents is somebody
+    #: being offered it, spending an evening on an Azure app registration or a
+    #: second Apple ID, and only then discovering it was never tested. Clear the
+    #: flag on the day the connector completes a sync against a live account.
     hidden: bool = False
 
 
@@ -147,6 +151,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.APPLE.value,
         name="Apple",
+        hidden=True,
         colour="black",
         supports_tasks=True,
         supports_calendar=True,
@@ -172,6 +177,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.MICROSOFT.value,
         name="Microsoft",
+        hidden=True,
         colour="black",
         supports_tasks=True,
         supports_calendar=True,

@@ -1,5 +1,12 @@
 # Microsoft setup — complete walkthrough
 
+> **Microsoft is not finished yet.** This connector is written but has never
+> been run against a real Microsoft account, and it has no tests. The
+> walkthrough below is complete as designed, but nobody has confirmed it works
+> end to end. Setting it up asks you to create an Azure app registration, which
+> is a substantial piece of work to do on something unproven. This notice comes
+> off the day it completes a sync.
+
 Connects **Microsoft To Do** and **Outlook Calendar**. Every click, in order,
 from nothing to a working two-way sync.
 

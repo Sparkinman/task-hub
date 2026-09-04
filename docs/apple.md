@@ -1,5 +1,13 @@
 # Apple setup — complete walkthrough
 
+> **Apple is not finished yet.** This connector is written but has never been
+> run against a real iCloud account, and it has no tests. The walkthrough below
+> is complete and correct as far as it was designed, but nobody has confirmed
+> it works end to end. Setting it up asks you to create a second Apple ID used
+> purely as a task store, which is an hour you would rather not spend on
+> something unproven. It is next in line to be finished, and this notice comes
+> off the day it completes a sync.
+
 Connects **iCloud Calendar** and **Apple Reminders** using CalDAV, which is the
 same standard Task Hub's own server speaks. There is no developer account, no
 app registration and no OAuth — Apple gives you a password and that is the whole

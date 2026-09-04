@@ -31,6 +31,23 @@
   </div>
 {% endif %}
 
+{% if available and definition.hidden %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">▲</span>
+    <div class="grow">
+      <div class="alert-title">{{ definition.name }} is not finished yet</div>
+      This connector is written but has never been run against a real
+      {{ definition.name }} account, and it has no tests. Setting it up costs
+      real effort before you would find out whether it works, so it is kept off
+      the services list until it has completed a sync for the first time.
+      <br><br>
+      You are welcome to try it if you are willing to be the one who finds out —
+      but do not rely on it, and do not connect anything you would mind being
+      synced incorrectly.
+    </div>
+  </div>
+{% endif %}
+
 {% if definition.unofficial %}
   <div class="alert alert-warning mb-5">
     <span class="alert-icon" aria-hidden="true">▲</span>

@@ -3,10 +3,13 @@
 [![Publish image](https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml/badge.svg)](https://github.com/Sparkinman/task-hub/actions/workflows/publish.yml)
 
 A self-hosted web application that keeps tasks and calendars synchronised across
-Google, Todoist, TickTick, Obsidian, Apple, Microsoft and Things 3, with a
-built-in Radicale CalDAV server as the place everything converges — so your
-phone, your laptop's calendar and every service you use are all looking at the
-same tasks.
+**Google, Todoist, TickTick and Obsidian**, with a built-in Radicale CalDAV
+server as the place everything converges — so your phone, your laptop's
+calendar and every service you use are all looking at the same tasks.
+
+Connectors for Apple, Microsoft and Things 3 are written but **not yet
+finished**: see [what works today](#what-works-today) before you plan around
+them.
 
 Everything is configured through the web interface. There is no configuration
 file to edit, and no command beyond starting the container.
@@ -87,25 +90,40 @@ directly, and Task Hub itself is just another client of it.
 
 ---
 
-## Build status
+## What works today
 
-Built in phases, each one usable on its own.
+Task Hub is being built one service at a time, and a service only counts as
+finished once it has been run against a real account — not when its code is
+written. Three of them have not passed that point yet, and this table is the
+honest state of each.
 
-| Phase | Contents | Status |
-| --- | --- | --- |
-| 1 | Docker packaging, embedded Radicale, onboarding wizard, login, task viewer, calendar viewer, collection management, settings | **Complete** |
-| 2 | Sync engine, capability-aware field merge, scheduler, rate limiting, sync groups, sync history, Google Tasks and Calendar | **Complete** |
-| 3 | Todoist, TickTick, shared mapping interface, aggregate destinations | **Complete** |
-| 4 | Microsoft (To Do, Outlook Calendar), Apple (iCloud CalDAV) | **Complete** |
-| 5 | Things 3 | **Complete** |
-| 6 | Obsidian, via Obsidian Sync: several vaults from one sign-in, read-only by default | **Complete** |
-| 7 | Backup and restore from the web interface | Planned |
+| Service | Tasks | Calendar | State |
+| --- | --- | --- | --- |
+| **Google** | ✓ | ✓ | **Working.** Tested against a live account. |
+| **Todoist** | ✓ | — | **Working.** Tested against a live account. |
+| **TickTick** | ✓ | — | **Working.** Tested against a live account. |
+| **Obsidian** | ✓ | — | **Working.** Tested against live vaults. Read-only unless you turn write-back on. |
+| **Radicale** (built in) | ✓ | ✓ | **Working.** This is where everything meets. |
+| Apple | — | — | **Not finished.** Written, never run against a real iCloud account, no tests. |
+| Microsoft | — | — | **Not finished.** Written, never run against a real account, no tests. |
+| Things 3 | — | — | **Not finished.** Hidden in the interface until it can be tried. |
 
-Obsidian is read-only unless you turn write-back on per vault, and even then it
-only ever changes a task's completion — the checkbox and its date — never the
-wording, dates or tags, and it never adds or removes a line. Backup and restore
-are still done with the Docker commands in the install guides, which is the last
-thing that needs a terminal.
+**Please do not set up Apple, Microsoft or Things 3 yet.** Each of them costs
+you real effort before you find out whether it works — an Azure app
+registration for Microsoft, a second Apple ID used purely as a task store for
+Apple — and none of that effort has been repaid by a single successful sync so
+far. All three are kept off the services list for that reason, and each says so
+on its own page and at the top of its guide. Nothing is removed — you can still
+reach them deliberately if you are willing to be the one who finds out — but
+you will not be offered them by accident. Apple is next in line, and this table
+changes the day it syncs.
+
+Everything else in the project is finished: the sync engine, the field-level
+merge, scheduling, sync groups and history, the embedded CalDAV server, the
+task and calendar views, and orphan cleanup on disconnect. Backup and restore
+from the web interface is the one planned feature still outstanding, so backups
+are for now the Docker commands in the install guides — the last thing that
+needs a terminal.
 
 ---
 
@@ -135,7 +153,9 @@ own row is never switched off by a save made on another service's page.
 ## Known service limitations
 
 These are limits of the services themselves, verified against their current
-APIs. They are surfaced in the interface next to each service rather than hidden.
+APIs. They are surfaced in the interface next to each service rather than
+hidden. The three unfinished connectors are included so that the reasons they
+are hard are on the record — not as a suggestion to try them.
 
 - **Google Tasks** cannot store a time of day, has no priorities, no tags and no
   location. Its OAuth app must be published to *Production* — in *Testing* mode
