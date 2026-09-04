@@ -311,6 +311,31 @@
     }
   });
 
+  /* --- Mail provider picker ----------------------------------------------
+   * Fills the server, port and security from the chosen provider. Typing the
+   * server name by hand is where this goes wrong: "smtp.google.com" instead of
+   * "smtp.gmail.com" fails with a connection error that points at the network
+   * rather than at the one wrong word.
+   */
+  document.addEventListener("change", function (event) {
+    var picker = event.target.closest("[data-mail-provider]");
+    if (!picker) return;
+    var option = picker.options[picker.selectedIndex];
+    var host = option.getAttribute("data-host");
+    if (!host) return;
+    var set = function (id, value) {
+      var field = document.getElementById(id);
+      if (field && value) field.value = value;
+    };
+    set("smtp-host", host);
+    set("smtp-port", option.getAttribute("data-port"));
+    var security = document.getElementById("smtp-security");
+    if (security) security.value = option.getAttribute("data-security");
+    var note = document.getElementById("smtp-provider-note");
+    var hint = option.getAttribute("data-username");
+    if (note && hint) note.textContent = hint;
+  });
+
   /* --- Day shortcuts for the daily summary -------------------------------
    * "Every day" and "Monday to Friday" are the two choices nearly everybody
    * wants, and ticking five boxes to get the second is a chore. The checkboxes

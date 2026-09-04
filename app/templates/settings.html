@@ -188,6 +188,27 @@
 
   <div class="card-body">
     <form method="post" action="/settings/mail" class="stack" style="max-width: 560px;">
+      <div class="field">
+        <label for="smtp-provider">Who sends your email?</label>
+        <select id="smtp-provider" data-mail-provider>
+          <option value="">Choose a provider to fill these in…</option>
+          {% for provider in mail.providers %}
+            <option value="{{ provider.key }}"
+                    data-host="{{ provider.host }}"
+                    data-port="{{ provider.port }}"
+                    data-security="{{ provider.security }}"
+                    data-username="{{ provider.username_hint }}"
+                    {{ 'selected' if provider.host == mail.host }}>{{ provider.name }}</option>
+          {% endfor %}
+          <option value="other">Something else — I will type it in</option>
+        </select>
+        <span class="field-hint" id="smtp-provider-note">
+          Picking one fills in the three settings below correctly. Getting the
+          server name slightly wrong is the most common reason email never
+          arrives, and the error it causes points somewhere else.
+        </span>
+      </div>
+
       <div class="row-wrap">
         <div class="field grow">
           <label for="smtp-host">Mail server</label>

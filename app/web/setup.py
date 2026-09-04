@@ -27,6 +27,7 @@ from app.db import settings_store
 from app.db.models import CollectionKind, RadicaleCollection, User
 from app.db.session import get_db
 from app.radicale_embed import set_radicale_user
+from app.services import mail_providers
 from app.services.caldav_client import (
     CalDAVError,
     RadicaleClient,
@@ -562,6 +563,7 @@ def _email_context(db: Session) -> dict:
                     settings_store.get(db, settings_store.SMTP_PASSWORD)
                 ).get("password")
             ),
+            "providers": mail_providers.PROVIDERS,
         },
         "digest": {
             "to": settings_store.get(db, settings_store.DIGEST_TO) or "",
@@ -698,5 +700,8 @@ def email_submit(
     from app.sync.scheduler import reschedule_digest
 
     reschedule_digest()
+    warning = mail_providers.suggest_address(recipient)
+    if warning:
+        deps.flash(request, warning, "error")
     deps.flash(request, f"Test message sent to {recipient or sender}.", "success")
     return _finish(request, db)

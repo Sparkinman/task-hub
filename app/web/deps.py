@@ -119,6 +119,10 @@ SERVICE_BADGES: dict[str, dict[str, str]] = {
     # crimson than Todoist's warm brick. Two services on one task is the normal
     # case, so the badges have to differ by hue rather than by shade.
     ServiceKind.APPLE.value: {"label": "Apple", "colour": "crimson"},
+    # A task from a CalDAV account somewhere else. Named for the protocol
+    # because that is genuinely all Task Hub knows: Nextcloud, Fastmail and a
+    # self-hosted Baikal are indistinguishable from the wire.
+    ServiceKind.CALDAV.value: {"label": "CalDAV", "colour": "amber"},
     ServiceKind.MICROSOFT.value: {"label": "3rd party", "colour": "black"},
     ServiceKind.THINGS3.value: {"label": "3rd party", "colour": "black"},
     ServiceKind.OBSIDIAN.value: {"label": "Obsidian", "colour": "purple"},

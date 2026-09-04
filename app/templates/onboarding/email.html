@@ -22,22 +22,41 @@
       </div>
     </div>
 
+    <div class="field">
+      <label for="smtp-provider">Who sends your email?</label>
+      <select id="smtp-provider" data-mail-provider>
+        <option value="">Choose a provider to fill these in…</option>
+        {% for provider in mail.providers %}
+          <option value="{{ provider.key }}"
+                  data-host="{{ provider.host }}"
+                  data-port="{{ provider.port }}"
+                  data-security="{{ provider.security }}"
+                  data-username="{{ provider.username_hint }}"
+                  {{ 'selected' if provider.host == mail.host }}>{{ provider.name }}</option>
+        {% endfor %}
+        <option value="other">Something else — I will type it in</option>
+      </select>
+      <span class="field-hint" id="smtp-provider-note">
+        Picking one fills in the three settings below correctly.
+      </span>
+    </div>
+
     <div class="row-wrap">
       <div class="field grow">
-        <label for="smtp_host">Mail server</label>
-        <input type="text" id="smtp_host" name="smtp_host" value="{{ mail.host }}"
+        <label for="smtp-host">Mail server</label>
+        <input type="text" id="smtp-host" name="smtp_host" value="{{ mail.host }}"
                placeholder="smtp.gmail.com" autocomplete="off">
       </div>
       <div class="field" style="max-width: 120px;">
-        <label for="smtp_port">Port</label>
-        <input type="number" id="smtp_port" name="smtp_port" value="{{ mail.port }}"
+        <label for="smtp-port">Port</label>
+        <input type="number" id="smtp-port" name="smtp_port" value="{{ mail.port }}"
                min="1" max="65535">
       </div>
     </div>
 
     <div class="field">
-      <label for="smtp_security">Security</label>
-      <select id="smtp_security" name="smtp_security">
+      <label for="smtp-security">Security</label>
+      <select id="smtp-security" name="smtp_security">
         <option value="starttls" {{ 'selected' if mail.security == 'starttls' }}>STARTTLS — usually port 587</option>
         <option value="ssl" {{ 'selected' if mail.security == 'ssl' }}>SSL/TLS — usually port 465</option>
         <option value="none" {{ 'selected' if mail.security == 'none' }}>None — only for a mail server on this machine</option>

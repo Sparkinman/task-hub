@@ -65,7 +65,14 @@ of Task Hub depends on email.
 
 **Settings → Email.**
 
-1. **Mail server** and **Port** from the table above.
+0. **Who sends your email?** — pick your provider from the list and the next
+   three boxes fill themselves in correctly. Do this rather than typing the
+   server name: `smtp.google.com` looks exactly right, does not exist, and fails
+   with a message about not being able to reach the server, which sends you
+   looking at your network instead of at the one wrong word. (Task Hub now
+   corrects that particular name and a dozen like it, and says so.)
+1. **Mail server** and **Port** from the table above, if your provider is not
+   listed.
 2. **Security** to match the port.
 3. **Username** — usually your full email address.
 4. **Password** — the app-specific one.
@@ -188,3 +195,21 @@ cannot interfere with keeping your tasks in step.
 **App-specific passwords get revoked.** Changing your account password often
 invalidates them, and the summary will stop with an authentication error. Make a
 new one and paste it in.
+
+### "Username and Password not accepted" from Gmail
+
+This is the most common failure, and it does not mean you typed the password
+wrongly. **Gmail refuses ordinary account passwords over SMTP, always** — even
+the correct one, even with the right server. You need an app password:
+
+1. Two-factor authentication has to be on:
+   [myaccount.google.com/security](https://myaccount.google.com/security) →
+   2-Step Verification. Without it the next page does not exist.
+2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
+3. Type any name — "Task Hub" — and press **Create**.
+4. Google shows sixteen letters in four groups. Paste them into **Password** in
+   Task Hub. The spaces do not matter.
+5. **Send a test message.**
+
+The same applies to Yahoo and iCloud. Outlook.com needs one only if you have
+two-step verification switched on.

@@ -26,6 +26,7 @@
 | **TickTick** | ✓ | — | Lists and tasks. Its public API does not expose the calendar, and will not return tags |
 | **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar. Registering the app needs an Entra ID directory, which a personal account does not have — [the options](docs/microsoft.md) |
 | **Apple** | ✓ | ✓ | iCloud Calendar and iCloud task lists, over CalDAV — [one caveat](docs/apple.md) |
+| **CalDAV** | ✓ | ✓ | Any other CalDAV server — Nextcloud, Fastmail, Baïkal, Synology, mailbox.org. Give it the address and it discovers the rest. Nothing is lost in either direction |
 | **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
 | **Things 3** | ✓ | — | Import only — Things has no supported way to write in. Its endpoint is unpublished and may change without warning |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
@@ -52,6 +53,9 @@ without a connector at all:
 | --- | --- | --- |
 | **Apple Calendar and Reminders** | iPhone, iPad, Mac | Built in, nothing to install |
 | **DAVx⁵** | Android | The sync layer; pair it with Tasks.org or your calendar app |
+| **Tasks.org** | Android | The Android task app to use. Free on F-Droid; the Play build charges for sync |
+| **jtx Board** | Android | Tasks, notes and journals, through DAVx⁵ |
+| **Home Assistant** | Anywhere | Task lists become `todo.*` entities your automations can read and write |
 | **Thunderbird** | Windows, macOS, Linux | Calendars and tasks both |
 | **Super Productivity** | Desktop | Reads your tasks and syncs completion back. It cannot *create* tasks on the server, so treat it as a place to work through them |
 | **GNOME Calendar / GNOME To Do** | Linux | |
@@ -278,8 +282,8 @@ directly, and Task Hub itself is just another client of it.
 
 Task Hub is being built one service at a time, and a service only counts as
 finished once it has been run against a real account — not when its code is
-written. One has not passed that point yet, and this table is the honest state
-of each.
+written. Every one of them has now passed that point, and this is the honest
+state of each.
 
 Which services carry which fields is in [Syncs with](#syncs-with) above; this
 is what each has actually been put through, which is a different question.
@@ -299,6 +303,11 @@ is what each has actually been put through, which is a different question.
   application, and iCloud task lists are not shown in the Reminders app on such
   an account. Calendars are unaffected.
   [What that means](docs/apple.md).
+- **The CalDAV connector** — the same code as iCloud's, pointed anywhere — has
+  been run against a live server: sign-in, discovery, and a to-do created, read
+  back and deleted with its due time, priority and notes all intact. That was
+  against Radicale rather than Nextcloud or Fastmail, so the protocol path is
+  proven while those particular servers are not.
 - **Microsoft** has been run against a live account and works. Registering the
   app now needs an Entra ID directory, which a personal Microsoft account does
   not have — [the guide covers the options and what each costs](docs/microsoft.md).
@@ -309,11 +318,13 @@ is what each has actually been put through, which is a different question.
   changes its backend. A failure there marks that one account and every other
   service keeps syncing.
 
-**Things 3 is the one still to prove.** It is kept off the services list, says
-so on its own page and at the top of its guide, and can still be reached
-deliberately if you are willing to be the one who finds out. Nothing is removed;
-you simply will not be offered it by accident. That label comes off the day
-somebody connects a real account, and not before.
+**Things 3 keeps a standing warning that no amount of testing can clear.** Its
+endpoint is unpublished, so it can stop working whenever Cultured Code changes
+their backend, however well it works today. Connecting a real account did find
+four faults at once — a versioned entity name, notes arriving as an object
+rather than a string, a sign-in that is a GET with the password in a header, and
+a history stream with no reliable list membership — which is the argument for
+the label rather than against it.
 
 Apple and Microsoft carried that label until recently, and what removing it took
 is worth knowing, because it is the argument for the whole approach: connecting

@@ -291,6 +291,15 @@ def build_connector(session: Session, account: Account) -> Connector:
             default_timezone=settings_store.get(session, settings_store.TIMEZONE),
         )
 
+    if account.service == ServiceKind.CALDAV:
+        from app.connectors.caldav_remote import RemoteCalDAVConnector
+        from app.db import settings_store
+
+        return RemoteCalDAVConnector(
+            account.id, credentials, account.sync_state,
+            default_timezone=settings_store.get(session, settings_store.TIMEZONE),
+        )
+
     if account.service == ServiceKind.THINGS3:
         from app.connectors.things3 import ThingsConnector
         from app.db import settings_store

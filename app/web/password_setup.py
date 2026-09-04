@@ -1,8 +1,8 @@
 """Connecting services that sign in with a username and password.
 
-Apple and Things 3 have no OAuth to delegate to, so Task Hub holds the
-credentials itself. Both are encrypted at rest with the same key as every OAuth
-token, and neither is ever rendered back into the page.
+Apple, a generic CalDAV server and Things 3 have no OAuth to delegate to, so
+Task Hub holds the credentials itself. All are encrypted at rest with the same
+key as every OAuth token, and none is ever rendered back into the page.
 
 Apple must be given an *app-specific* password rather than the Apple ID
 password; the setup guide explains where to make one, and the connector says so
@@ -41,6 +41,13 @@ class PasswordService:
     secret_label: str
     user_hint: str
     secret_hint: str
+    #: A generic CalDAV server needs a third field, because unlike Apple and
+    #: Things there is no address to assume. Left off every other service rather
+    #: than shown empty, so nobody wonders what to put in it.
+    needs_url: bool = False
+    url_label: str = "Server address"
+    url_hint: str = ""
+    url_placeholder: str = ""
 
 
 SERVICES: dict[str, PasswordService] = {
@@ -56,6 +63,30 @@ SERVICES: dict[str, PasswordService] = {
             "dashes included."
         ),
     ),
+    ServiceKind.CALDAV.value: PasswordService(
+        kind=ServiceKind.CALDAV,
+        name="CalDAV",
+        user_label="Username",
+        secret_label="Password",
+        user_hint=(
+            "Whatever you sign in to that server with. Nextcloud wants the "
+            "short username, Fastmail and Zoho want the full email address."
+        ),
+        secret_hint=(
+            "Most servers want an app password made in their own settings "
+            "rather than the one you log in to the website with — Nextcloud, "
+            "Fastmail and Zoho all do. It is encrypted at rest here."
+        ),
+        needs_url=True,
+        url_label="Server address",
+        url_hint=(
+            "The address of the server itself, not of one calendar. Task Hub "
+            "asks it what the account owns and finds the rest — so "
+            "https://cloud.example.com is usually enough, and the long "
+            "/remote.php/dav/... path is not needed."
+        ),
+        url_placeholder="https://cloud.example.com",
+    ),
     ServiceKind.THINGS3.value: PasswordService(
         kind=ServiceKind.THINGS3,
         name="Things 3",
@@ -68,6 +99,27 @@ SERVICES: dict[str, PasswordService] = {
         ),
     ),
 }
+
+
+def normalise_server_url(value: str) -> str:
+    """Make a typed-in server address into something a client can use.
+
+    People paste what their provider's help page shows them, and that is rarely
+    a tidy URL: a bare hostname, a copied address with a trailing space, or the
+    long path to one calendar. The first two are fixed here rather than refused,
+    because a form that rejects "cloud.example.com" for missing a scheme is a
+    form that teaches nothing and helps nobody.
+
+    A missing scheme becomes https. Plain http is left alone -- it is a
+    deliberate choice for a server on your own network, and the connector
+    relaxes its TLS requirement for exactly that case.
+    """
+    url = (value or "").strip()
+    if not url:
+        return ""
+    if "://" not in url:
+        url = f"https://{url}"
+    return url.rstrip()
 
 
 def service_for(key: str) -> PasswordService | None:
@@ -98,6 +150,7 @@ def save_credentials(
     request: Request,
     username: str = Form(""),
     secret: str = Form(""),
+    server_url: str = Form(""),
     label: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -131,6 +184,16 @@ def save_credentials(
     payload = {"username": username, "password": secret}
     if service.kind == ServiceKind.THINGS3:
         payload = {"email": username, "password": secret}
+
+    if service.needs_url:
+        # Blank means "keep the address already saved", the same rule the
+        # password field follows, so an account can be re-authenticated without
+        # retyping its server.
+        url = normalise_server_url(server_url) or stored.get("url", "")
+        if not url:
+            deps.flash(request, f"The {service.url_label.lower()} is needed.", "error")
+            return deps.redirect(f"/services/{service_key}")
+        payload["url"] = url
 
     if account is None:
         account = Account(service=service.kind, slot=slot)

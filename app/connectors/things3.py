@@ -10,11 +10,14 @@ plainly rather than burying:
 * It needs your Things Cloud email and password, because there is no OAuth to
   delegate to. The password is encrypted at rest with the same key as every
   other credential and is never logged.
-* It has not been verified against a live account. Every other connector in Task
-  Hub was written against a documented API and exercised for real; this one was
-  written against a description. The first thing it does on connecting is prove
-  it can sign in and read, so a wrong assumption surfaces immediately rather
-  than as silent data loss later.
+* It was written against a description rather than a documented API, and the
+  first live account it met broke four of those assumptions at once: the entity
+  name is versioned (``Task7``, not ``Task``), notes arrive as an object rather
+  than a string, sign-in is a GET with the password in a header, and the history
+  stream carries no reliable list membership. All four are fixed and pinned by
+  tests/test_things_parsing.py. The first thing it does on connecting is still
+  to prove it can sign in and read, so the next change at Cultured Code's end
+  surfaces immediately rather than as silent data loss later.
 
 Failures here are deliberately contained. A Things outage marks this one account
 as needing attention and the sync pass carries on with every other service, so a

@@ -138,6 +138,10 @@ class ServiceKind(str, enum.Enum):
     TODOIST = "todoist"
     TICKTICK = "ticktick"
     APPLE = "apple"
+    #: Any other CalDAV server: Nextcloud, Fastmail, Baikal, Synology, a friend's
+    #: Radicale. Apple has its own value because its quirks need naming; every
+    #: other server answers the same conversation and shares this one.
+    CALDAV = "caldav"
     MICROSOFT = "microsoft"
     THINGS3 = "things3"
     OBSIDIAN = "obsidian"
@@ -168,6 +172,7 @@ SERVICE_DISPLAY_NAMES: dict[str, str] = {
     "todoist": "Todoist",
     "ticktick": "TickTick",
     "apple": "Apple",
+    "caldav": "CalDAV",
     "microsoft": "Microsoft To Do",
     "things3": "Things 3",
     "obsidian": "Obsidian",

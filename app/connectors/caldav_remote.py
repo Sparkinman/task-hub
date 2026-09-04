@@ -6,6 +6,13 @@ and the collections it reports are used as they are found. iCloud, Fastmail,
 Nextcloud and a self-hosted Baikal all answer that conversation the same way,
 so the same code serves them.
 
+Two services are built on it. ``CalDAV`` takes any server address and is how
+Nextcloud, Fastmail, Baikal, Synology and everything else of that shape
+connect; ``Apple`` is the same connector pinned to iCloud's address, with the
+Reminders quirks below named where somebody will meet them. The split is for
+the person reading the page, not for the protocol: an Apple account needs three
+paragraphs of warning that would be meaningless on a Nextcloud server.
+
 CalDAV is the only lossless transport Task Hub speaks: a collection stores real
 iCalendar, so every field survives. Its capabilities are therefore complete, and
 a value never has to be withheld to protect it from the far end.
@@ -57,7 +64,7 @@ CALDAV_CAPABILITIES = Capabilities(
 class RemoteCalDAVConnector(Connector):
     """Talks to a CalDAV server discovered from a base URL."""
 
-    service = ServiceKind.APPLE
+    service = ServiceKind.CALDAV
     name = "CalDAV"
 
     def __init__(self, account_id: int, credentials: dict, sync_state: dict | None = None,
@@ -65,12 +72,17 @@ class RemoteCalDAVConnector(Connector):
         super().__init__(account_id, credentials, sync_state)
         self.username = (credentials.get("username") or "").strip()
         self._password = credentials.get("password") or ""
-        self.base_url = (credentials.get("url") or ICLOUD_URL).strip()
+        self.base_url = (credentials.get("url") or "").strip()
         self.default_timezone = default_timezone
+        if not self.base_url:
+            raise ConnectorError(
+                "This account has no server address saved. Add the CalDAV "
+                "address of your server, then try again."
+            )
         if not self.username or not self._password:
             raise ConnectorError(
-                "This account has no saved sign-in. Add the Apple ID and its "
-                "app-specific password, then try again."
+                "This account has no saved sign-in. Add the username and "
+                "password, then try again."
             )
         self._client: caldav.DAVClient | None = None
         self._principal: caldav.Principal | None = None
@@ -154,7 +166,12 @@ class RemoteCalDAVConnector(Connector):
                 "generate a fresh one; they stop working when the Apple ID "
                 "password changes."
             )
-        return "The server rejected that username and password."
+        return (
+            "The server rejected that username and password. Many servers want "
+            "an app password rather than the one you log in to the website "
+            "with -- Nextcloud, Fastmail and Zoho all do -- and some want the "
+            "username in a different form, such as the full email address."
+        )
 
     def close(self) -> None:
         """Release the HTTP session, not merely the reference to it.
@@ -191,7 +208,18 @@ class RemoteCalDAVConnector(Connector):
             principal.calendars()
         except DAVError as exc:
             raise ConnectorError(f"Signed in, but could not list calendars: {exc}") from exc
-        return self.username
+        return self.identity()
+
+    def identity(self) -> str:
+        """What the account is called in the interface once it is connected.
+
+        A username on its own is enough for Apple, where there is only one
+        server it can belong to. For everything else it is not: somebody with a
+        Nextcloud and a Fastmail account is looking at two slots both saying
+        "paul", so the host goes in the name.
+        """
+        host = urlparse(self.base_url).hostname or self.base_url
+        return f"{self.username} at {host}"
 
     @staticmethod
     def _kind_of(calendar) -> CollectionKind | None:
@@ -429,3 +457,7 @@ class AppleConnector(RemoteCalDAVConnector):
         credentials = dict(credentials)
         credentials.setdefault("url", ICLOUD_URL)
         super().__init__(account_id, credentials, sync_state, default_timezone)
+
+    def identity(self) -> str:
+        """The Apple ID alone. There is only one iCloud for it to be on."""
+        return self.username

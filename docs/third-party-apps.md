@@ -64,6 +64,7 @@ Three things to get right:
 | **iPhone / iPad** | built-in Calendar | built-in Reminders | Nothing to install |
 | **Mac** | built-in Calendar | built-in Reminders | Nothing to install |
 | **Android** | **DAVx⁵** + your calendar app | **DAVx⁵** + **Tasks.org** | DAVx⁵ is the sync layer, not an app you look at |
+| **Home Assistant** | CalDAV integration | CalDAV integration | Task lists become `todo.*` entities automations can read and write |
 | **Windows** | **Thunderbird** | Thunderbird | Outlook cannot do CalDAV |
 | **Linux** | Thunderbird, or GNOME Calendar | Thunderbird, or GNOME To Do | |
 | **Any browser** | Task Hub's own pages | Task Hub's own pages | Nothing to set up |
@@ -198,6 +199,53 @@ Also install a task app, because Android has no built-in one:
 Calendars now appear in Google Calendar or whichever calendar app you use, and
 your tasks appear in Tasks.org.
 
+## Tasks.org — the Android task app to use
+
+Tasks.org is the one to pick. It is open source, actively maintained, and reads
+the same VTODO objects Task Hub stores, so due times, priorities, repeat rules
+and notes all come through.
+
+**Get it from F-Droid rather than Google Play.** The two builds are the same
+software, but the Play version puts synchronisation behind a subscription; the
+F-Droid build has every feature for free. Either way, syncing with *your own*
+CalDAV server never involves Tasks.org's own cloud service.
+
+**With DAVx⁵ (the route that works on every build):**
+
+1. Set up DAVx⁵ as above and tick your task lists.
+2. Open Tasks.org → **☰** → **Settings** → **Synchronisation**.
+3. Under **Third party apps**, enable **DAVx⁵**.
+4. Your Task Hub lists appear in the drawer. Anything you add to one is written
+   back to Task Hub on the next sync.
+
+**Without DAVx⁵:** newer versions of Tasks.org can talk CalDAV themselves —
+**Settings → Synchronisation → CalDAV → Add account**, then the same three
+fields as every other app here. If your build does not show that option, use the
+DAVx⁵ route; it is the more reliable of the two anyway, because DAVx⁵ handles
+the background scheduling that Android otherwise interferes with.
+
+> **Not yet tested against Task Hub.** The protocol is the one Task Hub speaks
+> everywhere else and Thunderbird, DAVx⁵ and Apple's own apps are all proven
+> against it, so there is no particular reason to expect trouble — but nobody
+> has run this exact pairing yet. Please say how it goes.
+
+## jtx Board — tasks, notes and journals on Android
+
+jtx Board is worth knowing about if you want more than a checkbox: it handles
+VTODO, VJOURNAL and notes, links them to each other, and is built around the
+iCalendar standard rather than around one company's idea of a task.
+
+1. Install **jtx Board** (F-Droid or Google Play) **and DAVx⁵**.
+2. Set up the DAVx⁵ account as above.
+3. In DAVx⁵, tick the collections you want jtx Board to see.
+4. Open jtx Board — the lists appear, and edits sync back through DAVx⁵.
+
+jtx Board is a good pairing with Tasks.org rather than a replacement: many
+people use Tasks.org for the daily list and jtx Board for anything with real
+notes attached.
+
+> **Not yet tested against Task Hub.**
+
 ## Android battery settings — the one thing that will bite you
 
 Android aggressively suspends background apps, and DAVx⁵ syncing in the
@@ -235,6 +283,34 @@ that writes back, and let this show you the list.
 
 Completing a task there ticks it off everywhere else on the next sync, which is
 the part that makes it worth connecting at all.
+
+---
+
+# Home Assistant — tasks that can drive automations
+
+Home Assistant's CalDAV integration reads both calendars and to-do lists, which
+means a Task Hub list can become something your house reacts to: a dashboard
+card of what is due, a reminder announced on a speaker in the evening, a light
+that changes when the bins go out.
+
+1. **Settings** → **Devices & Services** → **Add Integration** → **CalDAV**.
+2. **Calendar URL**: your Task Hub address, e.g.
+   `http://192.168.1.42:8080/radicale/yourname/`
+3. **Username** and **Password**: your CalDAV credentials.
+4. **Submit**. Home Assistant creates a `calendar.*` entity for each calendar
+   and a `todo.*` entity for each task list.
+
+Two things worth knowing:
+
+- **To-do entities need Home Assistant 2024.1 or later**, and CalDAV to-do
+  support landed later still. If you see calendars but no to-do lists, update.
+- **It polls roughly every fifteen minutes.** It is not the place to look for
+  something you ticked off ten seconds ago.
+
+The `todo.add_item` and `todo.update_item` services write back to Task Hub, so
+an automation can genuinely add a task rather than only read one.
+
+> **Not yet tested against Task Hub.**
 
 ---
 

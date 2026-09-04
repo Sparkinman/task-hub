@@ -17,6 +17,7 @@ from starlette.background import BackgroundTask
 from app.crypto import decrypt_json, encrypt_json, hash_password, verify_password
 from app.db import settings_store
 from app.db.session import get_db
+from app.services import mail_providers
 from app.web import backup, deps, maintenance
 from app.web.setup import MIN_PASSWORD_LENGTH, _timezones
 
@@ -78,6 +79,7 @@ def index(request: Request, db: Session = Depends(get_db)):
                 or (settings_store.get(db, settings_store.SMTP_FROM) or "").strip()
             ),
             "last_test": _last_mail_test(db),
+            "providers": mail_providers.PROVIDERS,
         },
         digest={
             "enabled": settings_store.get_bool(db, settings_store.DIGEST_ENABLED),
@@ -544,7 +546,11 @@ def save_mail(
         deps.flash(request, "That is not a usable port number.", "error")
         return deps.redirect("/settings")
 
-    settings_store.set_value(db, settings_store.SMTP_HOST, smtp_host.strip())
+    from app.services.mail_providers import correct_host
+
+    host, correction = correct_host(smtp_host)
+
+    settings_store.set_value(db, settings_store.SMTP_HOST, host)
     settings_store.set_value(db, settings_store.SMTP_PORT, str(port))
     settings_store.set_value(db, settings_store.SMTP_SECURITY, security)
     settings_store.set_value(db, settings_store.SMTP_USERNAME, smtp_username.strip())
@@ -556,7 +562,10 @@ def save_mail(
         )
     db.commit()
 
-    deps.flash(request, "Mail server saved. Send a test to check it.", "success")
+    if correction:
+        deps.flash(request, correction + " Send a test to check it.", "success")
+    else:
+        deps.flash(request, "Mail server saved. Send a test to check it.", "success")
     return deps.redirect("/settings")
 
 
@@ -597,6 +606,12 @@ def test_mail(
         return deps.redirect("/settings")
 
     _record_mail_test(db, ok=True, to=to, detail="")
+    # "Sent" means the mail server accepted it, which is not the same as
+    # delivered: a wrong-but-real domain accepts the message and bounces it
+    # minutes later, long after this page has said it worked.
+    warning = mail_providers.suggest_address(to)
+    if warning:
+        deps.flash(request, warning, "error")
     deps.flash(
         request,
         f"Test message sent to {to}. If it does not appear within a minute or "
@@ -708,6 +723,9 @@ def save_digest(
     db.commit()
 
     reschedule_digest()
+    warning = mail_providers.suggest_address(recipient)
+    if warning:
+        deps.flash(request, warning, "error")
     deps.flash(
         request,
         f"Daily summary {'on' if enabled else 'off'}."

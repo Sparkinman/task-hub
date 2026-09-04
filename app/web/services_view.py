@@ -231,6 +231,41 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
         ],
     ),
     ServiceDefinition(
+        key=ServiceKind.CALDAV.value,
+        name="CalDAV",
+        colour="amber",
+        supports_tasks=True,
+        supports_calendar=True,
+        auth_kind="Server address, username and password",
+        summary="Any other CalDAV server: Nextcloud, Fastmail, Baikal, Synology.",
+        phase=6,
+        docs_slug="caldav",
+        caveats=[
+            "This is the same connector Apple uses, pointed at your own server "
+            "instead of iCloud. CalDAV is the one transport that loses nothing: "
+            "times, timezones, priorities, repeat rules, tags and notes all "
+            "survive the round trip in both directions.",
+            "Give the address of the server, not of one calendar. Task Hub asks "
+            "the server what the account owns and finds the collections itself, "
+            "so https://cloud.example.com is usually enough.",
+            "Most servers want an app password created in their own settings "
+            "rather than your website login — Nextcloud, Fastmail and Zoho all "
+            "do, and some refuse the account password outright.",
+            "Whether tasks appear depends on the server, not on Task Hub. A "
+            "collection has to accept VTODO for its to-dos to be visible: "
+            "Nextcloud and Baikal do, and a calendar-only server will offer "
+            "calendars here and no task lists.",
+            "A server reached over plain http is allowed, for one on your own "
+            "network. Anything across the internet should be https, because "
+            "CalDAV sends the password on every request.",
+            "Verified against a live CalDAV server — sign-in, discovery, and a "
+            "to-do created, read back and deleted with its due time, priority "
+            "and notes intact. That was Radicale rather than Nextcloud or "
+            "Fastmail, so the protocol path is proven and those particular "
+            "servers are not yet.",
+        ],
+    ),
+    ServiceDefinition(
         key=ServiceKind.MICROSOFT.value,
         name="Microsoft",
         colour="black",
@@ -279,9 +314,12 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
             "This connector is read-only. Task Hub imports your Things to-dos "
             "but never writes back, because writing to an undocumented endpoint "
             "risks corrupting the database that holds your real work.",
-            "It has not been verified against a live Things account. It checks "
-            "that it can sign in and read the moment you connect, so a wrong "
-            "assumption surfaces immediately rather than as silent data loss.",
+            "It has been run against a live Things Cloud account and imports "
+            "correctly. Four faults only a real account could have shown were "
+            "found and fixed doing so, which is exactly why the label was there. "
+            "It still checks that it can sign in and read the moment you "
+            "connect, so a change at Cultured Code's end surfaces immediately "
+            "rather than as silent data loss.",
             "Things schedules a to-do to a day and keeps reminders separately, "
             "so it holds no time of day. Nothing it sends can clear a time set "
             "in another service.",
@@ -619,7 +657,7 @@ def _oauth_detail(request, db, definition, service, accounts, free_slots):
 
 
 def _password_detail(request, db, definition, accounts, free_slots):
-    """Apple and Things 3: sign in with a username and password, then map lists.
+    """Apple, CalDAV and Things 3: sign in with a password, then map lists.
 
     Deliberately thin, exactly like the OAuth page. Everything about the mapping
     table comes from the shared context and the shared macro, so all four
@@ -640,6 +678,16 @@ def _password_detail(request, db, definition, accounts, free_slots):
         # field can say "leave blank to keep it" without echoing a password.
         has_secret={a.id: bool(decrypt_json(a.credentials).get("password"))
                     for a in accounts},
+        # The server address is not a secret and is genuinely useful to see --
+        # "which Nextcloud is this?" is answered by the address and by nothing
+        # else on the page -- so unlike the password it is echoed back.
+        saved_urls={a.id: decrypt_json(a.credentials).get("url", "")
+                    for a in accounts},
+        saved_usernames={
+            a.id: (decrypt_json(a.credentials).get("username")
+                   or decrypt_json(a.credentials).get("email") or "")
+            for a in accounts
+        },
         **_mapping_context(db, accounts),
     )
 

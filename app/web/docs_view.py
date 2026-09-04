@@ -115,6 +115,9 @@ def list_docs() -> list[DocEntry]:
         "addresses": 6,
         "email": 7,
         "third-party-apps": 9,
+        # Last of the service guides: it is the one to read when none of the
+        # named services is yours.
+        "caldav": 8.5,
     }
     return sorted(entries, key=lambda e: (rank.get(e.slug, 8), e.title.lower()))
 
