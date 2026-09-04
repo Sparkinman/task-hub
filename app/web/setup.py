@@ -81,6 +81,12 @@ def _advance(db: Session, to_slug: str) -> None:
 
 
 def _render_step(request: Request, db: Session, slug: str, **extra):
+    """Render one wizard step, with the shared wizard chrome around it.
+
+    Every step goes through here so that the progress indicator, the step
+    ordering and the error presentation are defined once. A step that rendered
+    itself would drift from the others the first time one of them changed.
+    """
     index = STEP_INDEX[slug]
     return deps.render(
         request,
@@ -150,6 +156,13 @@ def account_submit(
     password_confirm: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    """Create the sign-in account, or explain why the details were refused.
+
+    This is the only account Task Hub will ever have, and there is no password
+    reset -- no mail server exists to send one through -- so the rules are
+    stricter here than they would otherwise be and the wizard says so before
+    the choice is made rather than after.
+    """
     username = username.strip()
     errors: list[str] = []
 
@@ -242,6 +255,12 @@ def preferences_submit(
     week_start: str = Form("monday"),
     db: Session = Depends(get_db),
 ):
+    """Save the regional preferences.
+
+    The timezone matters more than the formats: it decides what "due today"
+    means, and getting it wrong makes every date look off by a day near
+    midnight rather than obviously broken.
+    """
     if timezone not in zoneinfo.available_timezones():
         return _render_step(
             request,
@@ -288,6 +307,13 @@ def radicale_submit(
     radicale_password_confirm: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    """Create the CalDAV account that external clients sign in with.
+
+    Deliberately separate from the web password. It is typed into phones,
+    stored by them, and sent on every sync, so it lives a very different life
+    from the one used to open this page -- and one being exposed should not
+    give away the other.
+    """
     from app.crypto import encrypt_json
 
     radicale_username = radicale_username.strip()
@@ -362,6 +388,13 @@ def collections_submit(
     calendar_name: str = Form("Calendar"),
     db: Session = Depends(get_db),
 ):
+    """Create the first collections, so there is somewhere for tasks to land.
+
+    A Task Hub with no collections is not usable, and asking someone to work
+    out that they need to create one before connecting anything is a poor
+    first five minutes. Two sensible defaults are offered and can be renamed
+    later.
+    """
     from app.web.radicale_admin import get_radicale_client
 
     task_list_name = task_list_name.strip() or "Tasks"

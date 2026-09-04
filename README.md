@@ -30,13 +30,17 @@ docker compose up -d
 Then open **http://localhost:8080** — or, from another device, this machine's
 address on your network with `:8080` after it — and follow the setup wizard.
 
-Step-by-step guides, each written for someone who has not done this before:
+Step-by-step guides, each written for someone who has not done this before.
+Every one covers **both a fresh machine and one that already has Docker**, and
+every command can be copied and pasted exactly as written:
 
 | | |
 | --- | --- |
-| [Raspberry Pi](docs/install-raspberry-pi.md) | From a blank SD card to a working install, including what to check on a Pi that is already in use |
+| [Raspberry Pi](docs/install-raspberry-pi.md) | From a blank SD card to a working install |
 | [NAS](docs/install-nas.md) | Synology, QNAP, Unraid, TrueNAS and Asustor |
-| [Windows or Mac](docs/install-windows-mac.md) | The quickest way to try it |
+| [Windows](docs/install-windows.md) | Docker Desktop, PowerShell commands, the firewall prompt |
+| [macOS](docs/install-macos.md) | Apple-chip and Intel, plus syncing the Mac's own Calendar and Reminders |
+| [Linux](docs/install-linux.md) | Ubuntu, Debian, Fedora, Rocky, Alma, openSUSE, Arch |
 | [How it finds its own address](docs/addresses.md) | What each service accepts, and why sign-in fails when it does |
 
 Not sure whether your machine is up to it? This checks and changes nothing:

@@ -27,6 +27,12 @@ router = APIRouter()
 
 
 def _has_account(db, service_key: str) -> bool:
+    """Whether any account exists for this service, connected or not.
+
+    Used to decide whether a service is worth showing on the overview. An
+    unrecognised key answers False rather than raising, because the catalogue
+    can name a service this build does not have.
+    """
     from sqlalchemy import select
 
     from app.db.models import Account, ServiceKind
@@ -43,6 +49,13 @@ def _has_account(db, service_key: str) -> bool:
 @router.get("/")
 
 def overview(request: Request, db: Session = Depends(get_db)):
+    """The home page: what is connected, what synced last, and what is due.
+
+    Deliberately the page that answers "is it working?" without being asked.
+    Everything on it is derived rather than stored, so it cannot go stale, and
+    a service that cannot be reached shows as a problem here rather than
+    failing silently until someone notices tasks are out of date.
+    """
     accounts = db.execute(select(Account)).scalars().all()
     by_service: dict[str, list[Account]] = {}
     for account in accounts:

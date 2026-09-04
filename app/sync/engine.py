@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -397,6 +398,94 @@ def ensure_radicale_account(session: Session) -> Account | None:
 # --- Engine -------------------------------------------------------------------
 
 
+class _GroupIndex:
+    """Every link and provenance row for one sync group, loaded once per pass.
+
+    The engine reconciles a group item by item, and each item needs the same
+    three lookups: which remote ids it is linked to, which service last touched
+    each of its fields, and whether some remote id is already known. Asking the
+    database those questions per item is correct and quietly ruinous -- a
+    stress run with 70 items across eight services issued 2,141 queries per
+    pass, of which 1,286 were the same link lookup repeated. Multiply that by a
+    realistic two thousand tasks on a Raspberry Pi writing to an SD card and a
+    sync stops finishing.
+
+    So the whole group is read in three queries at the start of the pass and
+    kept here. The index is not a cache in the awkward sense -- nothing else
+    writes these tables while a group is being reconciled -- but it does have
+    to be told about rows the pass itself creates and destroys, which is what
+    :meth:`register` and :meth:`forget` are for. Miss one of those and the
+    engine would fail to see a link it had just made, so both are called from
+    every site that adds or removes one.
+    """
+
+    def __init__(self, session: Session, group_id: int):
+        self.session = session
+        self.group_id = group_id
+
+        links = list(
+            session.execute(
+                select(ItemLink).where(ItemLink.sync_group_id == group_id)
+            ).scalars()
+        )
+        #: (account_id, remote_id) -> link. The question "have we seen this
+        #: remote id before?", asked once per remote item per pass.
+        self.by_key: dict[tuple[int, str], ItemLink] = {
+            (link.account_id, link.remote_id): link for link in links
+        }
+        #: item id -> its links, for "where else does this task live?".
+        self.by_item: dict[int, list[ItemLink]] = defaultdict(list)
+        for link in links:
+            self.by_item[link.item_id].append(link)
+
+        rows = list(
+            session.execute(
+                select(FieldProvenance)
+                .join(Item, FieldProvenance.item_id == Item.id)
+                .where(Item.sync_group_id == group_id)
+            ).scalars()
+        )
+        #: item id -> field -> the row, so a save can update in place.
+        self.provenance_rows: dict[int, dict[str, FieldProvenance]] = defaultdict(dict)
+        for row in rows:
+            self.provenance_rows[row.item_id][row.field] = row
+
+        #: item id -> the merge's view of provenance. Handed out by reference
+        #: on purpose: an item is reconciled once per service reporting it, and
+        #: each merge must see what the previous one decided. Returning a copy
+        #: would make the second service overwrite the first service's work.
+        self.provenance: dict[int, dict[str, Provenance]] = {}
+        for item_id, fields in self.provenance_rows.items():
+            self.provenance[item_id] = {
+                field: Provenance(service=row.source_service, changed_at=row.changed_at)
+                for field, row in fields.items()
+            }
+
+        #: uid -> item, for services that can store Task Hub's own identifier.
+        self.item_by_uid: dict[str, Item] = {}
+        for item in session.execute(
+            select(Item).where(Item.sync_group_id == group_id)
+        ).scalars():
+            if item.uid:
+                self.item_by_uid[item.uid] = item
+
+    def register(self, link: ItemLink) -> None:
+        """Take account of a link the pass has just created."""
+        self.by_key[(link.account_id, link.remote_id)] = link
+        if link not in self.by_item[link.item_id]:
+            self.by_item[link.item_id].append(link)
+
+    def forget(self, link: ItemLink) -> None:
+        """Take account of a link the pass has just deleted."""
+        self.by_key.pop((link.account_id, link.remote_id), None)
+        remaining = [l for l in self.by_item.get(link.item_id, []) if l is not link]
+        self.by_item[link.item_id] = remaining
+
+    def remember_item(self, item: Item) -> None:
+        if item.uid:
+            self.item_by_uid[item.uid] = item
+
+
 class SyncEngine:
     """Runs one complete synchronisation across every connected service.
 
@@ -429,6 +518,11 @@ class SyncEngine:
         #: Optional callback, invoked with the run id once the run exists, so
         #: the web interface can show progress while a sync is still going.
         self.on_start = None
+        #: Links and provenance for the group currently being reconciled,
+        #: loaded once instead of per item. None outside a group's sync, in
+        #: which case every lookup below falls back to querying, so nothing
+        #: depends on it having been built.
+        self._index: _GroupIndex | None = None
         #: Items a service stopped reporting during this run, collected during
         #: the push pass and judged afterwards by _resolve_vanished. They are
         #: held rather than acted on immediately because "gone" and "deleted"
@@ -675,6 +769,8 @@ class SyncEngine:
         page shows.
         """
         stats = GroupStats()
+        # Three queries now, instead of several per item later on.
+        self._index = _GroupIndex(self.session, group.id)
         parts = self.participants(group)
 
         if len(parts) < 2:
@@ -684,6 +780,7 @@ class SyncEngine:
             )
             for part in parts:
                 part.connector.close()
+            self._index = None
             return stats
 
         try:
@@ -697,6 +794,11 @@ class SyncEngine:
                 except Exception:  # noqa: BLE001
                     pass
             self.session.commit()
+            # Discarded with the group it describes. Anything running after
+            # this -- deletion propagation, the run-level tidy-up -- belongs to
+            # no single group, and an index left behind would answer their
+            # questions with one group's data.
+            self._index = None
 
         self.log(
             f"Group {group.name!r}: pulled {stats.pulled}, pushed {stats.pushed}, "
@@ -949,13 +1051,7 @@ class SyncEngine:
     def _handle_remote_deletion(
         self, group: SyncGroup, part: Participant, remote_id: str, stats: GroupStats
     ) -> None:
-        link = self.session.execute(
-            select(ItemLink).where(
-                ItemLink.account_id == part.account.id,
-                ItemLink.remote_id == remote_id,
-                ItemLink.sync_group_id == group.id,
-            )
-        ).scalar_one_or_none()
+        link = self._known_link(part.account.id, remote_id, group.id)
         if link is None:
             return
 
@@ -963,6 +1059,8 @@ class SyncEngine:
         # Read the remaining links BEFORE the deleted one goes, so the tombstone
         # records every id this task answered to anywhere.
         known = tombstone_keys(self._all_links(link.item_id)) if item else []
+        if self._index is not None:
+            self._index.forget(link)
         self.session.delete(link)
         if item is None:
             return
@@ -1024,7 +1122,9 @@ class SyncEngine:
                 ItemLink.remote_id == remote.remote_id,
                 ItemLink.sync_group_id == group.id,
             )
-        ).scalar_one_or_none()
+        ).scalar_one_or_none() if self._index is None else self._index.by_key.get(
+            (part.account.id, remote.remote_id)
+        )
         if link is not None:
             return self.session.get(Item, link.item_id)
 
@@ -1045,11 +1145,14 @@ class SyncEngine:
         caps = part.connector.capabilities(part.kind)
 
         if caps.stores_uid:
-            existing = self.session.execute(
-                select(Item).where(
-                    Item.uid == remote.record.uid, Item.sync_group_id == group.id
-                )
-            ).scalars().first()
+            if self._index is not None:
+                existing = self._index.item_by_uid.get(remote.record.uid)
+            else:
+                existing = self.session.execute(
+                    select(Item).where(
+                        Item.uid == remote.record.uid, Item.sync_group_id == group.id
+                    )
+                ).scalars().first()
             if existing is not None:
                 return existing
 
@@ -1085,6 +1188,11 @@ class SyncEngine:
         item.origin_service = origin
         self.session.add(item)
         self.session.flush()
+        # A service that stores UIDs may report this same task on a later
+        # participant in this very pass; the index has to know about it or a
+        # second copy would be created.
+        if self._index is not None:
+            self._index.remember_item(item)
         stats.created += 1
         return item
 
@@ -1121,6 +1229,8 @@ class SyncEngine:
 
     def _all_links(self, item_id: int) -> list[ItemLink]:
         """Every link this item has, in every account."""
+        if self._index is not None:
+            return list(self._index.by_item.get(item_id, ()))
         return list(
             self.session.execute(
                 select(ItemLink).where(ItemLink.item_id == item_id)
@@ -1136,6 +1246,9 @@ class SyncEngine:
         rather than assuming one is what keeps that from crashing the whole
         sync group.
         """
+        if self._index is not None:
+            return [l for l in self._index.by_item.get(item_id, ())
+                    if l.account_id == account_id]
         return list(
             self.session.execute(
                 select(ItemLink).where(
@@ -1173,13 +1286,7 @@ class SyncEngine:
     def _link_for(
         self, item: Item, part: Participant, remote_id: str, group_id: int
     ) -> ItemLink:
-        link = self.session.execute(
-            select(ItemLink).where(
-                ItemLink.account_id == part.account.id,
-                ItemLink.remote_id == remote_id,
-                ItemLink.sync_group_id == group_id,
-            )
-        ).scalar_one_or_none()
+        link = self._known_link(part.account.id, remote_id, group_id)
         if link is None:
             link = ItemLink(
                 item_id=item.id,
@@ -1190,7 +1297,27 @@ class SyncEngine:
             )
             self.session.add(link)
             self.session.flush()
+            if self._index is not None:
+                self._index.register(link)
         return link
+
+    def _known_link(
+        self, account_id: int, remote_id: str, group_id: int
+    ) -> ItemLink | None:
+        """The link for one remote id, from the index when there is one.
+
+        Asked once per remote item per pass, and previously twice -- item
+        resolution and link creation each looked it up separately.
+        """
+        if self._index is not None:
+            return self._index.by_key.get((account_id, remote_id))
+        return self.session.execute(
+            select(ItemLink).where(
+                ItemLink.account_id == account_id,
+                ItemLink.remote_id == remote_id,
+                ItemLink.sync_group_id == group_id,
+            )
+        ).scalar_one_or_none()
 
     # -- Push ------------------------------------------------------------------
 
@@ -1345,6 +1472,10 @@ class SyncEngine:
             self.session.add(link)
 
         link.remote_id = outcome.remote_id or link.remote_id
+        # Registered only now: the index is keyed by remote id, and until the
+        # service answered there was no id to key it under.
+        if self._index is not None:
+            self._index.register(link)
         link.remote_etag = outcome.etag
         link.remote_updated_at = outcome.remote_updated_at or utcnow()
         link.last_pushed_hash = desired_hash
@@ -1514,6 +1645,15 @@ class SyncEngine:
     # -- Provenance ------------------------------------------------------------
 
     def _load_provenance(self, item: Item) -> dict[str, Provenance]:
+        """Which service last changed each of this item's fields, and when.
+
+        Returned by reference from the index rather than rebuilt, because one
+        item is reconciled once per service reporting it and each of those
+        merges must see what the previous one decided. Handing out a fresh copy
+        each time would let the second service silently undo the first.
+        """
+        if self._index is not None:
+            return self._index.provenance.setdefault(item.id, {})
         rows = (
             self.session.execute(
                 select(FieldProvenance).where(FieldProvenance.item_id == item.id)
@@ -1542,23 +1682,34 @@ class SyncEngine:
         the second participant updates the row rather than duplicating it.
         """
         self.session.flush()
-        existing = {
-            row.field: row
-            for row in self.session.execute(
-                select(FieldProvenance).where(FieldProvenance.item_id == item.id)
-            ).scalars()
-        }
+        if self._index is not None:
+            # The index already holds every row for this group, and is kept up
+            # to date below, so the flush above is enough to make a pending row
+            # real without also re-reading it.
+            existing = self._index.provenance_rows.setdefault(item.id, {})
+        else:
+            existing = {
+                row.field: row
+                for row in self.session.execute(
+                    select(FieldProvenance).where(FieldProvenance.item_id == item.id)
+                ).scalars()
+            }
         for field_name, entry in provenance.items():
             row = existing.get(field_name)
             if row is None:
-                self.session.add(
-                    FieldProvenance(
-                        item_id=item.id,
-                        field=field_name,
-                        source_service=entry.service,
-                        changed_at=entry.changed_at,
-                    )
+                row = FieldProvenance(
+                    item_id=item.id,
+                    field=field_name,
+                    source_service=entry.service,
+                    changed_at=entry.changed_at,
                 )
+                self.session.add(row)
+                # Recorded straight away. The next participant to touch this
+                # item in the same pass looks the field up here, and not
+                # finding it would add a second row for the same (item, field)
+                # -- the duplicate that the unique constraint rejects at commit
+                # time, rolling back every merge in the group.
+                existing[field_name] = row
             else:
                 row.source_service = entry.service
                 row.changed_at = entry.changed_at

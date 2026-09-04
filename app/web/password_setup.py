@@ -71,10 +71,21 @@ SERVICES: dict[str, PasswordService] = {
 
 
 def service_for(key: str) -> PasswordService | None:
+    """The definition for a service that signs in with a username and password.
+
+    Returns None for anything else, which is how a route distinguishes a
+    password-based service from an OAuth one without a second table of names.
+    """
     return SERVICES.get(key)
 
 
 def _build(db: Session, account: Account):
+    """Construct the live connector for an account, to test its credentials.
+
+    Used at the moment credentials are saved rather than at the next sync, so
+    that a wrong password is reported while the person is still looking at the
+    form that caused it.
+    """
     from app.sync.engine import build_connector
 
     return build_connector(db, account)

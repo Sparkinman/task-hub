@@ -68,7 +68,14 @@ class DocEntry:
 
 
 def _title_of(path) -> str:
-    """Use the document's first heading as its title."""
+    """Use the document's first heading as its title.
+
+    Taken from the file rather than kept in a table here, so that renaming a
+    guide is a one-line edit in the guide itself and cannot leave the index
+    disagreeing with the page it points at. Falls back to a tidied filename
+    for a document with no heading, which should not happen but should not
+    produce a blank entry if it does.
+    """
     try:
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.startswith("# "):
@@ -79,6 +86,14 @@ def _title_of(path) -> str:
 
 
 def list_docs() -> list[DocEntry]:
+    """Every guide, in reading order rather than alphabetical order.
+
+    Alphabetical would open the list with the Apple guide, which is neither
+    where a new reader should start nor a connector that works yet. The rank
+    table below puts the "what is this" page first, then the install guide for
+    whichever machine the reader has, then the shared explanation of
+    addressing, then the per-service walkthroughs.
+    """
     if not DOCS_DIR.exists():
         return []
     entries = [
@@ -90,18 +105,23 @@ def list_docs() -> list[DocEntry]:
     # connecting your own apps -- which only makes sense once something syncs.
     rank = {
         "getting-started": 0,
+        # The install guides sit together, ordered by how likely a reader is to
+        # be on that machine rather than alphabetically.
         "install-raspberry-pi": 1,
-        "install-nas": 1,
-        "install-windows-mac": 1,
-        "addresses": 2,
-        "third-party-apps": 4,
+        "install-nas": 2,
+        "install-windows": 3,
+        "install-macos": 4,
+        "install-linux": 5,
+        "addresses": 6,
+        "third-party-apps": 9,
     }
-    return sorted(entries, key=lambda e: (rank.get(e.slug, 3), e.title.lower()))
+    return sorted(entries, key=lambda e: (rank.get(e.slug, 8), e.title.lower()))
 
 
 @router.get("")
 @router.get("/")
 def index(request: Request, db: Session = Depends(get_db)):
+    """The list of guides."""
     return deps.render(request, db, "docs_index.html", docs=list_docs())
 
 

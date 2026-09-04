@@ -47,9 +47,22 @@ class RadicaleConnector(Connector):
         self.client = RadicaleClient(username, password)
 
     def capabilities(self, kind: CollectionKind) -> Capabilities:
+        """Everything, for both tasks and calendar entries.
+
+        Radicale stores raw iCalendar, so there is no field Task Hub can hold
+        that it cannot. That makes this connector the reference against which
+        every lossy service is measured: a value that survives a round trip
+        here and not elsewhere is a limit of the other service, not a bug.
+        """
         return FULL_CAPABILITIES
 
     def verify(self) -> str:
+        """Confirm the CalDAV credentials work, and return the username.
+
+        Authentication failure is raised as a distinct error from any other
+        problem, because the two need different advice: a wrong password is
+        something the user can fix, and an unreachable server is not.
+        """
         try:
             self.client.check_connection()
         except CalDAVAuthError as exc:
@@ -61,6 +74,12 @@ class RadicaleConnector(Connector):
         return self.client.username
 
     def list_remote_lists(self) -> list[RemoteList]:
+        """Every collection this CalDAV account can see, with its colour.
+
+        These are the lists offered when setting up a mapping. The colour comes
+        along so the interface can show the same one the user chose in their
+        calendar app.
+        """
         try:
             collections = self.client.list_collections()
         except CalDAVError as exc:
@@ -82,6 +101,14 @@ class RadicaleConnector(Connector):
         since: dt.datetime | None = None,
         state: dict | None = None,
     ) -> PullResult:
+        """Read a whole collection, completed items included.
+
+        ``since`` is accepted and ignored: this is a local server on the other
+        end of a loopback connection, so a full read costs almost nothing, and
+        a complete listing is worth far more than a fast one. Absence from a
+        complete listing genuinely means deletion, which is what allows the
+        engine to act on it -- an incremental pull can never support that.
+        """
         try:
             records = self.client.list_records(remote_list_id, kind, include_completed=True)
         except CalDAVError as exc:
@@ -109,6 +136,7 @@ class RadicaleConnector(Connector):
     def create(
         self, remote_list_id: str, record: CanonicalRecord, kind: CollectionKind
     ) -> PushOutcome:
+        """Store a new item. Identical to an update, since CalDAV is keyed by UID."""
         return self._write(remote_list_id, record, kind)
 
     def update(
@@ -125,6 +153,15 @@ class RadicaleConnector(Connector):
     def _write(
         self, collection_id: str, record: CanonicalRecord, kind: CollectionKind
     ) -> PushOutcome:
+        """The single write path behind both create and update.
+
+        A CalDAV PUT to a UID's address creates or replaces, with no distinction
+        between the two, so keeping one implementation removes any chance of the
+        two drifting apart.
+
+        Failures are returned rather than raised: one item that will not save
+        should not abandon the rest of the push.
+        """
         record.kind = kind
         try:
             saved = self.client.save_record(collection_id, record)
@@ -139,6 +176,12 @@ class RadicaleConnector(Connector):
     def delete(
         self, remote_list_id: str, remote_id: str, kind: CollectionKind
     ) -> PushOutcome:
+        """Remove an item from a collection.
+
+        A failure is reported rather than raised, so that the rest of the pass
+        continues; the engine decides whether a delete that did not happen is
+        worth retrying next time.
+        """
         try:
             self.client.delete_record(remote_list_id, remote_id, kind)
         except CalDAVError as exc:
