@@ -72,6 +72,22 @@ for path in ("/.well-known/caldav", "/.well-known/carddav"):
         check(f"{path} answers {method}", method in methods,
               f"it answers {sorted(methods)}")
 
+print("\nDAV probes are recognised by method, and browsers are not")
+from app.main import DAV_METHODS  # noqa: E402 - imported late; it builds the app
+
+# iOS does not only ask for the well-known path. Given a bare server address it
+# also probes the root, /principals/ and a couple of vendor paths, and each of
+# those was being answered with a redirect to the login page and then a 405.
+for method in ("PROPFIND", "REPORT", "PROPPATCH", "MKCALENDAR"):
+    check(f"{method} is treated as a calendar client", method in DAV_METHODS)
+
+# This is the half that must never break. Intercepting a browser method would
+# redirect the entire web interface into the CalDAV mount.
+for method in ("GET", "POST", "HEAD", "PUT", "DELETE", "PATCH", "OPTIONS"):
+    check(f"{method} is left alone for the web interface",
+          method not in DAV_METHODS,
+          "intercepting this would send browsers to the CalDAV endpoint")
+
 print()
 if _failures:
     print(f"{len(_failures)} FAILURE(S): {', '.join(_failures)}")

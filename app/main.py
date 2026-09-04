@@ -92,6 +92,16 @@ app = FastAPI(
 )
 
 
+#: Methods that only ever come from a calendar client. A browser uses none
+#: of them, so a request carrying one is a phone looking for the CalDAV
+#: service rather than a person looking at a web page -- and it should be
+#: pointed at the service rather than at a login form.
+DAV_METHODS = frozenset({
+    "PROPFIND", "PROPPATCH", "REPORT", "MKCOL", "MKCALENDAR",
+    "COPY", "MOVE", "LOCK", "UNLOCK",
+})
+
+
 class AccessGateMiddleware(BaseHTTPMiddleware):
     """Routes every visitor to the right place before any handler runs.
 
@@ -116,6 +126,19 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
         # the session system entirely.
         if is_public_path(path):
             return await call_next(request)
+
+        # A calendar client probing for the service must never be handed the
+        # login page. Given only a server address, iOS tries the root, then
+        # /principals/, then a couple of vendor-specific paths, and each of
+        # those was being answered with a 303 to /login and then a 405 -- an
+        # HTML form where a DAV collection was expected. The account is saved
+        # anyway, warns that it may not sync, and then never syncs.
+        #
+        # These methods are used by calendar clients and never by the web
+        # interface, so answering them with a redirect to the CalDAV mount
+        # cannot affect anyone using a browser.
+        if request.method in DAV_METHODS:
+            return RedirectResponse(f"{RADICALE_MOUNT_PATH}/", status_code=301)
 
         with session_scope() as db:
             onboarded = settings_store.is_onboarded(db)
