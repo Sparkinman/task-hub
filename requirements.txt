@@ -1,46 +1,50 @@
 # Task Hub — Python dependencies
 #
-# Ranges rather than exact pins, so a rebuild picks up security patches without
-# crossing a major version. If a future rebuild ever misbehaves, these are the
-# versions this code was written and tested against:
+# Every version is pinned exactly, and deliberately so. These are the versions
+# Task Hub was built and tested against, and pinning them means the image built
+# from this repository next month is the same image that was tested today.
 #
-#   a2wsgi 1.10.10    APScheduler 3.11.3   bcrypt 5.0.0       caldav 2.2.6
-#   cryptography 47.0.0   fastapi 0.120.4  httpx 0.28.1       icalendar 6.3.2
-#   itsdangerous 2.2.0    Jinja2 3.1.6     markdown-it-py 4.2.0
-#   python-dateutil 2.9.0 python-multipart 0.0.32             Radicale 3.7.8
-#   SQLAlchemy 2.0.52     tzdata 2026.3    uvicorn 0.39.0     vobject 0.9.9
+# Ranges are the usual advice, and they were used here until a rebuild quietly
+# moved Radicale from 3.7.8 to 3.8.0 -- a new upstream version that nobody had
+# tested, arriving in the middle of a release. For software people install on a
+# machine in a cupboard and then forget about, a surprise is worth more than a
+# few weeks of missed patches.
+#
+# To take a newer version of something: change it here, run ./run-tests.sh, and
+# only then commit. That is the whole process, and it is the point.
 
 # --- Web framework ---
-fastapi>=0.115,<0.121
-uvicorn[standard]>=0.32,<0.40
-jinja2>=3.1,<4
-python-multipart>=0.0.12,<0.1
-itsdangerous>=2.2,<3
+fastapi==0.120.4
+uvicorn[standard]==0.39.0
+Jinja2==3.1.6
+python-multipart==0.0.32
+itsdangerous==2.2.0
 
 # --- Database ---
-SQLAlchemy>=2.0,<2.1
+SQLAlchemy==2.0.52
 
 # --- CalDAV / Radicale ---
-Radicale>=3.5,<4
-a2wsgi>=1.10,<2
-caldav>=1.4,<3
-icalendar>=6.0,<7
-vobject>=0.9,<0.10
+# Radicale is GPLv3, and Task Hub embeds it. See LICENSE.
+Radicale==3.8.0
+a2wsgi==1.10.10
+caldav==2.2.6
+icalendar==6.3.2
+vobject==0.9.9
 
 # --- Security ---
-cryptography>=43,<48
-bcrypt>=4.2,<6
+cryptography==47.0.0
+bcrypt==5.0.0
 
 # --- Scheduling & HTTP ---
-APScheduler>=3.10,<4
-httpx>=0.27,<0.30
+APScheduler==3.11.3
+httpx==0.28.1
 
 # --- Dates & timezones ---
-python-dateutil>=2.9,<3
-tzdata>=2024.2
+python-dateutil==2.9.0.post0
+tzdata==2026.3
 
 # --- Markdown rendering for the in-app setup guides ---
-markdown-it-py>=3.0,<5
+markdown-it-py==4.2.0
 
 # TaskNotes stores each task's fields in YAML frontmatter. Present already as a
 # transitive dependency, but named here because the Obsidian connector imports

@@ -10,7 +10,12 @@
 # downloaded, so the architecture always matches the image being built and
 # there is no network fetch to fail. It is only used if remote access is
 # switched on in Settings.
-FROM cloudflare/cloudflared:latest AS cloudflared
+# Pinned rather than :latest. A floating tag means the image built from this
+# repository next month contains a version nobody tested, which for software
+# that runs unattended in a cupboard is a worse trade than missing a few
+# updates. Change the version here deliberately, and test, when you want a
+# newer one.
+FROM cloudflare/cloudflared:2026.8.3 AS cloudflared
 
 # Obsidian's own headless Sync client, taken from the official npm package. It
 # is a client rather than a server: it signs in to Obsidian Sync as another

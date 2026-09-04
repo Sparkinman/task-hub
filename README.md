@@ -92,6 +92,15 @@ directly, and Task Hub itself is just another client of it.
 
 ## What works today
 
+> **This describes the `latest` image, and only that.** Task Hub has no release
+> version yet — `latest` moves whenever a change is pushed, so the image you
+> pull today is not necessarily the one described here, and a table written in
+> September says nothing about a build from December. Until versioned releases
+> exist, treat this as a statement about the project on the day you read it and
+> confirm anything you are relying on. Every dependency inside the image is
+> pinned to an exact version, so a given build is at least reproducible; what
+> is not yet pinned is which build you get.
+
 Task Hub is being built one service at a time, and a service only counts as
 finished once it has been run against a real account — not when its code is
 written. Three of them have not passed that point yet, and this table is the
@@ -270,3 +279,29 @@ Task Hub is designed to be internet-reachable, but put it behind HTTPS before
 exposing it — over plain HTTP the login and every task travel in clear text. A
 VPN such as Tailscale is the simplest safe option; a reverse proxy with a real
 certificate is the other.
+
+---
+
+## Licence
+
+Task Hub is free software under the **GNU General Public License, version 3**.
+The full text is in [LICENSE](LICENSE).
+
+In plain terms: you may run it, study it, change it, and pass it on. If you
+distribute it, or anything built from it, you must do so under the same licence
+and make your source available. That is the part worth knowing before you build
+on it — a modified Task Hub cannot be shipped inside a closed product.
+
+**Why the GPL rather than something more permissive.** Task Hub embeds
+[Radicale](https://radicale.org/) as its CalDAV server, mounting it inside the
+same process rather than talking to a separate one. Radicale is GPLv3, and a
+program that incorporates GPLv3 code is itself covered by those terms when it
+is distributed. So this is not so much a choice as an accurate description of
+what the software already is. It is noted here because it is the kind of thing
+that is much cheaper to know now than to discover after building something on
+top of it.
+
+The other dependencies are permissive — MIT, BSD and Apache — and impose no
+such requirement. `caldav` is dual-licensed and is used under Apache 2.0.
+
+Copyright © 2026 Sparkinman.
