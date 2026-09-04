@@ -170,13 +170,51 @@ jobs:
       - name: Update the Docker Hub page
         if: steps.hub_login.outcome == 'success' && github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ env.DOCKERHUB_USER }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.DOCKERHUB_USER }}/task-hub
-          short-description: >-
-            Self-hosted sync for tasks and calendars across Google, Todoist,
-            TickTick, Microsoft, Apple, Obsidian and CalDAV. Your data stays on
-            your hardware.
-          readme-filepath: .docker/hub-overview.md
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -u
+          # Done with an explicit API call rather than a third-party action so
+          # that the log says exactly what Docker Hub answered. The action that
+          # was here reported success while changing nothing, which is the worst
+          # of both: the page stayed empty and the run stayed green.
+          summary="Self-hosted sync for tasks and calendars across Google, Todoist, TickTick, Microsoft, Apple, Obsidian and CalDAV. Your data stays on your hardware."
+
+          token=$(curl -s -X POST https://hub.docker.com/v2/auth/token/ \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg u "$DOCKERHUB_USER" --arg p "$DOCKERHUB_TOKEN" \
+                   '{identifier: $u, secret: $p}')" \
+            | jq -r '.access_token // empty')
+
+          if [ -z "$token" ]; then
+            # The older endpoint, for a personal access token that the newer one
+            # will not accept. Docker Hub has moved this more than once.
+            token=$(curl -s -X POST https://hub.docker.com/v2/users/login/ \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n --arg u "$DOCKERHUB_USER" --arg p "$DOCKERHUB_TOKEN" \
+                     '{username: $u, password: $p}')" \
+              | jq -r '.token // empty')
+          fi
+
+          if [ -z "$token" ]; then
+            echo "Could not obtain a Docker Hub API token. The image is published;"
+            echo "only the description was not updated. The token may lack the"
+            echo "permission to edit repository details."
+            exit 0
+          fi
+
+          code=$(jq -n --arg d "$summary" --rawfile f .docker/hub-overview.md \
+                   '{description: $d, full_description: $f}' \
+                 | curl -s -o /tmp/hub-response.json -w '%{http_code}' \
+                     -X PATCH "https://hub.docker.com/v2/repositories/$DOCKERHUB_USER/task-hub/" \
+                     -H "Content-Type: application/json" \
+                     -H "Authorization: JWT $token" \
+                     --data-binary @-)
+
+          echo "Docker Hub answered HTTP $code"
+          if [ "$code" != "200" ]; then
+            head -c 400 /tmp/hub-response.json; echo
+            echo "The image is published; only the page was not updated."
+          else
+            echo "Description and overview updated."
+          fi
