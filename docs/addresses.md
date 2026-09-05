@@ -142,7 +142,35 @@ is not one. A Cloudflare tunnel or Tailscale gives you HTTPS — both are covere
 above — and once you have either, installing takes a few seconds.
 
 Without HTTPS the site still works normally in a browser; you simply do not get
-the icon, the full-screen view or the offline page.
+the icon, the full-screen view, the offline page or notifications.
+
+### Notifications
+
+Once installed, Task Hub can send notifications to the device. It sends very
+few on purpose, and you choose which — under **Settings → Notifications**:
+
+| | When it arrives |
+| --- | --- |
+| **Tasks due** | Once a day, at your daily summary time, listing what is overdue and what is due today. Never one per task |
+| **Sync failures** | Once, when syncing stops working — not on every attempt afterwards, and nothing when it recovers |
+| **Expiring sign-ins** | A week before a Supernote session runs out. There is no way to renew one in the background, so the only kind warning is an early one |
+
+All three are **off until you turn them on**, and there is a **Send a test**
+button to check the connection without enabling any of them.
+
+Nothing about this involves an account anywhere. Task Hub generates its own
+signing key, and the message is encrypted before it leaves your server — the
+relay that carries it (Google's for Chrome, Apple's for Safari) cannot read it.
+
+**Two requirements**, and the second catches people out:
+
+1. **An HTTPS address**, as above.
+2. **On a phone, install Task Hub to the home screen first.** iOS will not offer
+   notifications to a site open in a browser tab, only to an installed app.
+   Android is more forgiving but the installed app is still the better place.
+
+If your browser cannot do it, the Settings page says which of these is missing
+rather than showing a button that does nothing.
 
 ---
 

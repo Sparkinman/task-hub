@@ -85,3 +85,53 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+/* --- Notifications ---------------------------------------------------------
+ * Two events. A push arrives encrypted and is shown; a tap on it brings the
+ * relevant page forward rather than opening yet another copy of the app, which
+ * is the difference between this feeling like an app and feeling like a series
+ * of browser tabs.
+ */
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    /* A push with no payload, or one this version does not understand. Better a
+     * plain notification than none: something wanted attention. */
+    data = {};
+  }
+  const title = data.title || "Task Hub";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/static/img/icon-192.png",
+      badge: "/static/img/icon-192.png",
+      /* Same tag replaces rather than stacks, so a sync failing on every pass
+       * leaves one notification instead of a screenful. */
+      tag: data.tag || "taskhub",
+      renotify: false,
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true })
+      .then((windows) => {
+        for (const client of windows) {
+          if ("focus" in client) {
+            /* Reuse the window that is already open. */
+            return client.navigate ? client.navigate(target).then((c) => c.focus())
+                                   : client.focus();
+          }
+        }
+        return self.clients.openWindow(target);
+      })
+  );
+});
+

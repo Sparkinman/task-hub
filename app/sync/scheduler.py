@@ -14,6 +14,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from sqlalchemy import select as _sqlselect
+
 from app.db import settings_store
 from app.db.session import session_scope
 
@@ -50,6 +52,7 @@ def _run_job() -> None:
             "Scheduled sync finished: %s (pulled %s, pushed %s, errors %s)",
             run.outcome.value, run.items_pulled, run.items_pushed, run.errors,
         )
+        _notify_sync_outcome(run)
     except Exception:  # noqa: BLE001 - a failure must not kill the scheduler
         logger.exception("Scheduled sync failed")
     finally:
@@ -158,6 +161,42 @@ def _run_digest() -> None:
     except Exception:  # noqa: BLE001 - reported, never fatal
         logger.exception("Daily summary failed")
 
+    _notify_tasks_due()
+
+
+def _notify_tasks_due() -> None:
+    """Tell subscribed devices what is due, once a day.
+
+    Deliberately tied to the daily summary's schedule rather than given a clock
+    of its own. A task reminder that fires per task, or on every sync, is the
+    kind of notification people switch off within a week -- and switching it off
+    switches off the sync failures and the expiring sign-ins with it.
+    """
+    try:
+        from app.services.digest import collect
+        from app.web.push_view import broadcast
+
+        with session_scope() as session:
+            digest = collect(session)
+        if digest.empty:
+            return  # Nothing due: say nothing.
+
+        parts = []
+        if digest.overdue:
+            parts.append(f"{len(digest.overdue)} overdue")
+        if digest.today:
+            parts.append(f"{len(digest.today)} due today")
+
+        broadcast(
+            title="Task Hub",
+            body=", ".join(parts).capitalize() + ".",
+            url="/tasks",
+            tag="taskhub-tasks-due",
+            category="tasks",
+        )
+    except Exception:  # noqa: BLE001 - never fatal
+        logger.debug("Could not send a task notification", exc_info=True)
+
 
 def reschedule_digest() -> None:
     """Apply the daily summary's on/off switch, time and chosen days.
@@ -201,6 +240,43 @@ def reschedule_digest() -> None:
             name="Task Hub daily summary", replace_existing=True,
         )
     logger.info("Daily summary at %s %s on %s", when, zone, ",".join(days))
+
+
+def _notify_sync_outcome(run) -> None:
+    """Tell subscribed devices when a sync stops working.
+
+    Only on the change from working to not: a service that has been down for a
+    week should not send a notification every fifteen minutes. The previous
+    outcome is what decides, so recovery is silent and the failure is announced
+    once.
+    """
+    from app.db.models import SyncOutcome, SyncRun
+
+    try:
+        with session_scope() as session:
+            previous = session.execute(
+                _sqlselect(SyncRun)
+                .where(SyncRun.id != run.id)
+                .order_by(SyncRun.id.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+        bad = (SyncOutcome.FAILED, SyncOutcome.PARTIAL)
+        if run.outcome not in bad:
+            return
+        if previous is not None and previous.outcome in bad:
+            return  # Already told them.
+
+        from app.web.push_view import broadcast
+
+        broadcast(
+            title="Task Hub sync is failing",
+            body="A sync did not complete. Open Task Hub to see which service.",
+            url="/sync",
+            tag="taskhub-sync-failure",
+            category="sync",
+        )
+    except Exception:  # noqa: BLE001 - a notification must never break a sync
+        logger.debug("Could not send a sync notification", exc_info=True)
 
 
 def _run_note_backup() -> None:

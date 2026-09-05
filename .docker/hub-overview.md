@@ -26,9 +26,15 @@ is ticked off everywhere.
   device shows everything instead of making you pick.
 - **Installs on your phone.** Add it to a home screen and it opens like an app:
   own icon, full screen, no browser bar. Needs an HTTPS address, which the
-  built-in Cloudflare tunnel or Tailscale provides.
+  built-in Cloudflare tunnel or Tailscale provides. It can send notifications
+  too — tasks due, sync failures and expiring sign-ins, each off until you ask
+  for it, and encrypted before they leave your server.
 - **Set up in a browser.** No configuration files to edit and no terminal
   commands after the container is running.
+
+🖊️ **[Task Hub Supernote plugin](https://github.com/Sparkinman/task-hub-supernote-plugin)** — a companion that runs on
+the tablet: handwriting captured straight into tasks, with on-device lists,
+calendar views and a daily agenda.
 
 📖 **[Full documentation and setup guides](https://github.com/Sparkinman/task-hub)**
 

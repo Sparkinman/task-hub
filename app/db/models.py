@@ -839,3 +839,38 @@ class SupernoteNote(Base):
         UTCDateTime, default=utcnow, onupdate=utcnow
     )
 
+
+class PushSubscription(Base):
+    """One browser that has agreed to receive notifications.
+
+    A subscription belongs to a device and a browser rather than to a person:
+    the same user on a phone and a laptop is two rows, and each has its own
+    keys. They go stale on their own -- a browser reinstalled, permission
+    withdrawn, an app removed from a home screen -- and the push service says so
+    with a 404 or 410, at which point the row is deleted rather than retried
+    forever.
+    """
+
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("endpoint", name="uq_push_endpoint"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    #: Where the browser's own push service expects the message. Long: Apple's
+    #: run past 300 characters.
+    endpoint: Mapped[str] = mapped_column(String(1024))
+    #: The browser's public key and auth secret, both base64url. Not secrets of
+    #: ours -- they are useless without the endpoint, and the endpoint is
+    #: useless without the server's VAPID key.
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+
+    #: Whatever the browser said about itself, to tell two devices apart in the
+    #: list. Cosmetic, and truncated hard because it is user-supplied.
+    label: Mapped[str] = mapped_column(String(120), default="")
+
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow)
+    last_sent_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+

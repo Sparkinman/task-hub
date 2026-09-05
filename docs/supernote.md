@@ -290,8 +290,23 @@ been able to stop another service syncing, by design.
 
 ---
 
+## The plugin that runs on the tablet
+
+Separate from everything above, there is a **[Task Hub Supernote
+plugin](https://github.com/Sparkinman/task-hub-supernote-plugin)** for the device itself: it captures handwriting
+directly into CalDAV tasks and gives you task lists, calendar views and a daily
+agenda on the tablet.
+
+It reaches Task Hub over CalDAV like any other client, so it sits alongside this
+connector rather than replacing it — items it creates arrive stamped as
+Supernote, which is where that origin badge in the task list comes from.
+
+---
+
 ## Further reading
 
+- [The Task Hub Supernote plugin](https://github.com/Sparkinman/task-hub-supernote-plugin) — the companion that runs
+  on the tablet
 - [Supernote's own To-Do app guide](https://support.supernote.com/the-to-do-app)
   — what the app on the tablet can do
 - [Supernote support](https://support.supernote.com/) — the official help site

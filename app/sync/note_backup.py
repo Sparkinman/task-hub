@@ -309,6 +309,7 @@ def run_backup(force: bool = False) -> BackupResult:
     # Costs nothing and no network: fills in previews for anything backed up
     # before they existed, or where the draw failed last time.
     fill_missing_thumbnails()
+    notify_expiring_sessions()
 
     _remember_run(result)
     return result
@@ -470,3 +471,41 @@ def last_run(session: Session) -> dict | None:
         }
     except (ValueError, TypeError):
         return None
+
+
+def notify_expiring_sessions() -> None:
+    """Warn subscribed devices before a Supernote sign-in runs out.
+
+    There is no way to renew one in the background -- Supernote offers none --
+    so the only cure is a person signing in again, and the only kind warning is
+    an early one. Sent once a day at most while inside the window, which the
+    notification tag arranges: the same tag replaces the previous one rather
+    than stacking up another every pass.
+    """
+    try:
+        from app.web.push_view import broadcast
+        from app.web.supernote_setup import expiring_accounts
+
+        with session_scope() as session:
+            soon = expiring_accounts(session, within_days=7)
+        if not soon:
+            return
+
+        expired = [row for row in soon if row["expired"]]
+        if expired:
+            body = ("A Supernote sign-in has expired and syncing has stopped. "
+                    "Signing in again takes a minute.")
+        else:
+            days = min(row["days"] for row in soon)
+            body = (f"A Supernote sign-in runs out in {days} day"
+                    f"{'' if days == 1 else 's'}. Signing in again takes a minute.")
+
+        broadcast(
+            title="Supernote sign-in",
+            body=body,
+            url="/services/supernote",
+            tag="taskhub-supernote-expiry",
+            category="expiring",
+        )
+    except Exception:  # noqa: BLE001 - never fatal
+        logger.debug("Could not send an expiry notification", exc_info=True)

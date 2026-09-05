@@ -41,6 +41,10 @@ def index(request: Request, db: Session = Depends(get_db)):
 
     return deps.render(
         request, db, "settings.html",
+        push_devices=__import__("app.web.push_view", fromlist=["x"]).subscriptions(db),
+        push_on_tasks=settings_store.get_bool(db, settings_store.PUSH_ON_TASKS),
+        push_on_sync=settings_store.get_bool(db, settings_store.PUSH_ON_SYNC_FAILURE),
+        push_on_expiring=settings_store.get_bool(db, settings_store.PUSH_ON_EXPIRING),
         findings=findings,
         tunnel=tunnel_manager.status(),
         tunnel_available=tunnel_manager.available(),

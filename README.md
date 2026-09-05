@@ -54,6 +54,13 @@ understands the format the tablet is writing today.
 > time. Task Hub says so plainly wherever it is shown, and every other service
 > keeps syncing if it ever stops. [What that means](docs/supernote.md).
 
+### The companion plugin, on the tablet itself
+
+There is also a **[Task Hub Supernote plugin](https://github.com/Sparkinman/task-hub-supernote-plugin)** that runs on
+the device: capture handwriting straight into CalDAV tasks, with on-device task
+lists, calendar views and a daily agenda. It talks to Task Hub over CalDAV, so
+it works alongside everything above rather than instead of it.
+
 ### And it fixes the one-calendar limit
 
 Supernote's own calendar app subscribes to **one** calendar. If your life is
@@ -101,7 +108,7 @@ without a connector at all:
 | **Thunderbird** | Windows, macOS, Linux | Calendars and tasks both |
 | **Super Productivity** | Desktop | Reads your tasks and syncs completion back. It cannot *create* tasks on the server, so treat it as a place to work through them |
 | **GNOME Calendar / GNOME To Do** | Linux | |
-| **Other e-ink tablets** | | Anything with a CalDAV client. Supernote has a connector of its own — see above |
+| **Other e-ink tablets** | | Anything with a CalDAV client. Supernote has a connector of its own, and a [plugin](https://github.com/Sparkinman/task-hub-supernote-plugin) — see above |
 
 ### On your phone: install it like an app
 
@@ -121,8 +128,15 @@ the routes Task Hub sets up for you gives HTTPS:
 | **Cloudflare tunnel** | A domain you have added to Cloudflare. Runs from inside the container — tick a box in **Settings → Remote access** and paste a token. No port forwarding, no router changes |
 | **Tailscale** | Nothing but a free account. Installed on the machine, not in the container |
 
+Once installed it can also send **notifications** — and only three kinds, each
+off until you ask for it: **tasks due** (one message a day, never one per task),
+**sync failures** (once, when it stops working) and **expiring sign-ins** (a
+week before a Supernote session runs out). No account anywhere: Task Hub signs
+with its own key and the message is encrypted before it leaves your server, so
+the relay that carries it cannot read it.
+
 Without HTTPS everything still works in a normal browser tab; you simply do not
-get the icon, the full-screen view or the offline page.
+get the icon, the full-screen view, the offline page or notifications.
 [The address guide](docs/addresses.md) covers both routes.
 
 [How to connect each of them](docs/third-party-apps.md), and

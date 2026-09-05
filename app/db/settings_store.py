@@ -30,6 +30,19 @@ BASE_URL_OVERRIDE: Final = "base_url_override"
 SUPERNOTE_BACKUP_ENABLED: Final = "supernote_backup_enabled"
 SUPERNOTE_BACKUP_FOLDERS: Final = "supernote_backup_folders"
 SUPERNOTE_BACKUP_INTERVAL_MINUTES: Final = "supernote_backup_interval_minutes"
+
+#: Push notifications. The private half is encrypted at rest like any other
+#: credential; the public half is handed to every browser that subscribes.
+PUSH_PRIVATE_KEY: Final = "push_vapid_private_enc"
+PUSH_PUBLIC_KEY: Final = "push_vapid_public"
+PUSH_ENABLED: Final = "push_enabled"
+
+#: What a notification may be about. Separate switches rather than one, because
+#: the three are wanted by different people: a failing sync is an emergency to
+#: somebody relying on it and noise to somebody who checks the page anyway.
+PUSH_ON_TASKS: Final = "push_on_tasks"
+PUSH_ON_SYNC_FAILURE: Final = "push_on_sync_failure"
+PUSH_ON_EXPIRING: Final = "push_on_expiring"
 THEME: Final = "theme"
 ADVANCED_MODE: Final = "advanced_mode"
 TUNNEL_ENABLED: Final = "tunnel_enabled"
@@ -86,6 +99,12 @@ DEFAULTS: Final[dict[str, str]] = {
     SUPERNOTE_BACKUP_ENABLED: "0",
     SUPERNOTE_BACKUP_FOLDERS: "",
     SUPERNOTE_BACKUP_INTERVAL_MINUTES: "360",
+    PUSH_ENABLED: "1",
+    # Off by default. A notification nobody asked for is the fastest way to
+    # have every notification switched off.
+    PUSH_ON_TASKS: "0",
+    PUSH_ON_SYNC_FAILURE: "0",
+    PUSH_ON_EXPIRING: "0",
     ONBOARDING_COMPLETE: "0",
     TIMEZONE: "UTC",
     DATE_FORMAT: "YYYY-MM-DD",

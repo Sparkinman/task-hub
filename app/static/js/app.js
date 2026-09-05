@@ -902,3 +902,125 @@
       });
   });
 })();
+
+/* --- Push notifications ----------------------------------------------------
+ * Subscribing has to happen in the browser, from a real button press: both
+ * platforms refuse a permission prompt that was not asked for by a person.
+ *
+ * The controls stay hidden until it is established that this browser can
+ * actually do it, so nobody is offered a button that silently does nothing.
+ * The reasons it cannot are worth telling apart -- "not over HTTPS" and "add
+ * this to your home screen first" send you to completely different places.
+ */
+(function () {
+  var controls = document.getElementById("push-controls");
+  if (!controls) return;
+
+  var unavailable = document.getElementById("push-unavailable");
+  var reason = document.getElementById("push-reason");
+  var enableBtn = document.getElementById("push-enable");
+  var disableBtn = document.getElementById("push-disable");
+  var status = document.getElementById("push-status");
+
+  function cannot(why) {
+    if (reason) reason.textContent = why;
+    if (unavailable) unavailable.hidden = false;
+  }
+
+  if (!window.isSecureContext) {
+    cannot("Notifications need an HTTPS address. Reach Task Hub through a " +
+           "Cloudflare tunnel or Tailscale and this will appear.");
+    return;
+  }
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    /* iOS in a browser tab lands here: Safari only offers push to a site that
+       has been installed to the home screen. */
+    cannot("This browser cannot receive notifications. On an iPhone or iPad, " +
+           "add Task Hub to your home screen first, then open it from there.");
+    return;
+  }
+  if (Notification.permission === "denied") {
+    cannot("Notifications are blocked for this site in the browser's own " +
+           "settings, so Task Hub cannot ask again from here.");
+    return;
+  }
+
+  controls.hidden = false;
+
+  function urlBase64ToUint8Array(base64) {
+    var padded = (base64 + "=".repeat((4 - base64.length % 4) % 4))
+      .replace(/-/g, "+").replace(/_/g, "/");
+    var raw = window.atob(padded);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function refresh() {
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager.getSubscription();
+    }).then(function (sub) {
+      var on = !!sub;
+      if (enableBtn) enableBtn.hidden = on;
+      if (disableBtn) disableBtn.hidden = !on;
+      if (status) {
+        status.textContent = on
+          ? "This device will receive notifications."
+          : "This device is not receiving notifications.";
+      }
+    }).catch(function () {});
+  }
+
+  if (enableBtn) enableBtn.addEventListener("click", function () {
+    enableBtn.disabled = true;
+    if (status) status.textContent = "Asking for permission…";
+    Notification.requestPermission().then(function (permission) {
+      if (permission !== "granted") {
+        if (status) status.textContent = "Permission was not given.";
+        enableBtn.disabled = false;
+        return;
+      }
+      return fetch("/push/key").then(function (r) { return r.json(); })
+        .then(function (data) {
+          return navigator.serviceWorker.ready.then(function (reg) {
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(data.key),
+            });
+          });
+        })
+        .then(function (sub) {
+          return fetch("/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(sub),
+          });
+        })
+        .then(function () {
+          if (status) status.textContent = "This device will receive notifications.";
+          refresh();
+        });
+    }).catch(function (err) {
+      if (status) status.textContent = "Could not turn them on: " + err;
+    }).finally(function () { enableBtn.disabled = false; });
+  });
+
+  if (disableBtn) disableBtn.addEventListener("click", function () {
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager.getSubscription();
+    }).then(function (sub) {
+      if (!sub) return;
+      var endpoint = sub.endpoint;
+      return sub.unsubscribe().then(function () {
+        return fetch("/push/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: endpoint }),
+        });
+      });
+    }).then(refresh).catch(function () {});
+  });
+
+  refresh();
+})();
+
