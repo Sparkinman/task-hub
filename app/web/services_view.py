@@ -330,6 +330,54 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
             "normally; only the Things connector is skipped.",
         ],
     ),
+    ServiceDefinition(
+        key=ServiceKind.SUPERNOTE.value,
+        name="Supernote",
+        colour="teal",
+        supports_tasks=True,
+        supports_calendar=False,
+        auth_kind="Supernote Cloud email and password (unofficial)",
+        summary="To-do lists from the Supernote tablet's built-in To-Do app.",
+        phase=6,
+        docs_slug="supernote",
+        unofficial=True,
+        untested=True,
+        caveats=[
+            "Ratta publishes no API for Supernote at all. The endpoints this "
+            "uses were read out of the Supernote Partner app itself. Nothing "
+            "about them is documented, versioned or promised, so a Partner app "
+            "release could stop this working overnight and the first sign would "
+            "be a sync that fails. This is a stronger warning than the usual "
+            "one: other unofficial connectors at least follow endpoints the "
+            "community has written down.",
+            "This is separate from reading tasks off the tablet over CalDAV. "
+            "That route uses a CalDAV app installed on the device and only sees "
+            "what that app syncs. This one reads the To-Do app built into "
+            "Supernote, which is the one whose tasks appear in the Partner app "
+            "on your phone.",
+            "It is read-only. The write operations exist in the Partner app, "
+            "but their request shapes have never been exercised against a real "
+            "account, and a wrong guess would damage your tasks rather than "
+            "simply fail to read them.",
+            "The sign-in needs a verification code emailed to you, and the "
+            "session it produces lasts thirty days. There is no way to renew it "
+            "in the background -- Supernote offers none -- so you will need to "
+            "sign in again roughly once a month. Task Hub reads the expiry date "
+            "out of the session and warns you before it arrives.",
+            "Supernote's To-Do app holds a date but no time of day, so nothing "
+            "it sends can clear a time you set in another service.",
+            "A task that belongs to no list -- Supernote allows this, and it "
+            "shows in the app's All view -- appears here under \"Unfiled "
+            "tasks\", so that nothing on the account is invisible to Task Hub.",
+            "Signing in, discovering lists and reading tasks have all been run "
+            "against a live Supernote account and work. What has not yet been "
+            "done is a full sync into a collection, which is why this is still "
+            "marked unfinished. Two faults only a real account could have shown "
+            "were found and fixed doing that much: a task belonging to no list "
+            "was being dropped silently, and asking for a second verification "
+            "code discarded the first one while it was still valid.",
+        ],
+    ),
 )
 SERVICES_BY_KEY = {definition.key: definition for definition in SERVICE_CATALOGUE}
 
@@ -385,6 +433,24 @@ def service_detail(service_key: str, request: Request, db: Session = Depends(get
             current_phase=CURRENT_PHASE,
             # The same mapping table as every other service, so a vault's
             # folders are wired to collections exactly the way a Google list is.
+            **_mapping_context(db, accounts),
+        )
+
+    if service_key == ServiceKind.SUPERNOTE.value:
+        # Neither OAuth nor a plain stored password: signing in needs a code
+        # emailed at the time, so the form has two steps and a page of its own.
+        from app.web.supernote_setup import any_pending, expiring_accounts
+
+        return deps.render(
+            request, db, "service_supernote.html",
+            definition=definition,
+            accounts=accounts,
+            free_slots=free_slots,
+            max_slots=MAX_SLOTS,
+            available=definition.phase <= CURRENT_PHASE,
+            current_phase=CURRENT_PHASE,
+            pending=any_pending(request),
+            expiring=expiring_accounts(db),
             **_mapping_context(db, accounts),
         )
 

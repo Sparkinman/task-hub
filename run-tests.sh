@@ -27,6 +27,11 @@ STAMP="$(date +%s)-$$"
 # than the code as it is now -- which is a test run that proves nothing.
 docker compose cp app taskhub:/app/ >/dev/null 2>&1
 docker compose cp tests taskhub:/app/ >/dev/null 2>&1
+# The guides too. test_docs checks that every service in the catalogue has one,
+# and without this it reads whatever was baked into the image at the last build
+# -- so adding a service and its guide together still failed, pointing at the
+# guide that was sitting right there on disk.
+docker compose cp docs taskhub:/app/ >/dev/null 2>&1
 
 failed=0
 for t in tests/test_*.py; do

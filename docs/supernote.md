@@ -1,0 +1,195 @@
+# Supernote setup — complete walkthrough
+
+Connects the **To-Do app built into your Supernote tablet**, one way:
+Supernote → Task Hub.
+
+Read the honest summary first. This connector is built differently from every
+other one in Task Hub, including the other unofficial ones, and you should know
+how before you rely on it.
+
+---
+
+## What you are getting, plainly
+
+**Ratta publishes no API for Supernote.** None at all — no developer portal, no
+documentation, no OAuth, no support channel. The two open-source Supernote
+projects that exist both cover file storage only, and neither touches to-dos.
+
+So the addresses this connector uses were read out of the Supernote Partner app
+itself, by unpacking it and reading the compiled code inside. They were then
+checked against a live account, and they work. But nothing about them is
+published, versioned or promised to anybody.
+
+Four consequences follow, and none of them are hidden in a footnote.
+
+**1. It can stop working overnight.** A Partner app release could rename any of
+these addresses, and nobody would announce it. The first sign would be a
+Supernote sync that fails. Every other service keeps syncing normally when that
+happens, and disconnecting Supernote changes nothing else.
+
+**2. It is read-only.** Your Supernote to-dos come into Task Hub. Nothing Task
+Hub does is written back to the tablet. The write operations do exist in the
+Partner app — creating, updating, deleting and ticking off — but their exact
+request formats have never been tested against a real account, and a wrong guess
+would damage your real tasks rather than simply fail to read them. Reading
+cannot do that. Writing may be added later, once the formats can be confirmed
+safely.
+
+**3. Signing in needs a code from your email, and lasts thirty days.** Supernote
+will not issue a session without emailing you a six-character code. The session
+it gives back is good for thirty days and there is no way at all to renew it in
+the background — Supernote provides no mechanism, and several likely ones were
+tried and do not exist. So roughly once a month you will need to sign in again.
+Task Hub reads the expiry date out of the session itself and warns you a week
+before, on the Supernote page and on the overview, so it is a diary note rather
+than a surprise.
+
+**4. Your password is not stored.** It is used once, to ask Supernote for a
+session, and then discarded. Keeping it would gain nothing, because it cannot
+renew a session on its own — Supernote would just email another code.
+
+---
+
+## This is not the same as the CalDAV route
+
+Task Hub can already see Supernote tasks a second way, and it is easy to
+confuse the two.
+
+| | **This connector** | **The CalDAV route** |
+| --- | --- | --- |
+| What it reads | The **To-Do app built into** Supernote | Whatever a CalDAV app **installed on** the tablet syncs |
+| Where the tasks show | Supernote's own To-Do app, and the Partner app on your phone | Inside the third-party app you installed |
+| Needs an app installing on the tablet | No | Yes |
+| Direction | Read-only | Two-way |
+| Official | No | Yes — CalDAV is a standard |
+
+If the tasks you want are the ones you see in Supernote's own To-Do app, and in
+the Partner app on your phone, this is the connector you want. If you have
+installed a CalDAV client on the tablet and want that, see
+[Connecting your own apps](third-party-apps.md) instead.
+
+There is no harm in using both.
+
+---
+
+## What syncs, and what does not
+
+**Comes across:**
+
+- Your to-do lists, as separate lists you can map to any collection
+- Each task's title
+- Its notes, where you have written any
+- Whether it is done
+- Its due date
+
+**Does not come across:**
+
+- **A time of day.** Supernote's To-Do app only lets you choose a date, so
+  there is no time to read. This matters in a good way: because Task Hub knows
+  Supernote cannot hold a time, a task syncing from Supernote can never wipe a
+  time you set in Todoist, Google or anywhere else.
+- **Repeats.** Supernote stores repeating to-dos, but the format has not been
+  confirmed, so a repeating task syncs as a single one rather than as a wrong
+  repeating one.
+- **Priority.** The field exists in Supernote's data and was empty on every task
+  tested, so nothing is read from it yet.
+- **Reminders.** Supernote tracks these separately from the due date.
+
+### Tasks that belong to no list
+
+Supernote lets a task exist without being in any list — it shows in the To-Do
+app's **All** view and in none of the named lists. Task Hub gathers these into a
+list of its own called **Unfiled tasks**, which appears alongside your real
+lists once there is something in it.
+
+This exists so nothing on your account is invisible to Task Hub. Filtering
+tasks by list — the obvious way to build this — silently loses them, and a task
+you cannot see is worse than one you have chosen not to sync.
+
+---
+
+## Setting it up
+
+You need your Supernote Cloud email address and password — the same ones you
+use in the Supernote Partner app — and access to that email account, because a
+code is sent to it.
+
+**1.** Open **Services → Supernote** in Task Hub.
+
+**2.** Enter your Supernote email address and password, and press
+**Send me a code**.
+
+**3.** Check your email. Supernote sends a six-character code, letters and
+numbers. It expires after a few minutes, so do this straight away.
+
+**4.** Type the code into the box that has appeared, and press **Finish signing
+in**.
+
+Task Hub immediately reads your lists back to prove the session works, and tells
+you the date it expires. If something is wrong, you find out now rather than at
+the next scheduled sync.
+
+**5.** Press **Refresh lists** to fetch your to-do lists.
+
+**6.** Map each list to a collection, the same way as any other service. See
+[Getting started](getting-started.md) if you have not done this before.
+
+### If the code does not arrive
+
+- **Check the newest email.** If you tried more than once, each attempt sends
+  its own code and only the most recent works.
+- **Wait a moment and look in spam.** It comes from Supernote, not from Task
+  Hub.
+- **Start again** with *Cancel and start again* if more than a few minutes have
+  passed. Codes expire quickly.
+
+### If your password is refused
+
+Sign in at [cloud.supernote.com](https://cloud.supernote.com/) in a browser. If
+it fails there too, the password is the problem rather than Task Hub. Note that
+your Supernote Cloud password is its own thing — not the password of the email
+account you registered with, which is a common mix-up.
+
+---
+
+## Signing in again, every thirty days
+
+When a session is within a week of running out, a warning appears on the
+Supernote page and on the overview, naming the date. Signing in again is exactly
+the same three steps as the first time, and your list mappings are kept — you do
+not set anything up twice.
+
+If a session does run out before you get to it, nothing is lost. Supernote
+syncing simply stops until you sign in again, and every other service carries on
+untouched.
+
+---
+
+## If it stops working
+
+Because this rests on addresses Ratta never published, "it broke" is a real
+possibility rather than a theoretical one. Signs, and what they mean:
+
+- **"Supernote Cloud rejected this session"** — the thirty days are up, or you
+  signed out elsewhere. Sign in again.
+- **"Supernote Cloud answered with something that was not JSON"** — the API has
+  probably changed. This is the one that needs the connector updating; there is
+  nothing you can do from the interface.
+- **Lists appear but are empty** — check the tasks are in the To-Do app on the
+  tablet and have synced to the Partner app on your phone. If the Partner app
+  cannot see them either, they have not reached Supernote's servers yet and
+  Task Hub cannot see them either.
+
+In every case, the rest of Task Hub keeps working. Supernote failing has never
+been able to stop another service syncing, by design.
+
+---
+
+## Further reading
+
+- [Supernote's own To-Do app guide](https://support.supernote.com/the-to-do-app)
+  — what the app on the tablet can do
+- [Supernote support](https://support.supernote.com/) — the official help site
+- [What works today](compatibility.md) — every service and its current state
+- [Connecting your own apps](third-party-apps.md) — the CalDAV route described
+  above

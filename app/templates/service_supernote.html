@@ -1,0 +1,233 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+{% import "partials/disconnect.html" as dc %}
+{% from "partials/account_name.html" import account_name %}
+{% from "partials/mapping_form.html" import mapping_form %}
+
+{% block title %}Supernote · {{ app_name }}{% endblock %}
+{% block page_title %}Supernote{% endblock %}
+{% block page_subtitle %}<div class="subtitle">{{ definition.summary }}</div>{% endblock %}
+
+{% block page_actions %}
+  {# data-no-lock: this form is intercepted and sent by fetch, so the page
+   never navigates. The generic anti-double-submit handler assumes it
+   does and disables the button for good, leaving a dead control on a
+   page that is still perfectly usable. The fetch re-enables it itself. #}
+  <form method="post" action="/sync/run" data-no-lock>
+    <button type="submit" class="btn btn-primary">{{ ico.icon('refresh') }} Sync now</button>
+  </form>
+  <a class="btn" href="/docs/{{ definition.docs_slug }}" target="_blank" rel="noopener">
+    {{ ico.icon('book') }} Setup guide
+  </a>
+  <a class="btn btn-ghost" href="/services">All services</a>
+{% endblock %}
+
+{% block content %}
+
+{% include "partials/sync_progress.html" %}
+
+{# The strongest warning in the application, and deliberately so. Other
+   unofficial connectors follow endpoints somebody has at least written down
+   publicly; this one follows endpoints read out of Ratta's own app. #}
+<div class="alert alert-warning mb-5">
+  <span class="alert-icon" aria-hidden="true">▲</span>
+  <div class="grow">
+    <div class="alert-title">This may stop working without warning</div>
+    Ratta publishes no API for Supernote at all. The addresses this uses were
+    read out of the Supernote Partner app itself — nothing about them is
+    documented, versioned, or promised to anyone. A Partner app update could
+    change them overnight, and the first sign would be a sync that fails.
+    <div class="mt-2">
+      If that happens, every other service keeps syncing normally and
+      disconnecting this one changes nothing elsewhere.
+    </div>
+  </div>
+</div>
+
+{% if expiring %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <div class="grow">
+      <div class="alert-title">
+        {% if expiring | selectattr('expired') | list %}
+          A Supernote sign-in has run out
+        {% else %}
+          A Supernote sign-in is about to run out
+        {% endif %}
+      </div>
+      {% for row in expiring %}
+        <div class="small">
+          Slot {{ row.slot }}{% if row.email %} ({{ row.email }}){% endif %} —
+          {% if row.expired %}
+            expired on {{ row.expires.strftime('%-d %B %Y') }}. Syncing has stopped
+            until you sign in again.
+          {% else %}
+            expires on {{ row.expires.strftime('%-d %B %Y') }}, in {{ row.days }}
+            day{{ '' if row.days == 1 else 's' }}.
+          {% endif %}
+        </div>
+      {% endfor %}
+      <p class="small mt-3">
+        Supernote sessions last thirty days and there is no way to renew one in
+        the background — Supernote offers none. Signing in again below takes a
+        minute and needs a code from your email.
+      </p>
+    </div>
+  </div>
+{% endif %}
+
+<div class="alert alert-info mb-5">
+  <span class="alert-icon" aria-hidden="true">i</span>
+  <div class="grow">
+    <div class="alert-title">This reads the To-Do app built into the tablet</div>
+    These are the to-dos you see in Supernote's own To-Do app, and in the
+    Supernote Partner app on your phone. It is a different route from reading
+    the tablet over CalDAV with a calendar app installed on it — that one only
+    ever sees what the installed app syncs.
+    <div class="mt-2">
+      Reading only, for now. Your tasks come into Task Hub; nothing Task Hub
+      does is written back to the tablet.
+    </div>
+  </div>
+</div>
+
+{# --- Sign in ------------------------------------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">
+        {% if pending %}Enter the code from your email{% else %}Sign in to Supernote Cloud{% endif %}
+      </div>
+      <div class="card-subtitle">
+        {% if pending %}
+          Supernote emailed a six-character code to
+          <span class="mono">{{ pending.email }}</span>.
+        {% else %}
+          The same email address and password you use in the Supernote Partner app.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body">
+    {% if pending %}
+      <form method="post" action="/services/supernote/{{ pending.slot }}/verify" class="stack">
+        <div class="field" style="max-width: 320px;">
+          <label for="code">Verification code</label>
+          <input type="text" id="code" name="code" required autofocus
+                 autocomplete="one-time-code" spellcheck="false"
+                 placeholder="ABC123" style="text-transform: uppercase;">
+          <span class="field-hint">
+            Six characters, letters and numbers. They expire after a few minutes
+            — if yours has, cancel and start again, and use the newest email.
+          </span>
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-primary">Finish signing in</button>
+        </div>
+      </form>
+      <form method="post" action="/services/supernote/{{ pending.slot }}/cancel" class="mt-3">
+        <button type="submit" class="btn btn-ghost">Cancel and start again</button>
+      </form>
+    {% elif free_slots %}
+      <form method="post" action="/services/supernote/{{ free_slots[0] }}/signin" class="stack">
+        <div class="field" style="max-width: 420px;">
+          <label for="email">Supernote email address</label>
+          <input type="email" id="email" name="email" required
+                 autocomplete="username" placeholder="you@example.com">
+        </div>
+        <div class="field" style="max-width: 420px;">
+          <label for="password">Supernote password</label>
+          <input type="password" id="password" name="password" required
+                 autocomplete="current-password">
+          <span class="field-hint">
+            Used once, to ask Supernote for a session. It is not stored — it
+            cannot renew a session on its own, so keeping it would gain nothing.
+          </span>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary">Send me a code</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="muted">
+        Every account slot is in use. Disconnect one below to add another.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+{# --- Connected accounts and their lists ---------------------------------- #}
+{% if accounts %}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Connected accounts</div>
+        <div class="card-subtitle">
+          Sessions last thirty days. Task Hub reads the expiry out of the session
+          itself, so the warning comes before syncing stops rather than after.
+        </div>
+      </div>
+    </div>
+    <div class="card-body stack">
+      {% for account in accounts %}
+        {% set lists = lists_by_account.get(account.id, []) %}
+        {% set task_lists = lists | selectattr('kind.value', 'equalto', 'tasks') | list %}
+        {% set cal_lists = [] %}
+
+        <div class="card" style="margin:0;">
+          <div class="card-header">
+            <div>
+              {{ account_name(account, definition.key, definition.name) }}
+              <div class="card-hint">
+                {% set status = account.status.value %}
+                <span class="pill {{ 'pill-success' if status == 'connected' else ('pill-danger' if status in ['error','needs_auth'] else '') }}">
+                  {{ status.replace('_',' ')|title }}
+                </span>
+                {% if account.last_sync_at %}
+                  <span class="tiny muted">last synced {{ account.last_sync_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
+                {% endif %}
+              </div>
+              {% if account.status_detail %}
+                <div class="tiny" style="color: var(--danger);">{{ account.status_detail }}</div>
+              {% endif %}
+            </div>
+            <div class="row">
+              <form method="post" action="/services/supernote/{{ account.slot }}/discover">
+                <button type="submit" class="btn btn-sm">{{ ico.icon('refresh') }} Refresh lists</button>
+              </form>
+              {{ dc.disconnect_button(
+                   "/services/supernote/" ~ account.slot ~ "/forget",
+                   account.label or definition.name,
+                   cleanup.get(account.id),
+                   "disconnect-supernote-" ~ account.slot,
+                   icon=ico.icon('trash'),
+                   extra_note="Its saved session is deleted.") }}
+            </div>
+          </div>
+
+          <div class="card-body">
+            {% if not lists %}
+              <p class="muted">
+                Press <span class="strong">Refresh lists</span> above to fetch this
+                account's to-do lists.
+              </p>
+            {% else %}
+              {# empty_notes is defaulted here as well as in the macro, for the
+                 window between copying template files and restarting, when new
+                 markup is rendered against an old context. #}
+              {{ mapping_form(account, definition.name, task_lists, cal_lists,
+                              collections, dropdowns, kind_enabled,
+                              definition.supports_tasks,
+                              definition.supports_calendar,
+                              advanced_mode=advanced_mode,
+                              empty_notes=empty_notes|default({}, true)) }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

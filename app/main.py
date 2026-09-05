@@ -241,6 +241,7 @@ from app.web import (  # noqa: E402 - imported after app creation by design
     services_view,
     settings_view,
     setup,
+    supernote_setup,
     sync_view,
     tasks_view,
     wellknown,
@@ -262,6 +263,7 @@ app.include_router(services_view.router)
 app.include_router(oauth_setup.router)
 app.include_router(password_setup.router)
 app.include_router(obsidian_setup.router)
+app.include_router(supernote_setup.router)
 app.include_router(sync_view.router)
 app.include_router(settings_view.router)
 app.include_router(docs_view.router)

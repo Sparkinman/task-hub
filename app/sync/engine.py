@@ -282,6 +282,13 @@ def build_connector(session: Session, account: Account) -> Connector:
             default_timezone=settings_store.get(session, settings_store.TIMEZONE),
         )
 
+    if account.service == ServiceKind.SUPERNOTE:
+        from app.connectors.supernote import SupernoteConnector
+
+        # No client credentials: Supernote has no app registration of any kind,
+        # only a session token belonging to the person who signed in.
+        return SupernoteConnector(account.id, credentials, account.sync_state)
+
     if account.service == ServiceKind.APPLE:
         from app.connectors.caldav_remote import AppleConnector
         from app.db import settings_store
