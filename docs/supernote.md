@@ -22,10 +22,14 @@ published, versioned or promised to anybody.
 
 Four consequences follow, and none of them are hidden in a footnote.
 
-**1. It can stop working overnight.** A Partner app release could rename any of
-these addresses, and nobody would announce it. The first sign would be a
-Supernote sync that fails. Every other service keeps syncing normally when that
-happens, and disconnecting Supernote changes nothing else.
+**1. It is unofficial, and Ratta can terminate it at any time.** There is no
+agreement here and nothing to appeal to. Ratta may change these addresses,
+restrict them, or block them outright whenever they choose, without notice and
+without owing anyone an explanation — a Partner app release could do it and
+nobody would announce it. The first sign would be a Supernote sync that fails.
+
+Every other service keeps syncing normally when that happens, disconnecting
+Supernote changes nothing else, and anything already synced stays where it is.
 
 **2. It is read-only.** Your Supernote to-dos come into Task Hub. Nothing Task
 Hub does is written back to the tablet. The write operations do exist in the

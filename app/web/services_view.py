@@ -341,15 +341,17 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
         phase=6,
         docs_slug="supernote",
         unofficial=True,
-        untested=True,
         caveats=[
-            "Ratta publishes no API for Supernote at all. The endpoints this "
-            "uses were read out of the Supernote Partner app itself. Nothing "
-            "about them is documented, versioned or promised, so a Partner app "
-            "release could stop this working overnight and the first sign would "
-            "be a sync that fails. This is a stronger warning than the usual "
-            "one: other unofficial connectors at least follow endpoints the "
-            "community has written down.",
+            "Unofficial, and Ratta can terminate it at any time. They publish "
+            "no API for Supernote at all -- no portal, no documentation, no "
+            "agreement of any kind. The endpoints this uses were read out of "
+            "the Supernote Partner app itself, so Task Hub is a guest here with "
+            "no standing to complain: Ratta may change them, restrict them or "
+            "block them whenever they choose, without notice and without owing "
+            "anyone an explanation. The first sign would be a sync that fails. "
+            "This is a stronger warning than the usual one -- other unofficial "
+            "connectors at least follow endpoints the community has written "
+            "down publicly.",
             "This is separate from reading tasks off the tablet over CalDAV. "
             "That route uses a CalDAV app installed on the device and only sees "
             "what that app syncs. This one reads the To-Do app built into "
@@ -369,13 +371,15 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
             "A task that belongs to no list -- Supernote allows this, and it "
             "shows in the app's All view -- appears here under \"Unfiled "
             "tasks\", so that nothing on the account is invisible to Task Hub.",
-            "Signing in, discovering lists and reading tasks have all been run "
-            "against a live Supernote account and work. What has not yet been "
-            "done is a full sync into a collection, which is why this is still "
-            "marked unfinished. Two faults only a real account could have shown "
-            "were found and fixed doing that much: a task belonging to no list "
-            "was being dropped silently, and asking for a second verification "
-            "code discarded the first one while it was still valid.",
+            "It has been run against a live Supernote account and syncs "
+            "correctly, end to end: signing in, discovering the lists, reading "
+            "the tasks and landing them in a collection. Three faults only a "
+            "real account could have shown were found and fixed doing so, which "
+            "is exactly why that is worth doing before saying it works -- a "
+            "task belonging to no list was being dropped in silence, asking for "
+            "a second verification code threw away the first while it was still "
+            "valid, and every task carried a completion timestamp that would "
+            "have marked the lot done had it been believed.",
         ],
     ),
 )
