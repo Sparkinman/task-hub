@@ -161,7 +161,11 @@ _LABEL_FULL = re.compile(r"\s*\[\d+ of \d+(?: \u00b7 [^\]]*)?\]")
 
 #: The bare form, on a parent, which somebody could plausibly have typed
 #: themselves. Removed only at the very end, where this writes it.
-_LABEL_BARE = re.compile(r"\s*\[\d+ of \d+(?: done)?\]\s*$")
+#: Also matches the earlier "[1 of 3 done]" wording, so titles already carrying
+#: it on somebody's tablet are cleaned rather than relabelled beside it.
+_LABEL_BARE = re.compile(
+    r"\s*\[(?:\d+ of \d+(?: done)?|\d+ subtasks? (?:left|done))\]\s*$"
+)
 
 
 def strip_label(title: str | None) -> str | None:
@@ -191,8 +195,14 @@ def label_title(title: str, done: int, total: int, belongs_to: str = "",
         # A step: which one it is, and what it belongs to.
         inside = f"{index or done} of {total} \u00b7 {strip_label(belongs_to) or belongs_to}"
     else:
-        # The parent: how much of it is finished.
-        inside = f"{done} of {total} done"
+        # The parent. What matters at a glance is how much is still to do, not
+        # how much is behind you, so this counts what is left rather than what
+        # is finished.
+        left = max(0, total - done)
+        if left:
+            inside = f"{left} subtask{'' if left == 1 else 's'} left"
+        else:
+            inside = f"{total} subtask{'' if total == 1 else 's'} done"
     return f"{base} [{inside}]"
 
 
