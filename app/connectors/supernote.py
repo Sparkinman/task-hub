@@ -639,6 +639,30 @@ class SupernoteConnector(Connector):
                       "real Supernote list to write there.",
             )
 
+        # Never write a task back into the account it was read from. The unfiled
+        # view is what makes this reachable: a task belonging to no list is read
+        # from that view, and if any real list of the same account is a
+        # write-back target the engine has no link for it there and creates one
+        # -- leaving the user with the original sitting outside every list and a
+        # copy inside one. Task Hub reading a task is not a reason for Supernote
+        # to gain a second one, so the uid it was given on the way in is enough
+        # to refuse.
+        if record.uid.startswith("supernote-"):
+            return PushOutcome(
+                remote_id=None,
+                error=(
+                    "Already on Supernote, so it was not written again — Task "
+                    "Hub read this task from there. It happens when \"Unfiled "
+                    "tasks\" feeds a collection that also writes back to a "
+                    "Supernote list: the unfiled task has no list, so writing "
+                    "it to one would leave the original outside every list and "
+                    "a copy inside one. Nothing is wrong and nothing is lost. "
+                    "To stop it being mentioned, either untick write-back on "
+                    "the Supernote lists in that collection, or give \"Unfiled "
+                    "tasks\" a collection of its own."
+                ),
+            )
+
         payload = dict(self._fields_from(record))
         payload["taskListId"] = str(remote_list_id)
         try:

@@ -20,6 +20,7 @@ buys nothing.
 from __future__ import annotations
 
 import logging
+import math
 
 from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy import select
@@ -249,7 +250,11 @@ def expiring_accounts(db: Session, within_days: int = 7) -> list[dict]:
                 "slot": account.slot,
                 "email": (decrypt_json(account.credentials) or {}).get("email", ""),
                 "expires": expires,
-                "days": int(days),
+                # Rounded up, not truncated. A session with two and a half days
+                # left has "3 days" of calendar left to act in, and truncating
+                # to 2 understates it -- which is the wrong direction for a
+                # warning whose whole purpose is to arrive in good time.
+                "days": math.ceil(days),
                 "expired": days <= 0,
             })
     return soon

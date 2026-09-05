@@ -229,6 +229,25 @@ check("delete puts the id in the path",
       (method, path) == ("DELETE", f"{TASK}/abc123"), f"{method} {path}")
 check("and sends no body", payload is None, str(payload))
 
+print("\nA task read from Supernote is never written back into Supernote")
+# Reachable through the unfiled view: a task belonging to no list is read from
+# it, and any real list of the same account that is a write-back target has no
+# link for that task -- so the engine creates one, leaving the original outside
+# every list and a copy inside one. It happened to a live account.
+already_there = CanonicalRecord(uid="supernote-abc123", kind=CollectionKind.TASKS,
+                                title="WPRD3- Place Order Today")
+r = Recorder()
+outcome = r.create("1", already_there, CollectionKind.TASKS)
+check("creating it again is refused", outcome.ok is False, str(outcome.error))
+check("and says why", "Already on Supernote" in (outcome.error or ""), str(outcome.error))
+check("and how to stop it recurring",
+      "collection of its own" in (outcome.error or ""), str(outcome.error))
+check("nothing was sent", not any(m == "POST" and p == TASK for m, p, _ in r.calls),
+      str([(m, p) for m, p, _ in r.calls]))
+# A task that genuinely originated elsewhere still writes normally.
+check("a task from anywhere else still writes",
+      Recorder().create("1", fresh, CollectionKind.TASKS).ok is True)
+
 print("\nUpdating a task that has gone refuses rather than duplicating it")
 r = Recorder(rows=[])
 try:
@@ -345,6 +364,56 @@ class NoOrphans(FakeApi):
 
 check("a tidy account is not shown a puzzling empty unfiled list",
       UNFILED_LIST_ID not in [e.remote_id for e in NoOrphans().list_remote_lists()])
+
+print("\nThe expiry warning arrives before syncing stops, not after")
+# There is no way to renew a Supernote session in the background, so the only
+# cure is a person signing in again. A warning that arrived when it broke would
+# be no use at all; the whole point is to say so while it still works.
+from app.crypto import encrypt_json  # noqa: E402
+from app.db.models import Account, AccountStatus  # noqa: E402
+from app.db.session import init_db, session_scope  # noqa: E402
+from app.web.supernote_setup import expiring_accounts  # noqa: E402
+
+init_db()
+
+
+def account_expiring_in(session, slot: int, days: float | None):
+    token = "" if days is None else jwt_with({
+        "exp": int((dt.datetime.now(dt.UTC) + dt.timedelta(days=days)).timestamp()),
+        "userId": 1,
+    })
+    account = Account(
+        service=ServiceKind.SUPERNOTE, slot=slot, status=AccountStatus.CONNECTED,
+        credentials=encrypt_json({"token": token, "email": f"slot{slot}@example.com"}),
+    )
+    session.add(account)
+    session.flush()
+    return account
+
+
+with session_scope() as session:
+    account_expiring_in(session, 71, 29)      # fresh
+    account_expiring_in(session, 72, 3)       # due soon
+    account_expiring_in(session, 73, -2)      # already gone
+    account_expiring_in(session, 74, None)    # unreadable token
+    session.flush()
+
+    warned = {row["slot"]: row for row in expiring_accounts(session, within_days=7)}
+    check("a fresh session is not nagged about", 71 not in warned, str(sorted(warned)))
+    check("one running out soon is", 72 in warned, str(sorted(warned)))
+    check("and it says how many days are left", warned.get(72, {}).get("days") == 3,
+          str(warned.get(72, {}).get("days")))
+    check("an expired one is reported as expired",
+          73 in warned and warned[73]["expired"] is True, str(warned.get(73)))
+    check("one still in date is not called expired",
+          warned.get(72, {}).get("expired") is False, str(warned.get(72)))
+    # A token that cannot be read means "unknown", never "expired". Guessing the
+    # other way would nag forever about an account that works perfectly.
+    check("an unreadable token is left alone", 74 not in warned, str(sorted(warned)))
+    check("the address is carried so the warning can name it",
+          warned.get(72, {}).get("email") == "slot72@example.com",
+          str(warned.get(72, {}).get("email")))
+    session.rollback()
 
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")

@@ -115,6 +115,12 @@ This exists so nothing on your account is invisible to Task Hub. Filtering
 tasks by list — the obvious way to build this — silently loses them, and a task
 you cannot see is worse than one you have chosen not to sync.
 
+Give this list a collection of its own, or leave write-back off for the
+Supernote lists sharing its collection. An unfiled task belongs to no list, so
+writing it back to one would leave the original outside every list and a copy
+inside one. Task Hub refuses to do that and says so, but the tidiest
+arrangement avoids the situation entirely.
+
 Task Hub never writes into this list, and never treats a task leaving it as a
 deletion. Filing one of these tasks into a real list on the tablet is an
 ordinary thing to do, and it makes the task disappear from this view while the
