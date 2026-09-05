@@ -38,6 +38,37 @@ first time was broken in some way no test had caught.
 | **CalDAV (generic)** | ✓ | ✓ | Verified against a live Radicale server: sign-in, discovery, and a to-do created, read back and deleted with due time, priority and notes intact |
 | **Radicale (built in)** | ✓ | ✓ | The hub everything meets at |
 
+## Priority, service by service
+
+Priority is the field services disagree about most, so it is worth seeing in
+one place. Task Hub keeps iCalendar's scale — **1 is most urgent, 9 is least,
+0 means unset** — and translates at the edges.
+
+| Service | Priority | What it actually holds |
+| --- | --- | --- |
+| **Radicale** (built in) | Full 1–9 | The canonical scale |
+| **CalDAV** servers | Full 1–9 | The same, on someone else's server |
+| **Microsoft To&nbsp;Do** | Three levels | High, normal, low |
+| **Todoist** | Four levels | P1–P4, so a 2 and a 3 can land on the same one |
+| **TickTick** | Four levels | Mapped so it round-trips without drifting |
+| **Obsidian** | Six levels | The Tasks plugin's emoji scale, or TaskNotes' field |
+| **Google Tasks** | None | Google Tasks has no priority at all |
+| **Things 3** | None | Has *flagged*, which is not a priority scale |
+| **Supernote To-Do** | None | The tablet neither sets nor shows one |
+
+**A service that cannot hold a priority can never erase one.** This is the same
+rule that protects a due time from Google Tasks: a field a service does not
+have is *absent*, not empty, so it is never allowed to overwrite. Set a task to
+P1 in Todoist and it stays P1 even as it syncs through Google, Supernote and
+Things 3, none of which can express it.
+
+**Where a service has fewer levels, the coarsening is one-way and stable.**
+Todoist has four levels against iCalendar's nine, so a 2 and a 3 both arrive as
+the same Todoist priority. Task Hub knows what each service will report back
+and does not read that flattening as somebody having edited the task — without
+that, a task would be rewritten on every single pass forever.
+
+
 ## Should work — through the CalDAV connector
 
 The [CalDAV connector](caldav.md) is not written per-provider: it asks the

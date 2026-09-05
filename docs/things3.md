@@ -233,3 +233,15 @@ altered either way — this connector has never written to it.
 Not read. Things has checklist items, but they are steps rather than tasks — no
 dates and no identity of their own — and this connector only reads, so nothing
 could be written back regardless. [How subtasks work](subtasks.md).
+
+---
+
+## Priority
+
+Not read. Things 3 has no numeric priority — it has *flagged* and a manual
+sort order, neither of which maps onto the 1-to-9 scale the other services
+share. Inventing a number from a flag would put a priority on tasks in Todoist
+and Microsoft that nobody set.
+
+Because Task Hub knows Things 3 holds no priority, a task syncing from it can
+never clear a priority you set somewhere else.

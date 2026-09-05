@@ -392,6 +392,24 @@ Supernote, which is where that origin badge in the task list comes from.
 ## Subtasks
 
 Supernote's To-Do has no idea a task can contain another — its tasks carry no
-parent field at all. So a task with subtasks arrives as **one** task with its
-steps written into the note beneath it, rather than as a parent and its steps
-scattered flat through the same list. [How subtasks work](subtasks.md).
+parent field at all. So a task with subtasks arrives as **one** task, with its
+steps written into the note beneath it:
+
+```
+Passport expires in March
+
+Steps:
+[ ] Book flights
+[x] Renew passport
+[ ] Arrange dog sitter
+```
+
+Rather than a parent and its three steps scattered flat through the same list
+with nothing marking which is which.
+
+**The brackets are text, not checkboxes.** Ticking one on the tablet does not
+mark that subtask done in Task Hub — this is a readable copy, written one way
+only. Settings → *Send subtasks as separate tasks* sends them as real tasks you
+can tick off on the device, at the cost of the flat list.
+
+[How subtasks work](subtasks.md).

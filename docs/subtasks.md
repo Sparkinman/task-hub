@@ -45,6 +45,12 @@ Steps:
 
 One task on the device. Nothing lost. The list stays readable.
 
+**Those brackets are text, not checkboxes.** Ticking one on the tablet by
+editing the note does not mark that subtask done in Task Hub — the step list is
+a readable copy of what the subtasks say, written one way only. If you want to
+tick them off on the device, turn on the setting below and they arrive as real
+tasks instead.
+
 **Microsoft To Do gets real checklist items** instead, because it has them.
 They hold a name and whether they are ticked — a due date on one is refused by
 Microsoft outright — so a subtask's date stays in Task Hub rather than being
