@@ -49,6 +49,75 @@
   </div>
 </div>
 
+{# --- Sign in ------------------------------------------------------------- #}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">
+        {% if pending %}Enter the code from your email{% else %}Sign in to Supernote Cloud{% endif %}
+      </div>
+      <div class="card-subtitle">
+        {% if pending %}
+          Supernote emailed a six-character code to
+          <span class="mono">{{ pending.email }}</span>.
+        {% else %}
+          The same email address and password you use in the Supernote Partner app.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body">
+    {% if pending %}
+      <form method="post" action="/services/supernote/{{ pending.slot }}/verify" class="stack">
+        <div class="field" style="max-width: 320px;">
+          <label for="code">Verification code</label>
+          <input type="text" id="code" name="code" required autofocus
+                 autocomplete="one-time-code" spellcheck="false"
+                 placeholder="ABC123" style="text-transform: uppercase;">
+          <span class="field-hint">
+            Six characters, letters and numbers. They expire after a few minutes
+            — if yours has, cancel and start again, and use the newest email.
+          </span>
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-primary">Finish signing in</button>
+        </div>
+      </form>
+      <form method="post" action="/services/supernote/{{ pending.slot }}/cancel" class="mt-3">
+        <button type="submit" class="btn btn-ghost">Cancel and start again</button>
+      </form>
+    {% elif free_slots %}
+      <form method="post" action="/services/supernote/{{ free_slots[0] }}/signin" class="stack">
+        <div class="field" style="max-width: 420px;">
+          <label for="email">Supernote email address</label>
+          <input type="email" id="email" name="email" required
+                 autocomplete="username" placeholder="you@example.com">
+        </div>
+        <div class="field" style="max-width: 420px;">
+          <label for="password">Supernote password</label>
+          <input type="password" id="password" name="password" required
+                 autocomplete="current-password">
+          <span class="field-hint">
+            Used once, to ask Supernote for a session. It is not stored — it
+            cannot renew a session on its own, so keeping it would gain nothing.
+          </span>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary">Send me a code</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="muted">
+        Every account slot is in use. Disconnect one below to add another.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+{# --- Note backup ---------------------------------------------------------- #}
+
+{# --- Tasks: how they are shown, then which lists go where ---- #}
 {% if accounts %}
   {# High on the page because it changes what the tablet actually looks like,
      which is the thing somebody notices first. #}
@@ -161,73 +230,144 @@
   </div>
 </div>
 
-{# --- Sign in ------------------------------------------------------------- #}
+{% if accounts %}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Connected accounts</div>
+        <div class="card-subtitle">
+          Sessions last thirty days. Task Hub reads the expiry out of the session
+          itself, so the warning comes before syncing stops rather than after.
+        </div>
+      </div>
+    </div>
+    <div class="card-body stack">
+      {% for account in accounts %}
+        {% set lists = lists_by_account.get(account.id, []) %}
+        {% set task_lists = lists | selectattr('kind.value', 'equalto', 'tasks') | list %}
+        {% set cal_lists = [] %}
+
+        <div class="card" style="margin:0;">
+          <div class="card-header">
+            <div>
+              {{ account_name(account, definition.key, definition.name) }}
+              <div class="card-hint">
+                {% set status = account.status.value %}
+                <span class="pill {{ 'pill-success' if status == 'connected' else ('pill-danger' if status in ['error','needs_auth'] else '') }}">
+                  {{ status.replace('_',' ')|title }}
+                </span>
+                {% if account.last_sync_at %}
+                  <span class="tiny muted">last synced {{ account.last_sync_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
+                {% endif %}
+              </div>
+              {% if account.status_detail %}
+                <div class="tiny" style="color: var(--danger);">{{ account.status_detail }}</div>
+              {% endif %}
+            </div>
+            <div class="row">
+              <form method="post" action="/services/supernote/{{ account.slot }}/discover">
+                <button type="submit" class="btn btn-sm">{{ ico.icon('refresh') }} Refresh lists</button>
+              </form>
+              {{ dc.disconnect_button(
+                   "/services/supernote/" ~ account.slot ~ "/forget",
+                   account.label or definition.name,
+                   cleanup.get(account.id),
+                   "disconnect-supernote-" ~ account.slot,
+                   icon=ico.icon('trash'),
+                   extra_note="Its saved session is deleted.") }}
+            </div>
+          </div>
+
+          <div class="card-body">
+            {% if not lists %}
+              <p class="muted">
+                Press <span class="strong">Refresh lists</span> above to fetch this
+                account's to-do lists.
+              </p>
+            {% else %}
+              {# empty_notes is defaulted here as well as in the macro, for the
+                 window between copying template files and restarting, when new
+                 markup is rendered against an old context. #}
+              {{ mapping_form(account, definition.name, task_lists, cal_lists,
+                              collections, dropdowns, kind_enabled,
+                              definition.supports_tasks,
+                              definition.supports_calendar,
+                              advanced_mode=advanced_mode,
+                              empty_notes=empty_notes|default({}, true)) }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}
+
+{% if accounts %}
 <div class="card mb-5">
   <div class="card-header">
     <div>
-      <div class="card-title">
-        {% if pending %}Enter the code from your email{% else %}Sign in to Supernote Cloud{% endif %}
-      </div>
+      <div class="card-title">Digests</div>
       <div class="card-subtitle">
-        {% if pending %}
-          Supernote emailed a six-character code to
-          <span class="mono">{{ pending.email }}</span>.
-        {% else %}
-          The same email address and password you use in the Supernote Partner app.
-        {% endif %}
+        Passages you have highlighted out of documents and notebooks. This one
+        works both ways — anything you add in Task Hub appears on the tablet.
       </div>
     </div>
+    <div class="row">
+      <a class="btn btn-ghost btn-sm" href="/digests">{{ ico.icon('pencil') }} View digests</a>
+    </div>
   </div>
-
   <div class="card-body">
-    {% if pending %}
-      <form method="post" action="/services/supernote/{{ pending.slot }}/verify" class="stack">
-        <div class="field" style="max-width: 320px;">
-          <label for="code">Verification code</label>
-          <input type="text" id="code" name="code" required autofocus
-                 autocomplete="one-time-code" spellcheck="false"
-                 placeholder="ABC123" style="text-transform: uppercase;">
-          <span class="field-hint">
-            Six characters, letters and numbers. They expire after a few minutes
-            — if yours has, cancel and start again, and use the newest email.
-          </span>
-        </div>
-        <div class="flex gap-2">
-          <button type="submit" class="btn btn-primary">Finish signing in</button>
-        </div>
-      </form>
-      <form method="post" action="/services/supernote/{{ pending.slot }}/cancel" class="mt-3">
-        <button type="submit" class="btn btn-ghost">Cancel and start again</button>
-      </form>
-    {% elif free_slots %}
-      <form method="post" action="/services/supernote/{{ free_slots[0] }}/signin" class="stack">
-        <div class="field" style="max-width: 420px;">
-          <label for="email">Supernote email address</label>
-          <input type="email" id="email" name="email" required
-                 autocomplete="username" placeholder="you@example.com">
-        </div>
-        <div class="field" style="max-width: 420px;">
-          <label for="password">Supernote password</label>
-          <input type="password" id="password" name="password" required
-                 autocomplete="current-password">
-          <span class="field-hint">
-            Used once, to ask Supernote for a session. It is not stored — it
-            cannot renew a session on its own, so keeping it would gain nothing.
-          </span>
-        </div>
-        <div>
-          <button type="submit" class="btn btn-primary">Send me a code</button>
-        </div>
-      </form>
-    {% else %}
+    {% if digest_error %}
+      <div class="alert alert-warning">
+        <span class="alert-icon" aria-hidden="true">!</span>
+        <div class="grow">Could not read your digest libraries: {{ digest_error }}</div>
+      </div>
+    {% elif not digest_libraries %}
       <p class="muted">
-        Every account slot is in use. Disconnect one below to add another.
+        No digest libraries found. Make one on the tablet — open a PDF and drag
+        across some text — or add a digest from the
+        <a href="/digests">Digests page</a>.
       </p>
+    {% else %}
+      <form method="post" action="/digests/libraries" class="stack">
+        <div class="field">
+          <label class="checkbox">
+            <input type="checkbox" name="enabled" value="1" {{ 'checked' if digest_enabled }}>
+            <span>Keep digests up to date automatically</span>
+          </label>
+          <span class="field-hint">
+            Refreshed alongside the notebook backup, on the same schedule. It is
+            one small request, so it costs nothing extra.
+          </span>
+        </div>
+
+        <div class="field">
+          <label>Libraries to mirror</label>
+          <span class="field-hint">
+            Tick none to mirror everything, including digests filed in no
+            library at all.
+          </span>
+          <div class="stack-sm mt-3">
+            {% for lib in digest_libraries %}
+              <label class="checkbox">
+                <input type="checkbox" name="library" value="{{ lib.unique_id }}"
+                       {{ 'checked' if lib.unique_id in digest_selected }}>
+                <span>{{ lib.name }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div><button type="submit" class="btn btn-primary">Save digest settings</button></div>
+      </form>
     {% endif %}
   </div>
 </div>
+{% endif %}
 
-{# --- Note backup ---------------------------------------------------------- #}
+{# --- Connected accounts and their lists ---------------------------------- #}
 {% if accounts %}
 <div class="card mb-5">
   <div class="card-header">
@@ -335,140 +475,3 @@
 {% endif %}
 
 {# --- Digest libraries ----------------------------------------------------- #}
-{% if accounts %}
-<div class="card mb-5">
-  <div class="card-header">
-    <div>
-      <div class="card-title">Digests</div>
-      <div class="card-subtitle">
-        Passages you have highlighted out of documents and notebooks. This one
-        works both ways — anything you add in Task Hub appears on the tablet.
-      </div>
-    </div>
-    <div class="row">
-      <a class="btn btn-ghost btn-sm" href="/digests">{{ ico.icon('pencil') }} View digests</a>
-    </div>
-  </div>
-  <div class="card-body">
-    {% if digest_error %}
-      <div class="alert alert-warning">
-        <span class="alert-icon" aria-hidden="true">!</span>
-        <div class="grow">Could not read your digest libraries: {{ digest_error }}</div>
-      </div>
-    {% elif not digest_libraries %}
-      <p class="muted">
-        No digest libraries found. Make one on the tablet — open a PDF and drag
-        across some text — or add a digest from the
-        <a href="/digests">Digests page</a>.
-      </p>
-    {% else %}
-      <form method="post" action="/digests/libraries" class="stack">
-        <div class="field">
-          <label class="checkbox">
-            <input type="checkbox" name="enabled" value="1" {{ 'checked' if digest_enabled }}>
-            <span>Keep digests up to date automatically</span>
-          </label>
-          <span class="field-hint">
-            Refreshed alongside the notebook backup, on the same schedule. It is
-            one small request, so it costs nothing extra.
-          </span>
-        </div>
-
-        <div class="field">
-          <label>Libraries to mirror</label>
-          <span class="field-hint">
-            Tick none to mirror everything, including digests filed in no
-            library at all.
-          </span>
-          <div class="stack-sm mt-3">
-            {% for lib in digest_libraries %}
-              <label class="checkbox">
-                <input type="checkbox" name="library" value="{{ lib.unique_id }}"
-                       {{ 'checked' if lib.unique_id in digest_selected }}>
-                <span>{{ lib.name }}</span>
-              </label>
-            {% endfor %}
-          </div>
-        </div>
-
-        <div><button type="submit" class="btn btn-primary">Save digest settings</button></div>
-      </form>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
-{# --- Connected accounts and their lists ---------------------------------- #}
-{% if accounts %}
-  <div class="card mb-5">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Connected accounts</div>
-        <div class="card-subtitle">
-          Sessions last thirty days. Task Hub reads the expiry out of the session
-          itself, so the warning comes before syncing stops rather than after.
-        </div>
-      </div>
-    </div>
-    <div class="card-body stack">
-      {% for account in accounts %}
-        {% set lists = lists_by_account.get(account.id, []) %}
-        {% set task_lists = lists | selectattr('kind.value', 'equalto', 'tasks') | list %}
-        {% set cal_lists = [] %}
-
-        <div class="card" style="margin:0;">
-          <div class="card-header">
-            <div>
-              {{ account_name(account, definition.key, definition.name) }}
-              <div class="card-hint">
-                {% set status = account.status.value %}
-                <span class="pill {{ 'pill-success' if status == 'connected' else ('pill-danger' if status in ['error','needs_auth'] else '') }}">
-                  {{ status.replace('_',' ')|title }}
-                </span>
-                {% if account.last_sync_at %}
-                  <span class="tiny muted">last synced {{ account.last_sync_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
-                {% endif %}
-              </div>
-              {% if account.status_detail %}
-                <div class="tiny" style="color: var(--danger);">{{ account.status_detail }}</div>
-              {% endif %}
-            </div>
-            <div class="row">
-              <form method="post" action="/services/supernote/{{ account.slot }}/discover">
-                <button type="submit" class="btn btn-sm">{{ ico.icon('refresh') }} Refresh lists</button>
-              </form>
-              {{ dc.disconnect_button(
-                   "/services/supernote/" ~ account.slot ~ "/forget",
-                   account.label or definition.name,
-                   cleanup.get(account.id),
-                   "disconnect-supernote-" ~ account.slot,
-                   icon=ico.icon('trash'),
-                   extra_note="Its saved session is deleted.") }}
-            </div>
-          </div>
-
-          <div class="card-body">
-            {% if not lists %}
-              <p class="muted">
-                Press <span class="strong">Refresh lists</span> above to fetch this
-                account's to-do lists.
-              </p>
-            {% else %}
-              {# empty_notes is defaulted here as well as in the macro, for the
-                 window between copying template files and restarting, when new
-                 markup is rendered against an old context. #}
-              {{ mapping_form(account, definition.name, task_lists, cal_lists,
-                              collections, dropdowns, kind_enabled,
-                              definition.supports_tasks,
-                              definition.supports_calendar,
-                              advanced_mode=advanced_mode,
-                              empty_notes=empty_notes|default({}, true)) }}
-            {% endif %}
-          </div>
-        </div>
-      {% endfor %}
-    </div>
-  </div>
-{% endif %}
-
-{% endblock %}

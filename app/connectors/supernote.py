@@ -78,6 +78,24 @@ LIST_GROUPS = "/file/schedule/group/all"
 #: Making a to-do list on the tablet. Only used when somebody has asked for a
 #: list per task with steps; Task Hub otherwise never creates one there.
 CREATE_GROUP = "/file/schedule/group"
+
+#: Appended to lists Task Hub makes itself, so they can be told apart from the
+#: ones somebody made on the tablet.
+#:
+#: Without a mark, every list made for a task with steps would turn up in the
+#: mapping table as another list to point somewhere, and that table would grow
+#: by one every time somebody broke a task into steps. Marked, they are left
+#: out of it and carried automatically with the list their parent lives in.
+#:
+#: Rename one on the tablet and the mark goes with it -- at which point it is
+#: an ordinary list of yours, appears in the mapping table, and behaves like
+#: any other. That is the right answer: you renamed it, so it is yours.
+MANAGED_SUFFIX = "_"
+
+
+def is_managed(name: str) -> bool:
+    """Whether this list was made by Task Hub rather than by a person."""
+    return (name or "").endswith(MANAGED_SUFFIX)
 LIST_TASKS = "/file/schedule/task/all"
 #: One task. The verb decides the operation, and each has a trap of its own.
 #:
@@ -469,12 +487,16 @@ class SupernoteConnector(Connector):
         wanted = (name or "").strip()
         if not wanted:
             return None
+        marked = f"{wanted}{MANAGED_SUFFIX}"
         for row in self._get(LIST_GROUPS).get("scheduleTaskGroup") or []:
             if yes(row.get("isDeleted")):
                 continue
-            if (row.get("title") or "").strip().casefold() == wanted.casefold():
+            title = (row.get("title") or "").strip()
+            # Either name matches: the marked one this made, or an unmarked one
+            # somebody already had by that name, which is theirs to keep.
+            if title.casefold() in (marked.casefold(), wanted.casefold()):
                 return str(row.get("taskListId") or "").strip() or None
-        body = self._request("POST", CREATE_GROUP, {"title": wanted})
+        body = self._request("POST", CREATE_GROUP, {"title": marked})
         made = str(body.get("taskListId") or "").strip()
         if made:
             logger.info("Made a Supernote list for %r", wanted)
@@ -542,6 +564,10 @@ class SupernoteConnector(Connector):
                 continue
             remote_id = str(row.get("taskListId") or "").strip()
             if not remote_id:
+                continue
+            # Made by Task Hub for a task with steps. Not something to point at
+            # a collection: it is carried by whichever list its parent is in.
+            if is_managed((row.get("title") or "").strip()):
                 continue
             lists.append(
                 RemoteList(
@@ -617,14 +643,21 @@ class SupernoteConnector(Connector):
         # fetched when reading an ordinary one.
         live_ids = self._live_list_ids() if remote_list_id == UNFILED_LIST_ID else set()
 
-        for row in body.get("scheduleTask") or []:
+        # Lists Task Hub made for tasks with steps are read as part of the list
+        # their parent lives in, not as lists of their own. Otherwise a step
+        # ticked off on the tablet would never come back: nothing maps those
+        # lists, so nothing would ever read them.
+        rows = list(body.get("scheduleTask") or [])
+        mine = self._managed_lists_under(remote_list_id, rows)
+
+        for row in rows:
             cache_id = str(row.get("taskId") or "").strip()
             if cache_id:
                 self._cache[cache_id] = row
             if remote_list_id == UNFILED_LIST_ID:
                 if self._filed_under(row, live_ids):
                     continue
-            elif str(row.get("taskListId") or "") != str(remote_list_id):
+            elif str(row.get("taskListId") or "") not in mine:
                 continue
             remote_id = str(row.get("taskId") or "").strip()
             if not remote_id:
@@ -653,6 +686,42 @@ class SupernoteConnector(Connector):
         # incremental is what stops it: the engine then treats a missing item as
         # unreported rather than as gone.
         return PullResult(items=items, incremental=remote_list_id == UNFILED_LIST_ID)
+
+    def _managed_lists_under(self, remote_list_id: str, rows: list[dict]) -> set[str]:
+        """This list, plus any Task Hub made for tasks that live in it.
+
+        Worked out from the names rather than remembered: a managed list is
+        named after the task it belongs to, and that task is in this list. No
+        second record to keep in step with a device somebody can edit, and
+        renaming either one on the tablet simply ends the association -- which
+        is the honest outcome, because it is then their list.
+        """
+        ids = {str(remote_list_id)}
+        if remote_list_id == UNFILED_LIST_ID:
+            return ids
+        try:
+            groups = self._get(LIST_GROUPS).get("scheduleTaskGroup") or []
+        except ConnectorError:
+            return ids
+        managed = {
+            (row.get("title") or "").strip()[: -len(MANAGED_SUFFIX)].casefold():
+                str(row.get("taskListId") or "").strip()
+            for row in groups
+            if not yes(row.get("isDeleted"))
+            and is_managed((row.get("title") or "").strip())
+        }
+        if not managed:
+            return ids
+        # The parent's own title carries a label when that style is on, so it
+        # is stripped before matching -- the list was named before the label.
+        for row in rows:
+            if str(row.get("taskListId") or "") != str(remote_list_id):
+                continue
+            name = (strip_label((row.get("title") or "").strip()) or "").casefold()
+            found = managed.get(name)
+            if found:
+                ids.add(found)
+        return ids
 
     def _record_from(self, row: dict, remote_id: str) -> CanonicalRecord:
         status = STATUS_FROM_REMOTE.get(

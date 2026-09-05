@@ -407,6 +407,25 @@ Steps:
 Rather than a parent and its three steps scattered flat through the same list
 with nothing marking which is which.
 
+**If you choose lists instead.** Task Hub makes a to-do list on the tablet
+named after the parent task, with an underscore on the end — `Plan the Denver
+trip_`. That mark is how it knows the list is its own rather than one of yours,
+and it matters twice: those lists are kept out of the mapping table on the Sync
+page, so it does not grow by one every time you break a task into steps, and
+their tasks are read as part of whichever list the parent lives in, so ticking a
+step off on the tablet still comes back.
+
+Rename such a list on the tablet and the mark goes with it. It then becomes an
+ordinary list of yours, appears in the mapping table, and behaves like any
+other — which is the right answer, because you renamed it.
+
+Task Hub never deletes these lists. An emptied one stays until you remove it.
+
+**Being in one of those lists means nothing to Task Hub when reading.** A task
+is never treated as somebody's step because of the list it sits in: Supernote
+cannot express one task belonging to another, so it is never allowed to say
+that one does — neither to claim a parent nor to deny one.
+
 **The brackets are text, not checkboxes.** Ticking one on the tablet does not
 mark that subtask done in Task Hub — this is a readable copy, written one way
 only. Settings → *Send subtasks as separate tasks* sends them as real tasks you
