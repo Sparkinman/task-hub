@@ -800,6 +800,27 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
   gap: 0.35rem;
 }
 .check-inline { display: flex; align-items: center; gap: 0.45rem; white-space: nowrap; }
+.showing-count { display: flex; align-items: center; }
+.pill-count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 530;
+}
+
+/* Sample text inside a setting, showing what the tablet will actually say. */
+.sample {
+  display: block;
+  margin-top: 0.45rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: normal;
+}
+
+.lists-rule { border: 0; border-top: 1px solid var(--border); margin: 0.15rem 0; }
 .check-inline .check-label { font-size: 0.88rem; }
 
 .steps-back { margin-bottom: var(--gap-3, 0.9rem); }
@@ -1548,6 +1569,44 @@ dialog.modal::backdrop { background: var(--overlay); }
    ticking a checkbox in a mapping table becomes a game of chance. */
 @media (max-width: 640px) {
   :root { --gap-6: 16px; }
+
+  /* --- Subtasks on a phone ------------------------------------------------
+     Installed to a home screen this is the whole application, so the pieces
+     added for subtasks have to work at 360px with a thumb, not just on a
+     desktop. */
+
+  /* The list picker becomes a full-width panel rather than a floating box that
+     would hang off the right edge. */
+  .lists-filter { width: 100%; }
+  .lists-picker > summary { min-height: 44px; }
+  .lists-options {
+    position: static;
+    box-shadow: none;
+    max-height: 50vh;
+    margin-top: 0.4rem;
+  }
+  .lists-options .check-inline { min-height: 40px; }
+  .lists-options input[type="checkbox"] { width: 20px; height: 20px; }
+
+  /* The count sits beside the picker rather than starting a row of its own. */
+  .showing-count { align-self: flex-start; }
+
+  /* A badge naming the piece of work must not push the row sideways. */
+  .badge-tree { max-width: 100%; }
+
+  /* Indents that read as structure on a wide screen leave no room for words on
+     a narrow one, so they tighten and stop deepening after the third level.
+     The rail still says which are steps. */
+  .steps-row { padding-top: 0.85rem; padding-bottom: 0.85rem; }
+  .steps-row.depth-1 { padding-left: 1.1rem; }
+  .steps-row.depth-2 { padding-left: 2rem; }
+  .steps-row.depth-3,
+  .steps-row.depth-4,
+  .steps-row.depth-5 { padding-left: 2.7rem; }
+  .steps-row:not(.depth-0)::before { left: 0.35rem; }
+  .steps-check { width: 20px; height: 20px; }
+  .task.is-subtask { padding-left: 1.15rem; }
+  .task.is-subtask::before { left: 0.3rem; }
 
   /* The header stacks: a title that shares a row with three buttons leaves
      room for neither. */

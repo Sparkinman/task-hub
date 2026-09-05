@@ -130,6 +130,13 @@ class CanonicalRecord:
     #: field, and both are better than nine unrelated tasks.
     children: list = field(default_factory=list)
 
+    #: Where this task sits in its piece of work, for services that show
+    #: nothing but a title. Filled in by the engine at push time only.
+    parent_title: str | None = None
+    step_index: int = 0
+    step_total: int = 0
+    steps_done: int = 0
+
     #: CalDAV href and etag, populated when the record came from a server.
     href: str | None = None
     etag: str | None = None

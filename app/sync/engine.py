@@ -1504,6 +1504,16 @@ class SyncEngine:
         projected.parent_remote_id = (
             self._parent_remote_id(item, part) if caps.supports_parent else None
         )
+        if not caps.supports_parent:
+            # Where a service shows only titles, a task's place in its piece of
+            # work has nowhere else to go, so the connector is told it and puts
+            # it in the title.
+            self._describe_position(item, projected)
+            if part.service == ServiceKind.SUPERNOTE:
+                part.connector.subtask_style = settings_store.get(
+                    self.session, settings_store.SUPERNOTE_SUBTASK_STYLE
+                ) or "label"
+
         if (not caps.supports_parent and not self._subtasks_separate()
                 and getattr(caps, "notes_visible", True)):
             # This service cannot nest, so its copy of a parent carries the
@@ -1754,6 +1764,41 @@ class SyncEngine:
                 Item.sync_group_id == item.sync_group_id,
             ).order_by(Item.id)
         ).scalars())
+
+    def _describe_position(self, item: Item, projected) -> None:
+        """Say what this task contains, or what it belongs to and where.
+
+        Costs one query per task at a flat service, and only there. The counts
+        are of siblings rather than of everything, because "step 2 of 3" is
+        what somebody reading a list needs to know.
+        """
+        mine = self._children_of(item)
+        if mine:
+            projected.step_total = len(mine)
+            projected.steps_done = sum(
+                1 for c in mine if c.status == ItemStatus.COMPLETED
+            )
+            return
+        if not item.parent_uid:
+            return
+        parent = self.session.execute(
+            select(Item).where(
+                Item.uid == item.parent_uid,
+                Item.sync_group_id == item.sync_group_id,
+            )
+        ).scalars().first()
+        if parent is None:
+            return
+        siblings = self._children_of(parent)
+        projected.parent_title = parent.title
+        projected.step_total = len(siblings)
+        projected.steps_done = sum(
+            1 for c in siblings if c.status == ItemStatus.COMPLETED
+        )
+        for position, sibling in enumerate(siblings, start=1):
+            if sibling.id == item.id:
+                projected.step_index = position
+                break
 
     def _folded_children(self, item: Item, caps) -> str | None:
         """A fingerprint of the steps this service will be given, or None.

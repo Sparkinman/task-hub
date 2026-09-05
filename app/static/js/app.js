@@ -153,6 +153,37 @@
     }, 900);
   }
 
+  /* "All lists" and the individual lists are two ways of saying the same
+     thing, so ticking either has to correct the other before the form goes. */
+  document.addEventListener("change", function (event) {
+    var all = event.target.closest("[data-all-lists]");
+    var picker = event.target.closest(".lists-picker");
+    if (picker) {
+      var boxes = picker.querySelectorAll('input[name="collection"]');
+      var allBox = picker.querySelector("[data-all-lists]");
+      if (all && all.checked) {
+        boxes.forEach(function (b) { b.checked = false; });
+      } else if (allBox) {
+        var any = Array.prototype.some.call(boxes, function (b) { return b.checked; });
+        allBox.checked = !any;
+      }
+    }
+  });
+
+  /* A disclosure stays open until it is told otherwise, which is not what a
+     dropdown should do: pressing anywhere else ought to put it away. */
+  document.addEventListener("click", function (event) {
+    document.querySelectorAll("details.lists-picker[open]").forEach(function (d) {
+      if (!d.contains(event.target)) d.removeAttribute("open");
+    });
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    document.querySelectorAll("details.lists-picker[open]").forEach(function (d) {
+      d.removeAttribute("open");
+    });
+  });
+
   document.addEventListener("change", function (event) {
     var checkbox = event.target.closest(".task-check");
     if (!checkbox) return;

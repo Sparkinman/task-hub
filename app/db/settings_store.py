@@ -44,6 +44,15 @@ PUSH_PUBLIC_KEY: Final = "push_vapid_public"
 #: who would rather tick them off individually on the device.
 SUBTASKS_AS_SEPARATE: Final = "subtasks_as_separate_tasks"
 
+#: How subtasks are shown on the Supernote, which displays only a title and a
+#: date -- no notes, confirmed on the device.
+#:
+#: "label"  puts each task's place in its piece of work into the title itself.
+#: "lists"  makes a to-do list on the tablet named after the parent task and
+#:          puts its steps in there.
+#: "plain"  sends them as ordinary tasks with nothing to tie them together.
+SUPERNOTE_SUBTASK_STYLE: Final = "supernote_subtask_style"
+
 SUPERNOTE_DIGEST_ENABLED: Final = "supernote_digest_enabled"
 SUPERNOTE_DIGEST_LIBRARIES: Final = "supernote_digest_libraries"
 #: Every library on the account, remembered from the last sync as JSON.
@@ -116,6 +125,7 @@ DEFAULTS: Final[dict[str, str]] = {
     SUPERNOTE_BACKUP_FOLDERS: "",
     SUPERNOTE_BACKUP_INTERVAL_MINUTES: "360",
     SUBTASKS_AS_SEPARATE: "0",
+    SUPERNOTE_SUBTASK_STYLE: "label",
     SUPERNOTE_DIGEST_ENABLED: "0",
     SUPERNOTE_DIGEST_LIBRARIES: "",
     SUPERNOTE_DIGEST_LIBRARY_CACHE: "",

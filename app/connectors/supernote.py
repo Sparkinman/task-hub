@@ -45,7 +45,9 @@ import logging
 import httpx
 
 from app.connectors.base import (
+    label_title,
     steps_as_text,
+    strip_label,
     strip_steps,
     F_DUE_DATE,
     F_DUE_TIME,
@@ -410,10 +412,10 @@ class SupernoteConnector(Connector):
         """
         import dataclasses
 
-        # Subtasks are written into the note, but read back out of it again, so
-        # what Supernote reports is the note without them -- which is exactly
+        # The step label written into the title is stripped again on the way
+        # back in, so what Supernote reports is the title without it -- exactly
         # what was sent. Nothing to correct here; said out loud because the
-        # opposite assumption would rewrite every parent task on every pass.
+        # opposite assumption would rewrite every labelled task on every pass.
         if record.status == ItemStatus.COMPLETED and record.completed_at is None:
             return dataclasses.replace(record, completed_at=None)
         return record
@@ -638,7 +640,10 @@ class SupernoteConnector(Connector):
         return CanonicalRecord(
             uid=f"supernote-{remote_id}",
             kind=CollectionKind.TASKS,
-            title=(row.get("title") or "").strip(),
+            # The step label this connector writes is not part of the title.
+            # Reading it back as one would label the label on the next pass,
+            # and the name would grow a bracket every time it synced.
+            title=strip_label((row.get("title") or "").strip()) or "",
             notes=notes,
             status=status,
             completed_at=completed_at,
@@ -650,6 +655,12 @@ class SupernoteConnector(Connector):
         )
 
     # -- Writing --------------------------------------------------------------
+
+    #: How tasks with steps are presented on the tablet: "label", "lists" or
+    #: "plain". Set by the engine from the Supernote settings page; the default
+    #: matches the stored default so a connector built outside the engine still
+    #: behaves the way the page says it will.
+    subtask_style: str = "label"
 
     def _fields_from(self, record: CanonicalRecord) -> dict:
         """The parts of a task Task Hub is allowed to set.
@@ -668,8 +679,22 @@ class SupernoteConnector(Connector):
                 dt.datetime.combine(record.due_date, dt.time(0, 0), tzinfo=dt.UTC)
             )
 
+        # The tablet shows a title and a date and nothing else, so a task's
+        # place in a piece of work goes into the title or nowhere. Purely a
+        # label: the relationship itself lives in Radicale, and Supernote is
+        # never allowed to report parenthood, so editing or deleting this text
+        # on the device cannot break anything -- the next pass simply writes it
+        # again from the truth.
+        title = record.title or ""
+        if record.step_total and self.subtask_style == "label":
+            title = label_title(
+                title, record.steps_done, record.step_total,
+                belongs_to=record.parent_title or "",
+                index=record.step_index,
+            )
+
         fields = {
-            "title": record.title or "",
+            "title": title,
             # Just the note. Steps are *not* folded in here: the tablet never
             # displays a note, so they would vanish rather than be tidied away.
             # The engine sends them as tasks of their own instead -- see

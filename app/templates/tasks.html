@@ -69,6 +69,14 @@
             {% endif %}
           </summary>
           <div class="lists-options">
+            {# An explicit way back to everything. "Untick them all" works, but
+               it is not something anybody thinks to try. #}
+            <label class="check check-inline">
+              <input type="checkbox" data-all-lists
+                     {{ 'checked' if not selected_collections }}>
+              <span class="check-label strong">All lists</span>
+            </label>
+            <hr class="lists-rule">
             {% for c in collections %}
               <label class="check check-inline">
                 <input type="checkbox" name="collection" value="{{ c.collection_id }}"
@@ -77,11 +85,17 @@
                 <span class="check-label">{{ c.display_name }}</span>
               </label>
             {% endfor %}
-            <p class="tiny muted" style="margin:0.4rem 0 0;">
-              Tick none to see every list.
-            </p>
+
           </div>
         </details>
+      </div>
+
+      {# What the current filter is actually showing, next to the control that
+         sets it -- the header count is for the whole account. #}
+      <div class="field showing-count" style="margin:0;">
+        <span class="pill pill-count" title="Open tasks in the lists you are showing">
+          {{ open_count }} open
+        </span>
       </div>
 
       <button type="submit" class="btn" data-allow-repeat>{{ ico.icon('search') }} Filter</button>

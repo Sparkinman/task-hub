@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Account, AccountStatus, ServiceKind
 from app.crypto import decrypt_json
+from app.db import settings_store
 from app.db.session import get_db
 from app.web import deps
 from app.web.disconnect import disconnect_accounts, wants_cleanup
@@ -472,6 +473,8 @@ def service_detail(service_key: str, request: Request, db: Session = Depends(get
             backup_last_run=note_backup.last_run(db),
             digest_libraries=digest_libraries,
             digest_error=digest_error,
+            subtask_style=settings_store.get(
+                db, settings_store.SUPERNOTE_SUBTASK_STYLE) or "label",
             digest_enabled=digest_sync.digest_enabled(db),
             digest_selected=digest_sync.selected_libraries(db),
             backup_floor=__import__("app.db.settings_store", fromlist=["x"]).MIN_NOTE_BACKUP_INTERVAL_MINUTES,
@@ -824,6 +827,26 @@ def _google_detail(request, db, definition, accounts, free_slots):
         redirect_problem=redirect_uri_problem(redirect_uri),
         **shared,
     )
+
+
+@router.post("/supernote/subtasks")
+def save_supernote_subtasks(
+    request: Request,
+    style: str = Form("label"),
+    db: Session = Depends(get_db),
+):
+    """How a task with steps should be presented on the tablet."""
+    if style not in ("label", "lists", "plain"):
+        style = "label"
+    settings_store.set_value(db, settings_store.SUPERNOTE_SUBTASK_STYLE, style)
+    db.commit()
+    said = {
+        "label": "Steps will be labelled in the task titles.",
+        "lists": "Each task with steps will get its own list on the tablet.",
+        "plain": "Steps will be sent as ordinary tasks.",
+    }[style]
+    deps.flash(request, said, "success")
+    return deps.redirect("/services/supernote")
 
 
 @router.post("/{service_key}/slots/{slot}/label")

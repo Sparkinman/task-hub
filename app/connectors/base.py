@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import abc
 import datetime as dt
+import re
 from dataclasses import dataclass, field
 
 from app.db.models import CollectionKind, ServiceKind
@@ -145,6 +146,54 @@ def folded_steps(record) -> list[tuple[str, bool]]:
 
 #: The heading written above folded subtasks in a notes field.
 STEPS_HEADING = "Steps:"
+
+#: A label appended to a title at a service that shows nothing but titles.
+#:
+#: Supernote is the case: its To-Do app displays a title and a date and nothing
+#: else, so a task's place in a piece of work has nowhere to go except the
+#: title itself. Written as a bracketed suffix and matched here so it can be
+#: taken off again -- a service reports the labelled title straight back, and
+#: reading that as the real title would relabel the label on the next pass.
+#: The unmistakable form, carrying the parent's name after a middle dot. Only
+#: this module writes that, so it is removed wherever it appears -- including
+#: mid-title, which is what happens when somebody types after it on the device.
+_LABEL_FULL = re.compile(r"\s*\[\d+ of \d+(?: \u00b7 [^\]]*)?\]")
+
+#: The bare form, on a parent, which somebody could plausibly have typed
+#: themselves. Removed only at the very end, where this writes it.
+_LABEL_BARE = re.compile(r"\s*\[\d+ of \d+(?: done)?\]\s*$")
+
+
+def strip_label(title: str | None) -> str | None:
+    """Remove a step label this wrote from a title read back off a service.
+
+    Deliberately asymmetric. The form carrying a parent's name is unambiguous,
+    so it goes wherever it sits -- otherwise typing a word after it on the
+    tablet would leave the label embedded in the real title, and the next pass
+    would add a second one beside it. The bare ``[1/3]`` form is something a
+    person could have written, so it is only taken off the end.
+    """
+    if not title:
+        return title
+    cleaned = _LABEL_BARE.sub("", _LABEL_FULL.sub("", title)).strip()
+    # Never hand back nothing: a task called "[1/3]" and nothing else is
+    # somebody's own odd title, not a label wrapped around a name.
+    return cleaned or title
+
+
+def label_title(title: str, done: int, total: int, belongs_to: str = "",
+                index: int = 0) -> str:
+    """Put a task's place in its piece of work into the title itself."""
+    base = strip_label(title) or title
+    if total <= 0:
+        return base
+    if belongs_to:
+        # A step: which one it is, and what it belongs to.
+        inside = f"{index or done} of {total} \u00b7 {strip_label(belongs_to) or belongs_to}"
+    else:
+        # The parent: how much of it is finished.
+        inside = f"{done} of {total} done"
+    return f"{base} [{inside}]"
 
 
 def strip_steps(text: str | None) -> str | None:

@@ -49,6 +49,69 @@
   </div>
 </div>
 
+{% if accounts %}
+  {# High on the page because it changes what the tablet actually looks like,
+     which is the thing somebody notices first. #}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Tasks that have steps</h2>
+        <p class="card-subtitle">
+          The Supernote's To-Do shows a title and a date — it has no notes and
+          no way to put one task inside another. So a task with steps needs
+          somewhere to say so.
+        </p>
+      </div>
+    </div>
+    <form method="post" action="/services/supernote/subtasks" class="card-body stack">
+      <label class="check">
+        <input type="radio" name="style" value="label"
+               {{ 'checked' if subtask_style == 'label' }}>
+        <span>
+          <span class="check-label">Label the titles <span class="pill">Recommended</span></span>
+          <span class="check-hint">
+            Each step says where it belongs, and the parent says how far along
+            it is. Nothing is created on the tablet, and nothing breaks if you
+            edit or delete the label by hand — it is written again from the
+            real relationship on the next sync.
+            <span class="sample">
+              Plan the Denver trip [1 of 3 done]<br>
+              Book flights [1 of 3 · Plan the Denver trip]
+            </span>
+          </span>
+        </span>
+      </label>
+
+      <label class="check">
+        <input type="radio" name="style" value="lists"
+               {{ 'checked' if subtask_style == 'lists' }}>
+        <span>
+          <span class="check-label">Make a list for each task with steps</span>
+          <span class="check-hint">
+            A to-do list named after the parent task, with its steps inside it.
+            Tidier to read on the tablet, but it makes lists there — one for
+            every task that has steps — and Task Hub will not delete them again,
+            so clearing them up is yours to do.
+          </span>
+        </span>
+      </label>
+
+      <label class="check">
+        <input type="radio" name="style" value="plain"
+               {{ 'checked' if subtask_style == 'plain' }}>
+        <span>
+          <span class="check-label">Leave them plain</span>
+          <span class="check-hint">
+            Steps arrive as ordinary tasks with nothing marking which is which.
+          </span>
+        </span>
+      </label>
+
+      <div><button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div>
+{% endif %}
+
 {% if expiring %}
   <div class="alert alert-warning mb-5">
     <span class="alert-icon" aria-hidden="true">!</span>
