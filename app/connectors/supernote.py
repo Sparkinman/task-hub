@@ -75,6 +75,9 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://viewer.supernote.com/api"
 
 LIST_GROUPS = "/file/schedule/group/all"
+#: Making a to-do list on the tablet. Only used when somebody has asked for a
+#: list per task with steps; Task Hub otherwise never creates one there.
+CREATE_GROUP = "/file/schedule/group"
 LIST_TASKS = "/file/schedule/task/all"
 #: One task. The verb decides the operation, and each has a trap of its own.
 #:
@@ -451,6 +454,50 @@ class SupernoteConnector(Connector):
     def _put(self, path: str, payload: dict) -> dict:
         return self._request("PUT", path, payload)
 
+    def list_for_parent(self, name: str) -> str | None:
+        """The tablet's list named after a parent task, made if it is not there.
+
+        Only reached when the Supernote page is set to "make a list for each
+        task with steps". Matched on the name rather than remembered, because
+        the alternative is a second record to keep in step with a device
+        somebody can edit -- and a list they renamed should be left alone, not
+        duplicated beside itself.
+
+        Never deletes. An emptied list stays until somebody removes it on the
+        tablet, which is what the settings page promises.
+        """
+        wanted = (name or "").strip()
+        if not wanted:
+            return None
+        for row in self._get(LIST_GROUPS).get("scheduleTaskGroup") or []:
+            if yes(row.get("isDeleted")):
+                continue
+            if (row.get("title") or "").strip().casefold() == wanted.casefold():
+                return str(row.get("taskListId") or "").strip() or None
+        body = self._request("POST", CREATE_GROUP, {"title": wanted})
+        made = str(body.get("taskListId") or "").strip()
+        if made:
+            logger.info("Made a Supernote list for %r", wanted)
+        return made or None
+
+    def _destination(self, remote_list_id: str, record: CanonicalRecord) -> str:
+        """Which list this task belongs in on the tablet.
+
+        The mapped list, unless somebody has chosen a list per piece of work and
+        this task is a step in one -- then it goes in the list named after the
+        task it belongs to.
+        """
+        if self.subtask_style != "lists" or not record.parent_title:
+            return remote_list_id
+        try:
+            found = self.list_for_parent(record.parent_title)
+        except ConnectorError as exc:
+            # Falling back to the mapped list keeps the task rather than losing
+            # it over where it was filed.
+            logger.info("Could not make a Supernote list: %s", exc)
+            return remote_list_id
+        return found or remote_list_id
+
     def _task_row(self, remote_id: str) -> dict | None:
         """The server's own copy of one task, for laying an update over.
 
@@ -741,7 +788,9 @@ class SupernoteConnector(Connector):
             return PushOutcome(remote_id=None, skipped=True)
 
         payload = dict(self._fields_from(record))
-        payload["taskListId"] = str(remote_list_id)
+        # A step goes into the list named after its parent when that is the
+        # chosen style; otherwise into the list this mapping points at.
+        payload["taskListId"] = str(self._destination(remote_list_id, record))
         try:
             body = self._get(TASK, payload)
         except ConnectorError as exc:

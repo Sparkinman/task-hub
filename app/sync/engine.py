@@ -509,6 +509,28 @@ class _GroupIndex:
             self.item_by_uid[item.uid] = item
 
 
+def _may_clear_parent(caps) -> bool:
+    """Whether "no parent" from this service means the task was moved to the top.
+
+    Only where the service holds Task Hub's own UIDs, which in practice means
+    CalDAV: there a task either carries RELATED-TO or genuinely has no parent,
+    and both are the truth.
+
+    Everywhere else, silence is ambiguous. A service names a parent by its own
+    id, so a task reads as top-level both when somebody moved it there and when
+    the parent has simply not been pushed to that service yet -- a child created
+    before its parent, a parent that is complete and so never sent, a push that
+    failed once. Believing the second case flattens the hierarchy for every
+    connected service at once, which is exactly the loss this whole feature is
+    built to prevent, so absence is never taken as an answer there.
+
+    The cost of being wrong this way is a stale parent link, which the hub
+    corrects on the next pass. The cost of being wrong the other way cannot be
+    undone.
+    """
+    return bool(getattr(caps, "stores_uid", False))
+
+
 def _parents_first(items: list) -> list:
     """Order tasks so a parent is always pushed before its children.
 
@@ -1038,9 +1060,7 @@ class SyncEngine:
                 caps = part.connector.capabilities(part.kind)
                 if caps.supports_parent:
                     resolved = self._parent_uid_from(remote, part)
-                    # An unresolved parent means the parent has not been mapped
-                    # here yet, not that there is none, so it is left alone.
-                    if resolved is not None or not remote.record.parent_remote_id:
+                    if resolved is not None or _may_clear_parent(caps):
                         canonical.parent_uid = resolved
                         self.apply_parent(item, canonical, caps)
                 if result.conflicts:
@@ -1475,6 +1495,18 @@ class SyncEngine:
         if folded is not None:
             desired_hash = f"{desired_hash}:{folded}"
 
+        # A task's place in its piece of work is written into the title at
+        # services that show nothing else, and none of it is one of this
+        # service's own fields -- so ticking off one step would leave every
+        # other step looking untouched and none of the labels would ever be
+        # brought up to date. Worked out here rather than later because the
+        # suppression check below is the very thing it has to survive.
+        position = None
+        if not caps.supports_parent:
+            position = self._position_of(item)
+            if position:
+                desired_hash = f"{desired_hash}:{position}"
+
         # The suppression step. If what this service already holds matches what
         # we would send, send nothing. This is what stops completed tasks being
         # rewritten into every service on every single pass.
@@ -1765,6 +1797,35 @@ class SyncEngine:
             ).order_by(Item.id)
         ).scalars())
 
+    def _position_of(self, item: Item) -> str | None:
+        """A fingerprint of where this task sits, or None if it sits nowhere.
+
+        The same facts :meth:`_describe_position` hands the connector, reduced
+        to something comparable, so that a step being renamed or ticked off
+        changes the fingerprint of every one of its siblings and they are all
+        rewritten with correct labels.
+        """
+        mine = self._children_of(item)
+        if mine:
+            done = sum(1 for c in mine if c.status == ItemStatus.COMPLETED)
+            return f"parent|{done}/{len(mine)}"
+        if not item.parent_uid:
+            return None
+        parent = self.session.execute(
+            select(Item).where(
+                Item.uid == item.parent_uid,
+                Item.sync_group_id == item.sync_group_id,
+            )
+        ).scalars().first()
+        if parent is None:
+            return None
+        siblings = self._children_of(parent)
+        done = sum(1 for c in siblings if c.status == ItemStatus.COMPLETED)
+        index = next(
+            (n for n, sib in enumerate(siblings, start=1) if sib.id == item.id), 0
+        )
+        return f"{parent.title}|{index}|{done}/{len(siblings)}"
+
     def _describe_position(self, item: Item, projected) -> None:
         """Say what this task contains, or what it belongs to and where.
 
@@ -1854,6 +1915,15 @@ class SyncEngine:
         as "this task has no parent", and it is not, because the caller only
         applies a *set* parent and never a cleared one from an unmapped id.
         """
+        # A service that stores Task Hub's own UIDs names the parent directly,
+        # and CalDAV is exactly that: RELATED-TO holds the UID, so there is
+        # nothing to translate. Looking only for a service-specific id meant
+        # Radicale -- the hub, where hierarchy actually lives -- reported every
+        # task as top level, and no relationship ever reached the database.
+        direct = getattr(remote.record, "parent_uid", None)
+        if direct:
+            return str(direct)
+
         remote_parent = getattr(remote.record, "parent_remote_id", None)
         if not remote_parent:
             return None
