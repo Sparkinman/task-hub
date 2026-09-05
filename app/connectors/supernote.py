@@ -77,25 +77,14 @@ BASE_URL = "https://viewer.supernote.com/api"
 LIST_GROUPS = "/file/schedule/group/all"
 #: Making a to-do list on the tablet. Only used when somebody has asked for a
 #: list per task with steps; Task Hub otherwise never creates one there.
-CREATE_GROUP = "/file/schedule/group"
-
-#: Appended to lists Task Hub makes itself, so they can be told apart from the
-#: ones somebody made on the tablet.
+#: Task Hub never creates or deletes a list on the tablet.
 #:
-#: Without a mark, every list made for a task with steps would turn up in the
-#: mapping table as another list to point somewhere, and that table would grow
-#: by one every time somebody broke a task into steps. Marked, they are left
-#: out of it and carried automatically with the list their parent lives in.
-#:
-#: Rename one on the tablet and the mark goes with it -- at which point it is
-#: an ordinary list of yours, appears in the mapping table, and behaves like
-#: any other. That is the right answer: you renamed it, so it is yours.
-MANAGED_SUFFIX = "_"
-
-
-def is_managed(name: str) -> bool:
-    """Whether this list was made by Task Hub rather than by a person."""
-    return (name or "").endswith(MANAGED_SUFFIX)
+#: It briefly could: a list per task with steps was offered, and it worked, but
+#: moving a step into one made it vanish from the list it had been in -- which
+#: a complete listing reports as the task being deleted, and the engine
+#: propagated that to every connected service. Steps say where they belong in
+#: their titles instead, which creates nothing that can be mistaken for a
+#: deletion.
 LIST_TASKS = "/file/schedule/task/all"
 #: One task. The verb decides the operation, and each has a trap of its own.
 #:
@@ -472,54 +461,6 @@ class SupernoteConnector(Connector):
     def _put(self, path: str, payload: dict) -> dict:
         return self._request("PUT", path, payload)
 
-    def list_for_parent(self, name: str) -> str | None:
-        """The tablet's list named after a parent task, made if it is not there.
-
-        Only reached when the Supernote page is set to "make a list for each
-        task with steps". Matched on the name rather than remembered, because
-        the alternative is a second record to keep in step with a device
-        somebody can edit -- and a list they renamed should be left alone, not
-        duplicated beside itself.
-
-        Never deletes. An emptied list stays until somebody removes it on the
-        tablet, which is what the settings page promises.
-        """
-        wanted = (name or "").strip()
-        if not wanted:
-            return None
-        marked = f"{wanted}{MANAGED_SUFFIX}"
-        for row in self._get(LIST_GROUPS).get("scheduleTaskGroup") or []:
-            if yes(row.get("isDeleted")):
-                continue
-            title = (row.get("title") or "").strip()
-            # Either name matches: the marked one this made, or an unmarked one
-            # somebody already had by that name, which is theirs to keep.
-            if title.casefold() in (marked.casefold(), wanted.casefold()):
-                return str(row.get("taskListId") or "").strip() or None
-        body = self._request("POST", CREATE_GROUP, {"title": marked})
-        made = str(body.get("taskListId") or "").strip()
-        if made:
-            logger.info("Made a Supernote list for %r", wanted)
-        return made or None
-
-    def _destination(self, remote_list_id: str, record: CanonicalRecord) -> str:
-        """Which list this task belongs in on the tablet.
-
-        The mapped list, unless somebody has chosen a list per piece of work and
-        this task is a step in one -- then it goes in the list named after the
-        task it belongs to.
-        """
-        if self.subtask_style != "lists" or not record.parent_title:
-            return remote_list_id
-        try:
-            found = self.list_for_parent(record.parent_title)
-        except ConnectorError as exc:
-            # Falling back to the mapped list keeps the task rather than losing
-            # it over where it was filed.
-            logger.info("Could not make a Supernote list: %s", exc)
-            return remote_list_id
-        return found or remote_list_id
-
     def _task_row(self, remote_id: str) -> dict | None:
         """The server's own copy of one task, for laying an update over.
 
@@ -564,10 +505,6 @@ class SupernoteConnector(Connector):
                 continue
             remote_id = str(row.get("taskListId") or "").strip()
             if not remote_id:
-                continue
-            # Made by Task Hub for a task with steps. Not something to point at
-            # a collection: it is carried by whichever list its parent is in.
-            if is_managed((row.get("title") or "").strip()):
                 continue
             lists.append(
                 RemoteList(
@@ -647,18 +584,14 @@ class SupernoteConnector(Connector):
         # their parent lives in, not as lists of their own. Otherwise a step
         # ticked off on the tablet would never come back: nothing maps those
         # lists, so nothing would ever read them.
-        rows = list(body.get("scheduleTask") or [])
-        mine = self._managed_lists_under(remote_list_id, rows)
-        managed_exists = len(mine) > 1 or self._has_managed_lists()
-
-        for row in rows:
+        for row in body.get("scheduleTask") or []:
             cache_id = str(row.get("taskId") or "").strip()
             if cache_id:
                 self._cache[cache_id] = row
             if remote_list_id == UNFILED_LIST_ID:
                 if self._filed_under(row, live_ids):
                     continue
-            elif str(row.get("taskListId") or "") not in mine:
+            elif str(row.get("taskListId") or "") != str(remote_list_id):
                 continue
             remote_id = str(row.get("taskId") or "").strip()
             if not remote_id:
@@ -675,20 +608,6 @@ class SupernoteConnector(Connector):
                 )
             )
 
-        # Moving a task into a list Task Hub made is not the same as deleting
-        # it, but from the mapped list's point of view the two look identical:
-        # the task is simply no longer there. And a real list is reported
-        # completely, so the engine is entitled to act on absence -- which it
-        # did, propagating a deletion to every connected service for tasks that
-        # had only been filed somewhere else.
-        #
-        # So while any managed list exists, this pull stops claiming to be
-        # complete. Absence then means "not reported" rather than "gone". The
-        # cost is that deleting a task on the tablet no longer propagates until
-        # the managed lists are gone; the cost of the alternative was losing
-        # tasks everywhere, which cannot be undone.
-        if managed_exists:
-            return PullResult(items=items, incremental=True)
 
         # A real list reports completely, so a task that has gone really has
         # gone and the engine may act on its absence.
@@ -702,105 +621,6 @@ class SupernoteConnector(Connector):
         # incremental is what stops it: the engine then treats a missing item as
         # unreported rather than as gone.
         return PullResult(items=items, incremental=remote_list_id == UNFILED_LIST_ID)
-
-    def _has_managed_lists(self) -> bool:
-        """Whether this account holds any list Task Hub made.
-
-        Asked because their existence changes how absence from a mapped list
-        must be read -- see the note in :meth:`pull`.
-        """
-        try:
-            groups = self._get(LIST_GROUPS).get("scheduleTaskGroup") or []
-        except ConnectorError:
-            # Unknown, so assume the risky case and refuse to treat absence as
-            # deletion. Being cautious costs a delayed deletion; being wrong
-            # the other way costs tasks at every service.
-            return True
-        return any(
-            is_managed((row.get("title") or "").strip())
-            for row in groups
-            if not yes(row.get("isDeleted"))
-        )
-
-    def tidy_managed_lists(self) -> list[str]:
-        """Delete lists Task Hub made that have nothing left in them.
-
-        Four conditions, all required, because this deletes something on
-        somebody's tablet and that cannot be taken back:
-
-        * the list carries Task Hub's mark, so it was made here, not by them;
-        * it holds no tasks at all -- not even completed or deleted ones;
-        * it is not the unfiled view, which is not a list;
-        * and the account is readable, so "no tasks" is an answer rather than a
-          failed request.
-
-        A list that fails any of those is left alone. The worst this can do is
-        remove an empty list it created itself, which holds nothing to lose;
-        rename one on the tablet and the mark goes with it, at which point it is
-        theirs and this will not touch it.
-        """
-        try:
-            groups = self._get(LIST_GROUPS).get("scheduleTaskGroup") or []
-            rows = self._get(LIST_TASKS).get("scheduleTask") or []
-        except ConnectorError as exc:
-            # Never delete on a failed read: an empty answer would look exactly
-            # like an account with nothing in it.
-            logger.info("Not tidying Supernote lists: %s", exc)
-            return []
-
-        occupied = {str(row.get("taskListId") or "").strip() for row in rows}
-        removed: list[str] = []
-        for group in groups:
-            if yes(group.get("isDeleted")):
-                continue
-            title = (group.get("title") or "").strip()
-            list_id = str(group.get("taskListId") or "").strip()
-            if not list_id or not is_managed(title) or list_id in occupied:
-                continue
-            try:
-                self._request("DELETE", f"{CREATE_GROUP}/{list_id}")
-            except ConnectorError as exc:
-                logger.info("Could not remove the Supernote list %r: %s", title, exc)
-                continue
-            removed.append(title)
-            logger.info("Removed the emptied Supernote list %r", title)
-        return removed
-
-    def _managed_lists_under(self, remote_list_id: str, rows: list[dict]) -> set[str]:
-        """This list, plus any Task Hub made for tasks that live in it.
-
-        Worked out from the names rather than remembered: a managed list is
-        named after the task it belongs to, and that task is in this list. No
-        second record to keep in step with a device somebody can edit, and
-        renaming either one on the tablet simply ends the association -- which
-        is the honest outcome, because it is then their list.
-        """
-        ids = {str(remote_list_id)}
-        if remote_list_id == UNFILED_LIST_ID:
-            return ids
-        try:
-            groups = self._get(LIST_GROUPS).get("scheduleTaskGroup") or []
-        except ConnectorError:
-            return ids
-        managed = {
-            (row.get("title") or "").strip()[: -len(MANAGED_SUFFIX)].casefold():
-                str(row.get("taskListId") or "").strip()
-            for row in groups
-            if not yes(row.get("isDeleted"))
-            and is_managed((row.get("title") or "").strip())
-        }
-        if not managed:
-            return ids
-        # The parent's own title carries a label when that style is on, so it
-        # is stripped before matching -- the list was named before the label.
-        for row in rows:
-            if str(row.get("taskListId") or "") != str(remote_list_id):
-                continue
-            name = (strip_label((row.get("title") or "").strip()) or "").casefold()
-            found = managed.get(name)
-            if found:
-                ids.add(found)
-        return ids
 
     def _record_from(self, row: dict, remote_id: str) -> CanonicalRecord:
         status = STATUS_FROM_REMOTE.get(
@@ -881,7 +701,7 @@ class SupernoteConnector(Connector):
         # on the device cannot break anything -- the next pass simply writes it
         # again from the truth.
         title = record.title or ""
-        if record.step_total and self.subtask_style == "label":
+        if record.step_total and self.subtask_style != "plain":
             title = label_title(
                 title, record.steps_done, record.step_total,
                 belongs_to=record.parent_title or "",
@@ -936,9 +756,7 @@ class SupernoteConnector(Connector):
             return PushOutcome(remote_id=None, skipped=True)
 
         payload = dict(self._fields_from(record))
-        # A step goes into the list named after its parent when that is the
-        # chosen style; otherwise into the list this mapping points at.
-        payload["taskListId"] = str(self._destination(remote_list_id, record))
+        payload["taskListId"] = str(remote_list_id)
         try:
             body = self._get(TASK, payload)
         except ConnectorError as exc:
@@ -974,12 +792,6 @@ class SupernoteConnector(Connector):
 
         payload = dict(current)
         payload.update(self._fields_from(record))
-        # Which list it belongs in can change without the task itself changing:
-        # switching to a list per piece of work has to move the steps that are
-        # already there, not only file new ones correctly.
-        moved = self._destination(str(current.get("taskListId") or ""), record)
-        if moved:
-            payload["taskListId"] = moved
         # PUT is refused outright without this, and the message it gives blames
         # the list rather than the task.
         payload["lastModified"] = to_epoch_ms(dt.datetime.now(dt.UTC))

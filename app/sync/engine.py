@@ -1454,7 +1454,6 @@ class SyncEngine:
 
         self._resolve_vanished(group, stats)
         self._propagate_deletions(group, writable, stats)
-        self._tidy_managed_lists(writable)
         self.session.commit()
 
     def _push_one(
@@ -1507,11 +1506,10 @@ class SyncEngine:
             position = self._position_of(item)
             if position:
                 desired_hash = f"{desired_hash}:{position}"
-            # How a service is asked to present steps is part of what would be
-            # sent, so changing it has to count as a change. Without this,
-            # switching between labelling titles and making lists did nothing
-            # at all to tasks that already existed: every one of them looked
-            # identical to what had last been pushed, so nothing was written.
+            # Whether steps are labelled at all is part of what would be sent,
+            # so turning it off has to count as a change -- otherwise every
+            # task would look identical to what was last pushed and the labels
+            # would stay on the tablet for ever.
             if part.service == ServiceKind.SUPERNOTE and position:
                 style = settings_store.get(
                     self.session, settings_store.SUPERNOTE_SUBTASK_STYLE
@@ -1949,37 +1947,6 @@ class SyncEngine:
             return None
         parent = self.session.get(Item, link.item_id)
         return parent.uid if parent is not None else None
-
-    def _tidy_managed_lists(self, parts) -> None:
-        """Let a service clear away containers it made that are now empty.
-
-        Run after deletions rather than before, so a list emptied by this very
-        pass is caught in the same pass instead of lingering until the next one.
-        Only Supernote has anything to do here, and only when somebody asked for
-        a list per task with steps -- otherwise none were ever made.
-        """
-        if not settings_store.get_bool(
-            self.session, settings_store.SUPERNOTE_TIDY_LISTS
-        ):
-            return
-        style = settings_store.get(
-            self.session, settings_store.SUPERNOTE_SUBTASK_STYLE
-        ) or "label"
-        if style != "lists":
-            return
-        done: set[int] = set()
-        for part in parts:
-            tidy = getattr(part.connector, "tidy_managed_lists", None)
-            if tidy is None or part.account.id in done:
-                continue
-            done.add(part.account.id)
-            try:
-                for name in tidy():
-                    self.log(f"Removed the emptied Supernote list {name!r}.",
-                             level="info", service=part.service.value,
-                             account_id=part.account.id)
-            except Exception as exc:  # noqa: BLE001
-                logger.info("Could not tidy lists: %s", exc)
 
     def _parent_remote_id(self, item: Item, part) -> str | None:
         """What this service calls the parent of ``item``, if it holds it yet.

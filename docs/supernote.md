@@ -407,34 +407,18 @@ Steps:
 Rather than a parent and its three steps scattered flat through the same list
 with nothing marking which is which.
 
-**If you choose lists instead.** Task Hub makes a to-do list on the tablet
-named after the parent task, with an underscore on the end — `Plan the Denver
-trip_`. That mark is how it knows the list is its own rather than one of yours,
-and it matters twice: those lists are kept out of the mapping table on the Sync
-page, so it does not grow by one every time you break a task into steps, and
-their tasks are read as part of whichever list the parent lives in, so ticking a
-step off on the tablet still comes back.
+Each step is a real task on the tablet, tickable there, and the label says
+which piece of work it belongs to and where it sits in it. The parent counts
+what is still left.
 
-Rename such a list on the tablet and the mark goes with it. It then becomes an
-ordinary list of yours, appears in the mapping table, and behaves like any
-other — which is the right answer, because you renamed it.
+**Editing or deleting a label on the tablet breaks nothing.** The relationship
+lives in Task Hub, and Supernote is never allowed to report parenthood, so the
+next sync simply writes the label again from the truth.
 
-**Emptied ones are cleared away**, unless you turn that off. Four conditions,
-all required, because this deletes something on your tablet and that cannot be
-taken back: the list carries Task Hub's mark, so it made it; there is nothing
-at all left in it, not even a completed task; it is a real list rather than the
-unfiled view; and the account read succeeded, so "empty" is an answer rather
-than a failed request. Your own lists are never touched, and neither is one you
-have renamed — renaming takes the mark off and makes it yours.
-
-**Being in one of those lists means nothing to Task Hub when reading.** A task
-is never treated as somebody's step because of the list it sits in: Supernote
-cannot express one task belonging to another, so it is never allowed to say
-that one does — neither to claim a parent nor to deny one.
-
-**The brackets are text, not checkboxes.** Ticking one on the tablet does not
-mark that subtask done in Task Hub — this is a readable copy, written one way
-only. Settings → *Send subtasks as separate tasks* sends them as real tasks you
-can tick off on the device, at the cost of the flat list.
+**Task Hub never makes or removes a list on the tablet.** It briefly offered
+one list per task with steps. That worked, but moving a step into such a list
+made it disappear from the list it had been in — which a complete listing
+reports as the task being deleted, and that was propagated to every connected
+service. Labelling creates nothing that can be mistaken for a task going away.
 
 [How subtasks work](subtasks.md).

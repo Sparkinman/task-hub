@@ -127,8 +127,9 @@
         <h2 class="card-title">Tasks that have steps</h2>
         <p class="card-subtitle">
           The Supernote's To-Do shows a title and a date — it has no notes and
-          no way to put one task inside another. So a task with steps needs
-          somewhere to say so.
+          no way to put one task inside another. So a task with steps has only
+          its own title to say so in. This affects the Supernote alone; every
+          other service either holds subtasks properly or has its own checklist.
         </p>
       </div>
     </div>
@@ -152,41 +153,12 @@
       </label>
 
       <label class="check">
-        <input type="radio" name="style" value="lists"
-               {{ 'checked' if subtask_style == 'lists' }}>
-        <span>
-          <span class="check-label">Make a list for each task with steps</span>
-          <span class="check-hint">
-            A to-do list named after the parent task, with its steps inside it.
-            Tidier to read on the tablet. Those lists are marked with an
-            underscore, kept out of the mapping table on the Sync page, and read
-            as part of the list their parent lives in — so ticking a step off on
-            the tablet still comes back.
-          </span>
-        </span>
-      </label>
-
-      <label class="check">
         <input type="radio" name="style" value="plain"
                {{ 'checked' if subtask_style == 'plain' }}>
         <span>
           <span class="check-label">Leave them plain</span>
           <span class="check-hint">
             Steps arrive as ordinary tasks with nothing marking which is which.
-          </span>
-        </span>
-      </label>
-
-      <label class="check" data-lists-only>
-        <input type="checkbox" name="tidy" value="1" {{ 'checked' if tidy_lists }}>
-        <span>
-          <span class="check-label">Remove those lists once they are empty</span>
-          <span class="check-hint">
-            Only lists Task Hub made itself, and only when nothing at all is
-            left in them — not even a completed task. Yours are never touched,
-            and neither is one you have renamed, because renaming it takes the
-            mark off and makes it yours. Without this they stay on the tablet
-            until you delete them.
           </span>
         </span>
       </label>

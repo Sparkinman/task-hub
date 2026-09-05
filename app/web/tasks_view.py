@@ -384,6 +384,7 @@ def create_task(
     priority: str = Form("0"),
     notes: str = Form(""),
     parent_uid: str = Form(""),
+    steps: str = Form(""),
     back_collection: str = Form(""),
     back_completed: str = Form(""),
     back_q: str = Form(""),
@@ -441,7 +442,47 @@ def create_task(
         deps.flash(request, str(exc), "error")
         return deps.redirect(back)
 
-    deps.flash(request, f"Added {title!r}.", "success")
+    # Steps typed alongside the task, one per line. Written after the parent so
+    # they can point at it, and each failure is counted rather than aborting the
+    # rest -- losing four steps because the third had a bad character would be a
+    # poor trade for somebody who typed all five.
+    made = 0
+    failed = 0
+    for line in (steps or "").splitlines():
+        step = line.strip().lstrip("-*").strip()
+        if not step:
+            continue
+        child = CanonicalRecord(
+            uid=new_uid(),
+            kind=CollectionKind.TASKS,
+            parent_uid=record.uid,
+            title=step[:500],
+            status=ItemStatus.NEEDS_ACTION,
+            origin_service=ServiceKind.LOCAL,
+            created_at=now,
+            updated_at=now,
+        )
+        try:
+            client.save_record(collection_id, child)
+            made += 1
+        except CalDAVError:
+            failed += 1
+
+    if failed:
+        deps.flash(
+            request,
+            f"Added {title!r} with {made} step{'' if made == 1 else 's'}, "
+            f"but {failed} could not be saved.",
+            "warning",
+        )
+    elif made:
+        deps.flash(
+            request,
+            f"Added {title!r} with {made} step{'' if made == 1 else 's'}.",
+            "success",
+        )
+    else:
+        deps.flash(request, f"Added {title!r}.", "success")
     return deps.redirect(back)
 
 

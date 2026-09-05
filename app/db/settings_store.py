@@ -48,13 +48,14 @@ SUBTASKS_AS_SEPARATE: Final = "subtasks_as_separate_tasks"
 #: date -- no notes, confirmed on the device.
 #:
 #: "label"  puts each task's place in its piece of work into the title itself.
-#: "lists"  makes a to-do list on the tablet named after the parent task and
-#:          puts its steps in there.
 #: "plain"  sends them as ordinary tasks with nothing to tie them together.
+#:
+#: A third choice made a list on the tablet per task with steps. It worked, but
+#: moving a step into one made it vanish from the list it had been in, which a
+#: complete listing reports as a deletion -- and that was propagated to every
+#: connected service. Removed rather than patched: labelling creates nothing
+#: that can be mistaken for a task going away.
 SUPERNOTE_SUBTASK_STYLE: Final = "supernote_subtask_style"
-
-#: Remove lists Task Hub made once nothing is left in them.
-SUPERNOTE_TIDY_LISTS: Final = "supernote_tidy_lists"
 
 SUPERNOTE_DIGEST_ENABLED: Final = "supernote_digest_enabled"
 SUPERNOTE_DIGEST_LIBRARIES: Final = "supernote_digest_libraries"
@@ -129,7 +130,6 @@ DEFAULTS: Final[dict[str, str]] = {
     SUPERNOTE_BACKUP_INTERVAL_MINUTES: "360",
     SUBTASKS_AS_SEPARATE: "0",
     SUPERNOTE_SUBTASK_STYLE: "label",
-    SUPERNOTE_TIDY_LISTS: "1",
     SUPERNOTE_DIGEST_ENABLED: "0",
     SUPERNOTE_DIGEST_LIBRARIES: "",
     SUPERNOTE_DIGEST_LIBRARY_CACHE: "",

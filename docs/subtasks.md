@@ -21,7 +21,7 @@ the documentation, and the documentation was wrong about three of them.
 | **Obsidian** | Reading only | An indented line under another is a subtask |
 | **Microsoft To&nbsp;Do** | As steps | Its checklist items: a name and a tick, nothing more |
 | **Things 3** | No | Has checklist items, but this connector only reads tasks |
-| **Supernote To-Do** | No | Its tasks have no parent field at all |
+| **Supernote To-Do** | Labels | Its tasks have no parent field, so the title carries it |
 
 ---
 

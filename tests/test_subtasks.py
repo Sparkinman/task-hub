@@ -234,34 +234,36 @@ check("the note sent to Supernote is just the note, with no folded steps",
 check("and it carries no step heading at all",
       STEPS_HEADING not in (fields.get("detail") or ""), repr(fields.get("detail")))
 
-print("\nFiling a task elsewhere must never read as deleting it")
-# This one cost real tasks. Choosing a list per piece of work moves the steps
-# into a list of their own; from the mapped list's point of view that is
-# indistinguishable from the task being deleted. Supernote reports a real list
-# completely, so the engine was entitled to act on the absence -- and it did,
-# propagating a deletion to every connected service for tasks that had only
-# been filed somewhere else.
-from app.connectors.supernote import is_managed, MANAGED_SUFFIX  # noqa: E402
+print("\nTask Hub never makes a list on the tablet")
+# It briefly could -- a list per task with steps -- and it cost real tasks:
+# moving a step into one made it vanish from the list it had been in, which a
+# complete listing reports as the task being deleted, and that was propagated
+# to every connected service. Removed rather than patched, because labelling
+# creates nothing that can be mistaken for a task going away.
+import app.connectors.supernote as _sn  # noqa: E402
 
-check("a list Task Hub made is recognisable",
-      is_managed(f"Plan the trip{MANAGED_SUFFIX}"))
-check("and one somebody named themselves is not",
-      not is_managed("Plan the trip"))
-check("renaming it takes the mark off, making it theirs",
-      not is_managed("Denver planning"))
+for gone in ("MANAGED_SUFFIX", "is_managed", "list_for_parent",
+             "tidy_managed_lists", "_destination", "_managed_lists_under"):
+    check(f"{gone} is gone", not hasattr(_sn, gone) and
+          not hasattr(_sn.SupernoteConnector, gone))
 
-# The rule the pull now follows, stated plainly so it cannot be quietly undone.
-def treats_absence_as_deletion(managed_lists_exist: bool, unfiled: bool) -> bool:
-    if unfiled:
-        return False   # The unfiled view never did.
-    return not managed_lists_exist
+from app.db import settings_store  # noqa: E402
+check("and there is no setting for it either",
+      not hasattr(settings_store, "SUPERNOTE_TIDY_LISTS"))
+check("the styles offered are labelling or nothing",
+      settings_store.DEFAULTS[settings_store.SUPERNOTE_SUBTASK_STYLE] == "label")
 
-check("with no managed lists, absence still means deleted",
-      treats_absence_as_deletion(False, False))
-check("with managed lists present, absence means nothing",
-      not treats_absence_as_deletion(True, False))
-check("the unfiled view never treats absence as deletion",
-      not treats_absence_as_deletion(False, True))
+print("\nLabelling is for the Supernote alone")
+# Every other service either holds a real parent link or has its own checklist,
+# so none of them should be putting counts into people's task titles.
+from app.connectors.microsoft import MicrosoftConnector  # noqa: E402
+ms = MicrosoftConnector.__new__(MicrosoftConnector)
+check("Microsoft folds into its checklist rather than the title",
+      not ms.capabilities(CollectionKind.TASKS).supports_parent
+      and hasattr(ms, "_write_steps"))
+check("only the Supernote connector writes a label",
+      hasattr(SupernoteConnector, "subtask_style")
+      and not hasattr(MicrosoftConnector, "subtask_style"))
 
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
