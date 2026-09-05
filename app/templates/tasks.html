@@ -438,21 +438,22 @@
           </div>
         </div>
 
-        {# Building a piece of work in one go, rather than making the parent and
-           then coming back for each step. One per line, because that is how
-           people write a list and it needs no extra controls on a phone. #}
-        <div class="field">
-          <label for="new-steps">Steps</label>
-          <textarea id="new-steps" name="steps" rows="3"
-                    placeholder="One per line — each becomes a subtask"></textarea>
-          <span class="field-hint">
-            Optional. Leave empty for a task with no steps.
-          </span>
-        </div>
-
         <div class="field">
           <label for="new-notes">Notes</label>
           <textarea id="new-notes" name="notes" rows="3"></textarea>
+        </div>
+
+        {# Below the notes, because it is the least common thing on this form and
+           the fields above are what somebody fills in every time. One per line:
+           that is how people write a list, and it needs no extra controls on a
+           phone. #}
+        <div class="field">
+          <label for="new-steps">Sub tasks — one per line</label>
+          <textarea id="new-steps" name="steps" rows="3"
+                    placeholder="Book flights&#10;Renew passport&#10;Arrange dog sitter"></textarea>
+          <span class="field-hint">
+            Optional. Each line becomes a subtask of this one.
+          </span>
         </div>
 
         <div class="alert alert-info">
