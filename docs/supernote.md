@@ -56,6 +56,26 @@ renew a session on its own — Supernote would just email another code.
 
 ---
 
+## Getting every calendar onto the tablet
+
+Supernote's calendar app subscribes to **one** calendar. That is a real
+limitation if your appointments live in more than one place, and it is one Task
+Hub removes without any Supernote-specific trickery.
+
+Point as many calendars as you like at a single Task Hub collection — Google,
+Outlook, iCloud, any CalDAV server — then subscribe the tablet to that one
+collection. The device sees everything, in one calendar, kept up to date.
+
+Set it up on the **Sync** page: tick each calendar you want against the same
+collection. [Getting started](getting-started.md) covers the mapping table, and
+[Connecting your own apps](third-party-apps.md) covers giving the tablet the
+address.
+
+This is the ordinary merge behaviour every service gets, so the same approach
+works for anything else that only accepts one calendar.
+
+---
+
 ## This is not the same as the CalDAV route
 
 Task Hub can already see Supernote tasks a second way, and it is easy to

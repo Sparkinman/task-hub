@@ -54,6 +54,21 @@ understands the format the tablet is writing today.
 > time. Task Hub says so plainly wherever it is shown, and every other service
 > keeps syncing if it ever stops. [What that means](docs/supernote.md).
 
+### And it fixes the one-calendar limit
+
+Supernote's own calendar app subscribes to **one** calendar. If your life is
+spread across a work calendar, a family one and a couple of shared ones, the
+tablet can show you one of them and you choose which.
+
+Task Hub merges them. Every calendar you connect — Google, Outlook, iCloud,
+anything CalDAV — can feed a single collection, and that collection is what the
+Supernote subscribes to. One address on the device, everything in it, still
+updating in both directions.
+
+It is the same mechanism the whole application is built on rather than anything
+special-cased for Supernote, so the same trick works for any app that only
+accepts one calendar.
+
 **[The full list](docs/compatibility.md)** — including the servers that should
 work through the CalDAV connector, the apps that connect straight to Task Hub,
 and the ones that cannot, each with the reason.

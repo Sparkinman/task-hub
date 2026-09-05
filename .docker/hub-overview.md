@@ -20,6 +20,10 @@ is ticked off everywhere.
   the tablet, but the real one. It also backs your handwritten notebooks up as
   PDFs you can read on any device. Ratta publish no API for this, so it may
   change at any time, and Task Hub says so plainly wherever it is shown.
+- **One calendar on the Supernote, holding all of them.** Supernote's calendar
+  app subscribes to a single calendar. Task Hub merges as many as you like —
+  work, family, shared — into one collection the tablet subscribes to, so the
+  device shows everything instead of making you pick.
 - **Installs on your phone.** Add it to a home screen and it opens like an app:
   own icon, full screen, no browser bar. Needs an HTTPS address, which the
   built-in Cloudflare tunnel or Tailscale provides.
