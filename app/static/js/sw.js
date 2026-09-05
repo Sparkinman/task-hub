@@ -107,7 +107,11 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body: data.body || "",
       icon: "/static/img/icon-192.png",
-      badge: "/static/img/icon-192.png",
+      /* A silhouette, not the app icon. Android uses only the alpha channel of
+         a badge and fills whatever shape it finds, so an ordinary icon -- which
+         has an opaque background -- comes out as a solid black square in the
+         status bar. */
+      badge: "/static/img/badge-96.png",
       /* Same tag replaces rather than stacks, so a sync failing on every pass
        * leaves one notification instead of a screenful. */
       tag: data.tag || "taskhub",

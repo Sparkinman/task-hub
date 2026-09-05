@@ -64,6 +64,49 @@ def _colour_at(x: float, y: float) -> tuple[int, int, int]:
     return NAVY
 
 
+def render_badge(size: int) -> bytes:
+    """The mark as a silhouette, for Android's status-bar badge.
+
+    Android ignores the colours in a badge entirely and uses only the alpha
+    channel, filling whatever shape it finds. An icon with an opaque background
+    -- which every ordinary app icon has -- therefore renders as a solid
+    rectangle, which is exactly what the first version of this shipped.
+
+    So this one is white where the mark is and fully transparent everywhere
+    else, and drawn a little heavier than the real mark because the badge is
+    displayed at around the size of a full stop.
+    """
+    span = VIEW / (1.0 - 2.0 * 0.06)
+    origin = CX - span / 2.0
+    step = span / (size * SUPERSAMPLE)
+
+    rows = bytearray()
+    for py in range(size):
+        rows.append(0)
+        for px in range(size):
+            covered = 0
+            for sy in range(SUPERSAMPLE):
+                y = origin + (py * SUPERSAMPLE + sy + 0.5) * step
+                for sx in range(SUPERSAMPLE):
+                    x = origin + (px * SUPERSAMPLE + sx + 0.5) * step
+                    dx, dy = x - CX, y - CY
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    hit = (
+                        distance <= HUB_R
+                        or abs(distance - RING_R) <= RING_W / 2
+                        or any(
+                            ((x - dot_x) ** 2 + (y - dot_y) ** 2) ** 0.5 <= DOT_R
+                            for dot_x, dot_y in DOTS
+                        )
+                    )
+                    if hit:
+                        covered += 1
+            alpha = (covered * 255) // (SUPERSAMPLE * SUPERSAMPLE)
+            # White, so a launcher tinting the silhouette gets a clean base.
+            rows.extend((255, 255, 255, alpha))
+    return bytes(rows)
+
+
 def render(size: int, inset: float = 0.0) -> bytes:
     """One RGB image, as raw rows.
 
@@ -102,9 +145,11 @@ def _chunk(kind: bytes, payload: bytes) -> bytes:
     )
 
 
-def write_png(path: Path, size: int, inset: float = 0.0) -> None:
-    raw = render(size, inset)
-    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)  # 8-bit RGB
+def write_png(path: Path, size: int, inset: float = 0.0, badge: bool = False) -> None:
+    raw = render_badge(size) if badge else render(size, inset)
+    # Colour type 6 is RGBA, 2 is RGB. The badge needs the alpha channel;
+    # nothing else does, and an unnecessary one would only bloat the file.
+    header = struct.pack(">IIBBBBB", size, size, 8, 6 if badge else 2, 0, 0, 0)
     png = (
         b"\x89PNG\r\n\x1a\n"
         + _chunk(b"IHDR", header)
@@ -125,3 +170,5 @@ if __name__ == "__main__":
     write_png(OUT / "icon-maskable-512.png", 512, inset=0.14)
     # iOS uses this one for the home screen and does not read the manifest.
     write_png(OUT / "apple-touch-icon.png", 180)
+    # Android's status-bar badge: a silhouette, not an icon.
+    write_png(OUT / "badge-96.png", 96, badge=True)
