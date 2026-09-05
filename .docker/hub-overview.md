@@ -1,7 +1,30 @@
 # Task Hub
 
 **One place where all your tasks and calendars agree.** Runs on your own
-hardware. Your data never leaves it.
+hardware — a Raspberry Pi is plenty. Your data never leaves it.
+
+## Installed and working in one command
+
+```
+curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh | sh
+```
+
+It checks the machine, installs Docker if it is missing, finds a free port if
+8080 is taken, starts Task Hub, waits for it to come up and prints the address
+to open. Run it again later and it updates without touching your data.
+
+**After that there is no terminal at all.** Connecting services, choosing what
+syncs where, backups and restores are all done in the browser, and there is no
+configuration file to edit.
+
+**A Raspberry Pi is the natural home for it** — a Pi 4 or 5 with 2&nbsp;GB is
+comfortable, it idles at almost nothing, and it can sit on a shelf doing this
+one job. It runs equally well on a NAS, Windows, macOS or Linux, with a
+step-by-step guide for each.
+
+**It installs onto your phone like an app, too.** Add it to your home screen
+and it opens full screen with its own icon — no browser bar — and can send you
+a notification when a sync fails or a login is about to expire.
 
 Task Hub syncs tasks and calendars between the services you already use —
 Google, Todoist, TickTick, Microsoft, Apple iCloud, Obsidian, Things 3,
