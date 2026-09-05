@@ -19,7 +19,9 @@ is ticked off everywhere.
   outside Supernote's own apps that reads it — not a CalDAV app installed on
   the tablet, but the real one. It also reads and writes **Digest** — the
   passages you highlight out of documents — and backs your handwritten
-  notebooks up as PDFs you can read on any device. Ratta publish no API for this, so it may
+  notebooks up as PDFs you can read on any device. A task written on a page of
+  a notebook links straight to that page, when the notebook is one you have
+  backed up. Ratta publish no API for this, so it may
   change at any time, and Task Hub says so plainly wherever it is shown.
 - **One calendar on the Supernote, holding all of them.** Supernote's calendar
   app subscribes to a single calendar. Task Hub merges as many as you like —

@@ -140,9 +140,17 @@ from — the notebook icon beside it on the tablet, which jumps straight there.
 
 Task Hub keeps that link intact. An edit made here sends Supernote its own
 record with only the fields Task Hub owns laid over it, so the link survives
-being ticked off, renamed or given a due date. The reference also appears in
-the task's notes on this side — *"From 20260821_041013.note, page 2"* — so you
-can tell where a task came from without the tablet in front of you.
+being ticked off, renamed or given a due date.
+
+**And it offers the same jump.** If that notebook is one you have backed up,
+the task carries a small notebook link on the Tasks page that opens the PDF at
+the right page — no tablet required.
+
+**Only when the notebook is here.** If it is in a folder you have not backed
+up, or you removed the copy, the reference still reads as text under the task
+— *"From 20260821_041013.note, page 2"*, so you can still see where it came
+from — but nothing looks clickable. A link that goes nowhere invites a tap and
+answers with an error for something that was never wrong.
 
 ### Tasks that belong to no list
 

@@ -50,6 +50,12 @@ and notebooks on the tablet. They arrive with the file and page they came from,
 readable as a PDF Task Hub typesets itself, and anything you write here appears
 in the Digest app on your Supernote.
 
+A task you made by circling handwriting keeps its way back to the page it came
+from — and if that notebook is one you have backed up, the task links straight
+to it, opening the PDF at the right page. No tablet needed. Where the notebook
+is not backed up, the reference still shows as text but nothing pretends to be
+clickable.
+
 The same connection also **backs up your handwritten notebooks as PDFs**. Pick
 which folders, and Task Hub keeps a readable copy you can open on any device,
 with a preview of each one — using Supernote's own converter, so it always
