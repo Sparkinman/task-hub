@@ -70,10 +70,10 @@ handwriting is decoded and shown as you drew it, on the page and inside the
 PDF, rather than left behind on the tablet.
 
 A task you made by circling handwriting keeps its way back to the page it came
-from — and if that notebook is one you have backed up, the task links straight
-to it, opening the PDF at the right page. No tablet needed. Where the notebook
-is not backed up, the reference still shows as text but nothing pretends to be
-clickable.
+from — and **if** that notebook is one you have backed up, the task links
+straight to it, opening the PDF at the right page. No tablet needed. Where the
+notebook is not backed up, the reference still shows as text but nothing
+pretends to be clickable.
 
 The same connection also **backs up your handwritten notebooks as PDFs**. Pick
 which folders, and Task Hub keeps a readable copy you can open on any device,

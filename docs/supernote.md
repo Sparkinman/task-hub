@@ -161,9 +161,9 @@ Task Hub keeps that link intact. An edit made here sends Supernote its own
 record with only the fields Task Hub owns laid over it, so the link survives
 being ticked off, renamed or given a due date.
 
-**And it offers the same jump.** If that notebook is one you have backed up,
-the task carries a small notebook link on the Tasks page that opens the PDF at
-the right page — no tablet required.
+**And it offers the same jump.** **If** that notebook is one you have backed
+up, the task carries a small notebook link on the Tasks page that opens the PDF
+at the right page — no tablet required.
 
 **Only when the notebook is here.** If it is in a folder you have not backed
 up, or you removed the copy, the reference still reads as text under the task
