@@ -154,19 +154,30 @@
   }
 
   /* "All lists" and the individual lists are two ways of saying the same
-     thing, so ticking either has to correct the other before the form goes. */
+     thing, so ticking either has to correct the other -- and it has to happen
+     before the form is submitted, which is why this listener is registered
+     ahead of the auto-submit one further down. Both fire on the same event and
+     they run in registration order.
+
+     Pressing "All lists" is a way of saying "stop filtering", so it cannot be
+     switched off by pressing it again: it turns itself back on and clears the
+     rest. The way to leave it is to pick a list. */
   document.addEventListener("change", function (event) {
-    var all = event.target.closest("[data-all-lists]");
     var picker = event.target.closest(".lists-picker");
-    if (picker) {
-      var boxes = picker.querySelectorAll('input[name="collection"]');
-      var allBox = picker.querySelector("[data-all-lists]");
-      if (all && all.checked) {
-        boxes.forEach(function (b) { b.checked = false; });
-      } else if (allBox) {
-        var any = Array.prototype.some.call(boxes, function (b) { return b.checked; });
-        allBox.checked = !any;
-      }
+    if (!picker) return;
+
+    var boxes = picker.querySelectorAll('input[name="collection"]');
+    var allBox = picker.querySelector("[data-all-lists]");
+    var pressedAll = !!event.target.closest("[data-all-lists]");
+
+    if (pressedAll) {
+      if (allBox) allBox.checked = true;
+      Array.prototype.forEach.call(boxes, function (b) { b.checked = false; });
+      return;
+    }
+    if (allBox) {
+      var any = Array.prototype.some.call(boxes, function (b) { return b.checked; });
+      allBox.checked = !any;
     }
   });
 
