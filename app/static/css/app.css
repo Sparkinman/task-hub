@@ -1156,6 +1156,14 @@ a.service-card:hover {
 .service-icon.black  { background: var(--badge-black); }
 .service-icon.teal   { background: var(--badge-teal); }
 .service-icon.crimson { background: var(--badge-crimson); }
+/* These three were missing, which showed as a service with no colour at all on
+   the overview and the services list. Amber had never been added; msblue and
+   things were added with the badges and not here. Any colour named in
+   SERVICE_BADGES or the catalogue needs a rule in this block, or the icon
+   silently falls back to no background. */
+.service-icon.amber  { background: var(--badge-amber); }
+.service-icon.msblue { background: var(--badge-msblue); }
+.service-icon.things { background: var(--badge-things); }
 
 .slot-row {
   display: flex; align-items: center; gap: var(--gap-3);
