@@ -299,6 +299,10 @@ class GoogleConnector(Connector):
                 fields=frozenset({F_TITLE, F_NOTES, F_STATUS, F_DUE_DATE}),
                 can_delete=True,
                 can_create=True,
+                # Proven on a live account: Google accepted a grandchild, so
+                # the API is not limited to one level even though its own apps
+                # appear to be. Nesting is stored either way.
+                supports_parent=True,
                 max_title_length=TASK_TITLE_LIMIT,
                 max_notes_length=TASK_NOTES_LIMIT,
                 stores_uid=False,
@@ -461,8 +465,11 @@ class GoogleConnector(Connector):
         return PullResult(items=items, incremental=incremental)
 
     def _task_to_record(self, entry: dict) -> CanonicalRecord:
+        # Google names the parent by *its* id. The engine turns that back into
+        # a canonical UID; carrying it here as parent_remote_id keeps the two
+        # kinds of identifier from being confused for one another.
         completed = entry.get("status") == "completed"
-        return CanonicalRecord(
+        record = CanonicalRecord(
             uid=new_uid(),  # Replaced by the engine when a link already exists.
             kind=CollectionKind.TASKS,
             title=entry.get("title") or "",
@@ -477,6 +484,8 @@ class GoogleConnector(Connector):
             origin_service=ServiceKind.GOOGLE,
             updated_at=_parse_rfc3339(entry.get("updated")),
         )
+        record.parent_remote_id = entry.get("parent") or None
+        return record
 
     def _pull_events(self, calendar_id: str, since: dt.datetime | None) -> PullResult:
         params: dict[str, Any] = {
@@ -603,8 +612,13 @@ class GoogleConnector(Connector):
         try:
             if kind == CollectionKind.TASKS:
                 payload = self._record_to_task(record)
+                # The parent is a query parameter here, not part of the body --
+                # putting it in the JSON is accepted and silently ignored.
+                params = ({"parent": record.parent_remote_id}
+                          if record.parent_remote_id else None)
                 created = self._request(
-                    "POST", f"{TASKS_API}/lists/{remote_list_id}/tasks", json=payload
+                    "POST", f"{TASKS_API}/lists/{remote_list_id}/tasks",
+                    json=payload, params=params,
                 )
             else:
                 payload = self._record_to_event(record)
@@ -638,6 +652,10 @@ class GoogleConnector(Connector):
                     f"{TASKS_API}/lists/{remote_list_id}/tasks/{remote_id}",
                     json=payload,
                 )
+                # A task's parent cannot be changed by an ordinary update:
+                # PATCH accepts the field and ignores it, so re-parenting has
+                # to go through move, which is a separate call.
+                self._move_under(remote_list_id, remote_id, record.parent_remote_id)
             else:
                 payload = self._record_to_event(record)
                 updated = self._request(
@@ -654,6 +672,27 @@ class GoogleConnector(Connector):
             etag=updated.get("etag"),
             remote_updated_at=_parse_rfc3339(updated.get("updated")),
         )
+
+    def _move_under(self, list_id: str, task_id: str, parent_id: str | None) -> None:
+        """Re-parent a task, or move it back to the top level.
+
+        Best effort by design. A failure here costs the nesting, which the next
+        pass will try again; treating it as a failure of the whole update would
+        report a task as unsynced when its title, notes and due date all landed
+        perfectly well.
+        """
+        try:
+            current = self._request(
+                "GET", f"{TASKS_API}/lists/{list_id}/tasks/{task_id}"
+            ) or {}
+            if (current.get("parent") or None) == (parent_id or None):
+                return  # Already where it should be; move is not free.
+            self._request(
+                "POST", f"{TASKS_API}/lists/{list_id}/tasks/{task_id}/move",
+                params={"parent": parent_id} if parent_id else {},
+            )
+        except ConnectorError as exc:
+            logger.info("Could not re-parent a Google task: %s", exc)
 
     def delete(
         self, remote_list_id: str, remote_id: str, kind: CollectionKind

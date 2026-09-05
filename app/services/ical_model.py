@@ -111,6 +111,15 @@ class CanonicalRecord:
     created_at: dt.datetime | None = None
     updated_at: dt.datetime | None = None
 
+    #: The parent's id *at the service being written to*, filled in by the
+    #: engine just before a push and meaningless at any other time.
+    #:
+    #: ``parent_uid`` above is Task Hub's own identifier for the parent, which
+    #: no outside service knows. Every one of them wants its own id instead, so
+    #: the engine resolves it from the links it already keeps rather than each
+    #: connector learning how to look one up.
+    parent_remote_id: str | None = None
+
     #: CalDAV href and etag, populated when the record came from a server.
     href: str | None = None
     etag: str | None = None

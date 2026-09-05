@@ -18,6 +18,8 @@ Two consequences of v1 worth knowing while reading this file:
 
 from __future__ import annotations
 
+import logging
+
 import datetime as dt
 import time
 from typing import Any
@@ -48,6 +50,8 @@ from app.connectors.base import (
 from app.db.models import CollectionKind, ItemStatus, ServiceKind
 from app.services.ical_model import CanonicalRecord
 from app.services.timezones import to_utc, wall_time
+
+logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.todoist.com/api/v1"
 AUTH_ENDPOINT = "https://app.todoist.com/oauth/authorize"
@@ -344,6 +348,10 @@ class TodoistConnector(Connector):
             ),
             can_delete=True,
             can_create=True,
+            # Proven on a live account: parent_id nests at least four levels.
+            # Note that Todoist completes every descendant along with a parent,
+            # which is why the engine never propagates completion downwards.
+            supports_parent=True,
             max_title_length=CONTENT_LIMIT,
             max_notes_length=DESCRIPTION_LIMIT,
             stores_uid=False,
@@ -583,6 +591,7 @@ class TodoistConnector(Connector):
         )
 
     def _task_to_record(self, entry: dict, completed: bool = False) -> CanonicalRecord:
+        # parent_id is Todoist's own id; the engine maps it back to a UID.
         due_date, due_time, due_tz = _parse_due(
             entry.get("due"), self.default_timezone
         )
@@ -627,6 +636,8 @@ class TodoistConnector(Connector):
             priority=todoist_priority_to_canonical(entry.get("priority")),
             tags=list(entry.get("labels") or []),
             origin_service=ServiceKind.TODOIST,
+            # Todoist names the parent by its own id; the engine maps it back.
+            parent_remote_id=str(entry["parent_id"]) if entry.get("parent_id") else None,
             created_at=_parse_timestamp(entry.get("added_at")),
             updated_at=_parse_timestamp(entry.get("updated_at")),
         )
@@ -641,6 +652,8 @@ class TodoistConnector(Connector):
 
         body = self._record_to_body(record)
         body["project_id"] = remote_list_id
+        if record.parent_remote_id:
+            body["parent_id"] = record.parent_remote_id
         created = self._request("POST", "/tasks", json=body) or {}
         remote_id = str(created.get("id")) if created.get("id") else None
         if not remote_id:
@@ -671,6 +684,11 @@ class TodoistConnector(Connector):
         # closed still ends up carrying the right text.
         updated = self._request("POST", f"/tasks/{remote_id}", json=self._record_to_body(record))
 
+        # Re-parenting is its own endpoint. Sending parent_id on the ordinary
+        # update is accepted and ignored, so a task moved under a different
+        # parent would appear to save and quietly stay where it was.
+        self._move_under(remote_id, record.parent_remote_id)
+
         current_done = bool((updated or {}).get("is_completed") or (updated or {}).get("checked"))
         wants_done = record.status == ItemStatus.COMPLETED
         if wants_done and not current_done:
@@ -682,6 +700,25 @@ class TodoistConnector(Connector):
             remote_id=remote_id,
             remote_updated_at=_parse_timestamp((updated or {}).get("updated_at")),
         )
+
+    def _move_under(self, remote_id: str, parent_id: str | None) -> None:
+        """Move a task under a parent, or back to the top of its project.
+
+        Best effort: losing the nesting is worth reporting quietly and retrying
+        next pass, not failing an update whose text and dates all landed.
+        """
+        try:
+            current = self._request("GET", f"/tasks/{remote_id}") or {}
+            if str(current.get("parent_id") or "") == str(parent_id or ""):
+                return
+            if parent_id:
+                self._request("POST", f"/tasks/{remote_id}/move",
+                              json={"parent_id": str(parent_id)})
+            else:
+                self._request("POST", f"/tasks/{remote_id}/move",
+                              json={"project_id": str(current.get("project_id") or "")})
+        except ConnectorError as exc:
+            logger.info("Could not re-parent a Todoist task: %s", exc)
 
     def delete(
         self, remote_list_id: str, remote_id: str, kind: CollectionKind

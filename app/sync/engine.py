@@ -508,6 +508,37 @@ class _GroupIndex:
             self.item_by_uid[item.uid] = item
 
 
+def _parents_first(items: list) -> list:
+    """Order tasks so a parent is always pushed before its children.
+
+    A child can only name its parent at an outside service once the parent is
+    actually there and has an id. Pushing in storage order would create
+    children flat and leave them that way until some later pass happened to
+    notice, which for a service like Google -- where a task's parent cannot be
+    changed by an ordinary update -- may be never.
+
+    Depth is walked rather than assumed to be one level: Radicale and Todoist
+    both hold arbitrary depth. A cycle, which should not exist but would
+    otherwise hang this, simply stops being followed.
+    """
+    by_uid = {item.uid: item for item in items if item.uid}
+    depths: dict[int, int] = {}
+
+    for item in items:
+        depth, walk, seen = 0, item, set()
+        while getattr(walk, "parent_uid", None) and depth < 32:
+            if walk.uid in seen:
+                break  # A cycle. Treat what we have as the depth and move on.
+            seen.add(walk.uid)
+            walk = by_uid.get(walk.parent_uid)
+            if walk is None:
+                break  # Parent is not in this group; treat as top level.
+            depth += 1
+        depths[id(item)] = depth
+
+    return sorted(items, key=lambda i: depths[id(i)])
+
+
 class SyncEngine:
     """Runs one complete synchronisation across every connected service.
 
@@ -996,6 +1027,18 @@ class SyncEngine:
                     self._record_to_item(canonical, item)
                     item.updated_at = utcnow()
                     self._save_provenance(item, provenance)
+
+                # Outside the changed check on purpose: a task moved under a new
+                # parent may be identical in every other field, and the merge
+                # engine -- which compares values -- would report no change.
+                caps = part.connector.capabilities(part.kind)
+                if caps.supports_parent:
+                    resolved = self._parent_uid_from(remote, part)
+                    # An unresolved parent means the parent has not been mapped
+                    # here yet, not that there is none, so it is left alone.
+                    if resolved is not None or not remote.record.parent_remote_id:
+                        canonical.parent_uid = resolved
+                        self.apply_parent(item, canonical, caps)
                 if result.conflicts:
                     stats.conflicts += len(result.conflicts)
                     self.log(
@@ -1209,6 +1252,10 @@ class SyncEngine:
             origin_remote_list_id=part.remote_list.id,
         )
         self._record_to_item(remote.record, item)
+        caps = part.connector.capabilities(part.kind)
+        if caps.supports_parent:
+            remote.record.parent_uid = self._parent_uid_from(remote, part)
+            self.apply_parent(item, remote.record, caps)
         item.origin_service = origin
         self.session.add(item)
         self.session.flush()
@@ -1364,6 +1411,11 @@ class SyncEngine:
         # deleted -- see _resolve_vanished.
         self._vanished = {}
 
+        # Parents first. A child can only name its parent at a service once the
+        # parent is actually there, so pushing in storage order would leave
+        # children flat until some later pass happened to correct them.
+        items = _parents_first(items)
+
         for index, item in enumerate(items, start=1):
             record = self._item_to_record(item)
             for part in writable:
@@ -1432,6 +1484,10 @@ class SyncEngine:
 
         projected = project(record, caps)
         projected.kind = part.kind
+        projected.parent_uid = record.parent_uid if caps.supports_parent else None
+        projected.parent_remote_id = (
+            self._parent_remote_id(item, part) if caps.supports_parent else None
+        )
 
         try:
             if link is None:
@@ -1655,6 +1711,56 @@ class SyncEngine:
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
+
+    def _parent_uid_from(self, remote, part) -> str | None:
+        """Turn a service's own parent id into Task Hub's UID for that task.
+
+        The mirror of :meth:`_parent_remote_id`. Services name a parent by
+        their id, not ours, so a report of "parent = abc123" is meaningless
+        until it is matched against the link that already maps abc123 to an
+        item here.
+
+        None when the parent is not mapped yet -- a child read before its
+        parent, which happens on a first sync. Rule: that must never be taken
+        as "this task has no parent", and it is not, because the caller only
+        applies a *set* parent and never a cleared one from an unmapped id.
+        """
+        remote_parent = getattr(remote.record, "parent_remote_id", None)
+        if not remote_parent:
+            return None
+        link = self.session.execute(
+            select(ItemLink).where(
+                ItemLink.account_id == part.account.id,
+                ItemLink.remote_list_id == part.remote_list.id,
+                ItemLink.remote_id == str(remote_parent),
+            )
+        ).scalars().first()
+        if link is None:
+            return None
+        parent = self.session.get(Item, link.item_id)
+        return parent.uid if parent is not None else None
+
+    def _parent_remote_id(self, item: Item, part) -> str | None:
+        """What this service calls the parent of ``item``, if it holds it yet.
+
+        None covers two different situations and both are handled the same way:
+        the task has no parent, or it has one this service has not been given
+        yet. Creating the child flat and correcting it on a later pass is the
+        honest answer to the second -- refusing to push it at all would strand
+        the task if its parent were never mapped here.
+        """
+        if not item.parent_uid:
+            return None
+        parent = self.session.execute(
+            select(Item).where(
+                Item.uid == item.parent_uid,
+                Item.sync_group_id == item.sync_group_id,
+            )
+        ).scalars().first()
+        if parent is None:
+            return None
+        links = self._links_in_list(parent.id, part.account.id, part.remote_list.id)
+        return links[0].remote_id if links else None
 
     @staticmethod
     def apply_parent(item: Item, record: CanonicalRecord, caps) -> None:

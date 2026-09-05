@@ -265,6 +265,11 @@ class TickTickConnector(Connector):
             ),
             can_delete=True,
             can_create=True,
+            # Proven on a live account, and easy to get wrong: parentId is
+            # absent from the response to the create that set it, and only
+            # appears when the task is fetched again. A connector trusting the
+            # create response would conclude TickTick has no subtasks at all.
+            supports_parent=True,
             stores_uid=False,
         )
 
@@ -505,6 +510,9 @@ class TickTickConnector(Connector):
             priority=ticktick_priority_to_canonical(entry.get("priority")),
             rrule=entry.get("repeatFlag") or None,
             origin_service=ServiceKind.TICKTICK,
+            # Only ever present on a fetched task, never on the response to the
+            # create that set it.
+            parent_remote_id=str(entry["parentId"]) if entry.get("parentId") else None,
             updated_at=_parse_timestamp(entry.get("modifiedTime")),
         )
 
@@ -518,6 +526,8 @@ class TickTickConnector(Connector):
 
         body = self._record_to_body(record)
         body["projectId"] = remote_list_id
+        if record.parent_remote_id:
+            body["parentId"] = record.parent_remote_id
         created = self._request("POST", "/task", json=body) or {}
         remote_id = str(created.get("id")) if created.get("id") else None
         if not remote_id:
@@ -546,6 +556,8 @@ class TickTickConnector(Connector):
         body = self._record_to_body(record)
         body["id"] = remote_id
         body["projectId"] = remote_list_id
+        if record.parent_remote_id:
+            body["parentId"] = record.parent_remote_id
         updated = self._request("POST", f"/task/{remote_id}", json=body) or {}
 
         # TickTick has a complete endpoint but no reopen one, so a task can be
