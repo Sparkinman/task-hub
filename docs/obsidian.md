@@ -287,6 +287,19 @@ place as everything else. Back it up with the same care —
 
 ---
 
+## Opening the note from Task Hub
+
+A task read out of your vault carries an `obsidian://` address, and on the Tasks
+page that is a button naming the note. Pressing it opens the vault at the right
+note — on a desktop, or on a phone with Obsidian installed.
+
+The address is written into the task's notes as well, because that is what
+survives into services that know nothing about Task Hub; on this page it is
+hidden from the displayed text, since the button says the same thing without a
+line of percent-encoding under every task.
+
+---
+
 ## Subtasks
 
 A task indented under another in your notes is read as a subtask of it. This is

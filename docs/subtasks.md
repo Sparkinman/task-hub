@@ -106,13 +106,53 @@ result rather than causing it.
 
 ## In the web interface
 
-A subtask shows the task it belongs to above its own title, with a `↳`. A task
-with subtasks shows how many are done, like `1/3 steps`.
+A task's steps sit indented beneath it, folded away behind a button on the
+parent. They start folded — a list that opens showing every step of every piece
+of work is longer than it is useful — and whatever you open is remembered.
 
-Subtasks are **not** nested visually under their parent, and that is on purpose:
-the task list is grouped by when things are due, and a step due today belongs
-under **Today** even when its parent is not due until next month. Nesting it
-would move it out of the group that tells you when to do it.
+**A piece of work is placed by its soonest step.** A task with no due date of
+its own whose step is due today appears under **Today**, with its steps, rather
+than under Someday. What needs doing this morning belongs where you look for
+what needs doing this morning. A finished step no longer counts towards that.
+
+Every task in a hierarchy also carries a badge naming the piece of work, and
+pressing it opens that whole breakdown on a page of its own — parent and steps
+in order, at whatever depth, each tickable where it sits. Finished steps stay in
+the completed section, because that is what you open to un-tick something.
+
+### Making them
+
+Three ways, for three moments:
+
+- **New task → Sub tasks** — type them one per line and the whole piece of work
+  is created at once.
+- **New task → Part of** — make the task you are creating a step of an existing
+  one.
+- **Editing a task → Add sub tasks** — adds more. That box is always empty and
+  only ever adds, so saving a task without typing in it changes nothing. Existing
+  steps are edited on their own rows.
+
+---
+
+---
+
+## Repeats and clearing finished tasks
+
+A task can repeat — daily, weekly, monthly or yearly — set when you create it or
+edit it. A repeat rule written by another CalDAV client that this menu cannot
+express is shown as **Custom** and left completely alone rather than flattened
+into the nearest thing it can say.
+
+**Clear completed** removes finished tasks, and it **skips anything that
+repeats**. The rule lives on the task itself, not on each occurrence, so
+deleting a ticked-off repeating task would not tidy away a finished thing — it
+would end the whole series. Google makes this especially easy to get wrong: it
+keeps the completed task and creates the next one itself, so what looks finished
+may be its record of an occurrence.
+
+Clearing reaches every service the tasks are synced to, which is the point —
+clearing them here and leaving them everywhere else would tidy nothing — but it
+is why the button asks first.
 
 ---
 
