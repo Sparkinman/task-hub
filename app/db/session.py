@@ -112,6 +112,8 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
     # Null on rows backed up before previews existed. They are filled in on the
     # next pass from the PDFs already on disk, with no network involved.
     ("supernote_notes", "thumb_name", "VARCHAR(128)"),
+    # Nothing was excluded before this existed, so 0 is right for every row.
+    ("supernote_notes", "excluded", "BOOLEAN DEFAULT 0"),
 ]
 
 

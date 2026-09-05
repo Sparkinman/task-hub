@@ -134,6 +134,43 @@ check("and the default is measured in hours",
       settings_store.DEFAULT_NOTE_BACKUP_INTERVAL_MINUTES >= 60,
       str(settings_store.DEFAULT_NOTE_BACKUP_INTERVAL_MINUTES))
 
+print("\nRemoving a copy has to stick, or the button does not work")
+# The notebook is still sitting in a folder marked for backup, so it is seen on
+# every pass. Deleting the row rather than marking it would mean the very next
+# pass downloaded it again -- a delete button that visibly undoes itself.
+with session_scope() as session:
+    row = SupernoteNote(account_id=1, note_id="keepme", name="Recipes",
+                        root_folder_id="9", pdf_name="keepme.pdf",
+                        thumb_name="keepme.thumb.png", pdf_size=1234,
+                        source_md5="abc")
+
+    note_backup.remove_copy(session, row)
+    check("it is marked as removed", row.excluded is True)
+    check("the PDF is forgotten", row.pdf_name is None, str(row.pdf_name))
+    check("and so is the preview", row.thumb_name is None, str(row.thumb_name))
+    check("and the size is cleared", row.pdf_size == 0, str(row.pdf_size))
+    # Cleared so that restoring converts again rather than believing a file it
+    # no longer has is still current.
+    check("the checksum is cleared so a restore refetches",
+          row.source_md5 == "", repr(row.source_md5))
+
+    note_backup.restore_copy(session, row)
+    check("restoring un-marks it", row.excluded is False)
+    check("and still has no checksum, so the next pass fetches it",
+          row.source_md5 == "", repr(row.source_md5))
+    session.rollback()
+
+print("\nRemoving a copy never touches the tablet")
+# Worth stating as a test because "delete" beside a notebook reasonably reads
+# as deleting the notebook. There is no call in this module that could.
+import inspect  # noqa: E402
+source = inspect.getsource(note_backup)
+for forbidden in ("delete_note", "/file/delete", "note_delete"):
+    check(f"nothing here calls {forbidden!r}", forbidden not in source)
+check("remove_copy only edits the row and the local file",
+      "files." not in inspect.getsource(note_backup.remove_copy),
+      inspect.getsource(note_backup.remove_copy)[:80])
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)

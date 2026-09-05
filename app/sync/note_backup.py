@@ -80,13 +80,15 @@ class BackupResult:
         self.unchanged = 0
         self.removed = 0
         self.deferred = 0
+        self.excluded = 0
         self.errors: list[str] = []
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostic only
         return (
             f"BackupResult(checked={self.checked}, converted={self.converted}, "
             f"unchanged={self.unchanged}, removed={self.removed}, "
-            f"deferred={self.deferred}, errors={len(self.errors)})"
+            f"deferred={self.deferred}, excluded={self.excluded}, "
+            f"errors={len(self.errors)})"
         )
 
 
@@ -178,6 +180,7 @@ def fill_missing_thumbnails() -> int:
             select(SupernoteNote).where(
                 SupernoteNote.pdf_name.isnot(None),
                 SupernoteNote.thumb_name.is_(None),
+                SupernoteNote.excluded.is_(False),
             )
         ).scalars().all()
         for row in rows:
@@ -269,6 +272,11 @@ def run_backup(force: bool = False) -> BackupResult:
             if converted >= MAX_PER_RUN:
                 result.deferred += 1
                 continue
+            if _is_excluded(account_id, entry.id):
+                # Deleted from Task Hub on purpose. Still in a chosen folder, so
+                # it is seen every pass -- and must be left alone every pass.
+                result.excluded += 1
+                continue
             if _is_current(account_id, entry):
                 result.unchanged += 1
                 _refresh_placement(account_id, entry, path, folder_id)
@@ -333,6 +341,36 @@ def _is_current(account_id: int, entry) -> bool:
             if entry.updated_at > stored:
                 return False
         return pdf_path(row).exists()
+
+
+def _is_excluded(account_id: int, note_id: str) -> bool:
+    with session_scope() as session:
+        row = _row_for(session, account_id, note_id)
+        return bool(row and row.excluded)
+
+
+def remove_copy(session: Session, row: SupernoteNote) -> None:
+    """Delete Task Hub's copy of one notebook and remember the decision.
+
+    The row survives with ``excluded`` set. Deleting it outright would leave no
+    trace of the choice, and the notebook is still in a folder marked for
+    backup, so the next pass would download it again -- which reads as a delete
+    button that does not work.
+    """
+    _discard_pdf(row)
+    row.pdf_name = None
+    row.thumb_name = None
+    row.pdf_size = 0
+    row.converted_at = None
+    row.source_md5 = ""
+    row.error = None
+    row.excluded = True
+
+
+def restore_copy(session: Session, row: SupernoteNote) -> None:
+    """Allow a previously deleted notebook to be fetched again."""
+    row.excluded = False
+    row.source_md5 = ""  # Forces the next pass to convert it.
 
 
 def _refresh_placement(account_id: int, entry, path: str, folder_id: str) -> None:

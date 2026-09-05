@@ -827,6 +827,13 @@ class SupernoteNote(Base):
     #: converted says so on the page instead of silently never appearing.
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    #: Set when the user deletes a notebook's copy from Task Hub. The row stays
+    #: behind deliberately: the notebook is still sitting in a folder they chose
+    #: to back up, so without a record of the decision the very next pass would
+    #: fetch it again and the delete button would appear not to work. Nothing is
+    #: touched on the tablet -- only Task Hub's copy goes.
+    excluded: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(
         UTCDateTime, default=utcnow, onupdate=utcnow

@@ -165,6 +165,20 @@ this working.
 year planners especially — and renders them in the background. That is not a
 failure and needs nothing from you; they appear on a later backup.
 
+**Removing a copy you do not want.** Each notebook on the Notes page has a
+**Remove** button. It deletes Task Hub's copy and nothing else — the notebook
+stays on your tablet and in Supernote's cloud, untouched.
+
+Task Hub remembers the decision, which it has to: the notebook is still sitting
+in a folder you chose to back up, so without a record of it the very next pass
+would fetch it again and the button would appear not to work. Removed notebooks
+are listed at the bottom of the Notes page with a **Restore** button if you
+change your mind, and *Clear this list* forgets them entirely — which means they
+will be backed up again on the next pass.
+
+To stop backing up a whole folder, untick it on the Supernote page instead.
+That removes every notebook in it in one go.
+
 **What it is not.** It is a backup, not a sync. Editing a PDF here is not
 possible, nothing travels back to the tablet, and deleting a notebook on the
 tablet removes it from Task Hub on the next pass.

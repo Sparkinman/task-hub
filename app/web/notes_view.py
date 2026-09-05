@@ -49,17 +49,19 @@ def _notes(db: Session) -> list[SupernoteNote]:
 def index(request: Request, db: Session = Depends(get_db)):
     """Every backed-up notebook, grouped by the folder it came from."""
     rows = _notes(db)
+    kept = [r for r in rows if not r.excluded]
     grouped: dict[str, list[SupernoteNote]] = {}
-    for row in rows:
+    for row in kept:
         grouped.setdefault(row.folder_path or "", []).append(row)
 
     return deps.render(
         request, db, "notes.html",
         grouped=grouped,
-        total=len(rows),
-        readable=len([r for r in rows if r.pdf_name and not r.error]),
-        failed=[r for r in rows if r.error and not note_backup.is_pending(r)],
-        pending=[r for r in rows if note_backup.is_pending(r)],
+        total=len(kept),
+        readable=len([r for r in kept if r.pdf_name and not r.error]),
+        failed=[r for r in kept if r.error and not note_backup.is_pending(r)],
+        pending=[r for r in kept if note_backup.is_pending(r)],
+        removed=[r for r in rows if r.excluded],
         enabled=note_backup.backup_enabled(db),
         interval=note_backup.backup_interval(db),
         last_run=note_backup.last_run(db),
@@ -147,6 +149,70 @@ def view(note_row_id: int, request: Request, db: Session = Depends(get_db)):
         deps.flash(request, "That note is not in the backup.", "error")
         return deps.redirect("/notes")
     return deps.render(request, db, "note_view.html", note=row)
+
+
+@router.post("/{note_row_id}/remove")
+def remove(note_row_id: int, request: Request, db: Session = Depends(get_db)):
+    """Delete Task Hub's copy of one notebook.
+
+    Only Task Hub's copy. The notebook itself stays on the tablet and in
+    Supernote's cloud, untouched -- this connector has never had a way to
+    delete anything there and this route is not the exception.
+    """
+    row = db.get(SupernoteNote, note_row_id)
+    if row is None:
+        deps.flash(request, "That note is not in the backup.", "error")
+        return deps.redirect("/notes")
+
+    name = row.name
+    note_backup.remove_copy(db, row)
+    db.commit()
+    deps.flash(
+        request,
+        f"Removed the copy of {name!r} from Task Hub. It is untouched on your "
+        "tablet, and it will not be fetched again unless you restore it.",
+        "success",
+    )
+    return deps.redirect("/notes")
+
+
+@router.post("/{note_row_id}/restore")
+def restore(note_row_id: int, request: Request, db: Session = Depends(get_db)):
+    """Let a removed notebook be backed up again on the next pass."""
+    row = db.get(SupernoteNote, note_row_id)
+    if row is None:
+        return deps.redirect("/notes")
+    note_backup.restore_copy(db, row)
+    db.commit()
+    deps.flash(
+        request,
+        f"{row.name!r} will be fetched again on the next backup.",
+        "success",
+    )
+    return deps.redirect("/notes")
+
+
+@router.post("/removed/forget")
+def forget_removed(request: Request, db: Session = Depends(get_db)):
+    """Clear the list of removed notebooks.
+
+    They come back on the next backup, because the only thing keeping them away
+    was the record being cleared here. Said plainly on the button rather than
+    left as a surprise.
+    """
+    rows = db.execute(
+        select(SupernoteNote).where(SupernoteNote.excluded.is_(True))
+    ).scalars().all()
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    deps.flash(
+        request,
+        f"Forgot {len(rows)} removed notebook(s). They will be backed up again "
+        "on the next pass.",
+        "info",
+    )
+    return deps.redirect("/notes")
 
 
 # --- Choosing folders ---------------------------------------------------------
