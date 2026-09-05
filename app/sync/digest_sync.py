@@ -31,6 +31,16 @@ from app.services.supernote_digest import SupernoteDigests
 
 logger = logging.getLogger(__name__)
 
+#: Stands for "not in any library" in the chooser.
+#:
+#: Supernote lets a digest belong to no library, and the tablet shows those in
+#: its all view. Without a way to tick them they could only be included by
+#: ticking nothing at all, which is the opposite of what somebody choosing
+#: carefully would expect -- and it silently dropped two highlights on the
+#: account this was built against. Cannot collide with a real one: Supernote's
+#: are 32-character hex.
+UNFILED_UID = "__unfiled__"
+
 
 class DigestResult:
     def __init__(self) -> None:
@@ -132,7 +142,14 @@ def run_sync(force: bool = False) -> DigestResult:
     # An empty selection means every library, including digests filed in none.
     # "Choose nothing and get nothing" would be a puzzling default for a mirror
     # somebody has just switched on.
-    keep = [d for d in digests if not wanted or d.library_uid in wanted]
+    def chosen(digest) -> bool:
+        if not wanted:
+            return True  # Nothing ticked means everything.
+        if digest.library_uid:
+            return digest.library_uid in wanted
+        return UNFILED_UID in wanted
+
+    keep = [d for d in digests if chosen(d)]
     seen = {d.id for d in keep}
 
     with session_scope() as session:

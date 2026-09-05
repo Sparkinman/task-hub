@@ -280,16 +280,30 @@ def _notify_sync_outcome(run) -> None:
 
 
 def _run_note_backup() -> None:
-    """Convert any changed Supernote notes, on the backup's own schedule."""
+    """Everything Supernote does on the slow clock: notebooks, then digests.
+
+    The two are independent and each checks its own switch. They were briefly
+    not: the digest sync was called from inside the notebook backup, which
+    returns early when no folders are chosen -- so anyone who wanted digests
+    but no notebook copies got neither, with nothing to show why.
+    """
     from app.sync.note_backup import run_backup
 
     try:
         result = run_backup()
+        if result.converted or result.removed or result.errors:
+            logger.info("Supernote note backup: %r", result)
     except Exception:  # noqa: BLE001 - a scheduled job must never die silently
         logger.exception("Supernote note backup failed")
-        return
-    if result.converted or result.removed or result.errors:
-        logger.info("Supernote note backup: %r", result)
+
+    try:
+        from app.sync.digest_sync import run_sync as sync_digests
+
+        digests = sync_digests()
+        if digests.added or digests.updated or digests.removed or digests.errors:
+            logger.info("Supernote digests: %r", digests)
+    except Exception:  # noqa: BLE001 - independent of the backup above
+        logger.exception("Supernote digest sync failed")
 
 
 def reschedule_note_backup() -> None:
@@ -304,17 +318,20 @@ def reschedule_note_backup() -> None:
     if _scheduler is None:
         return
 
+    from app.sync.digest_sync import digest_enabled
     from app.sync.note_backup import backup_enabled, backup_interval
 
     with session_scope() as session:
-        enabled = backup_enabled(session)
+        # Either feature is reason enough to run: they share one clock but
+        # neither depends on the other being switched on.
+        wanted = backup_enabled(session) or digest_enabled(session)
         minutes = backup_interval(session)
 
     existing = _scheduler.get_job(NOTE_BACKUP_JOB_ID)
-    if not enabled:
+    if not wanted:
         if existing:
             _scheduler.remove_job(NOTE_BACKUP_JOB_ID)
-            logger.info("Supernote note backup disabled")
+            logger.info("Supernote background work disabled")
         return
 
     trigger = IntervalTrigger(minutes=minutes)
@@ -323,9 +340,9 @@ def reschedule_note_backup() -> None:
     else:
         _scheduler.add_job(
             _run_note_backup, trigger=trigger, id=NOTE_BACKUP_JOB_ID,
-            name="Supernote note backup", replace_existing=True,
+            name="Supernote notebooks and digests", replace_existing=True,
         )
-    logger.info("Supernote note backup every %s minutes", minutes)
+    logger.info("Supernote notebooks and digests every %s minutes", minutes)
 
 
 def note_backup_next_run_time():

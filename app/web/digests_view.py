@@ -260,18 +260,39 @@ def save_libraries(
     digest_sync.set_selected_libraries(db, library)
     settings_store.set_bool(db, settings_store.SUPERNOTE_DIGEST_ENABLED, bool(enabled))
     db.commit()
+
+    # Turning digests on may be the only reason the job needs to exist, so the
+    # schedule is reconsidered here as well as when notebook settings change.
+    from app.sync import scheduler
+
+    scheduler.reschedule_note_backup()
     digest_sync.run_sync(force=True)
     deps.flash(request, "Digest settings saved.", "success")
     return deps.redirect("/services/supernote")
 
 
 def libraries_for_picker(db: Session) -> tuple[list, str | None]:
-    """The libraries on the account, for the chooser on the Supernote page."""
+    """The libraries on the account, plus a row for digests in none of them.
+
+    The unfiled row is offered whenever such digests exist. Without it they can
+    only be included by ticking nothing at all, so somebody who carefully picks
+    every library still loses them -- which is exactly what happened.
+    """
+    from app.services.supernote_digest import Library
+
     client = digest_sync.client_for(db)
     if client is None:
         return [], None
     try:
-        return client.libraries(), None
+        libraries = list(client.libraries())
+        unfiled = sum(1 for d in client.digests() if not d.library_uid)
+        if unfiled:
+            libraries.append(Library(
+                id=digest_sync.UNFILED_UID,
+                name=f"Not in any library ({unfiled})",
+                unique_id=digest_sync.UNFILED_UID,
+            ))
+        return libraries, None
     except ConnectorError as exc:
         return [], str(exc)
     finally:

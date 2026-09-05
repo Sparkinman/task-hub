@@ -171,6 +171,31 @@ check("remove_copy only edits the row and the local file",
       "files." not in inspect.getsource(note_backup.remove_copy),
       inspect.getsource(note_backup.remove_copy)[:80])
 
+print("\nDigests do not depend on notebooks being backed up")
+# They were briefly coupled: the digest sync was called from the end of
+# run_backup, which returns early when no folders are chosen -- so wanting
+# digests but no notebook copies got neither, with nothing to explain why.
+import inspect  # noqa: E402
+
+backup_source = inspect.getsource(note_backup.run_backup)
+check("the notebook backup does not sync digests",
+      "digest" not in backup_source.lower(),
+      "run_backup still mentions digests")
+
+from app.sync import scheduler  # noqa: E402
+
+job_source = inspect.getsource(scheduler._run_note_backup)
+check("the scheduled job runs both", "run_backup" in job_source and
+      "digest" in job_source.lower(), job_source[:120])
+# Each half is tried independently, so one failing does not skip the other.
+check("in separate try blocks", job_source.count("try:") >= 2,
+      str(job_source.count("try:")))
+
+reschedule_source = inspect.getsource(scheduler.reschedule_note_backup)
+check("the schedule exists if either is wanted",
+      "digest_enabled" in reschedule_source and "or" in reschedule_source,
+      reschedule_source[:160])
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)

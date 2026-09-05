@@ -200,6 +200,39 @@ check("accents are folded", _latin("café") == "cafe", _latin("café"))
 check("an emoji becomes a question mark", _latin("hi 🙂") == "hi ?", _latin("hi 🙂"))
 check("tabs become spaces", _latin("a\tb") == "a b", repr(_latin("a\tb")))
 
+print("\nChoosing libraries must not silently drop the unfiled ones")
+# Reported from a real account: four libraries ticked, and two highlights
+# vanished because they belonged to none of them. Before this, the only way to
+# include those was to tick nothing at all -- the opposite of what somebody
+# choosing carefully would expect.
+from app.sync.digest_sync import UNFILED_UID  # noqa: E402
+
+
+def kept(selected: set[str], library_uids: list[str]) -> list[str]:
+    """Mirror the rule run_sync applies, for the cases that matter."""
+    def chosen(uid: str) -> bool:
+        if not selected:
+            return True
+        return uid in selected if uid else UNFILED_UID in selected
+    return [uid for uid in library_uids if chosen(uid)]
+
+
+everything = ["lib-a", "lib-b", ""]
+check("ticking nothing keeps everything",
+      kept(set(), everything) == everything)
+check("ticking one library keeps only it",
+      kept({"lib-a"}, everything) == ["lib-a"])
+check("ticking every real library still leaves the unfiled ones out",
+      kept({"lib-a", "lib-b"}, everything) == ["lib-a", "lib-b"])
+check("and ticking the unfiled row brings them in",
+      kept({"lib-a", "lib-b", UNFILED_UID}, everything) == everything)
+check("the unfiled row alone keeps only those",
+      kept({UNFILED_UID}, everything) == [""])
+# Supernote's own identifiers are 32-character hex, so the sentinel cannot be
+# mistaken for one.
+check("the sentinel cannot collide with a real library id",
+      not re.fullmatch(r"[0-9a-f]{32}", UNFILED_UID), UNFILED_UID)
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)
