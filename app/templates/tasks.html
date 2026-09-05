@@ -279,6 +279,18 @@
                       <label>Notes</label>
                       <textarea name="notes" rows="3">{{ t.notes or '' }}</textarea>
                     </div>
+                    {# Deliberately empty, and only ever adds. Filling it with
+                       the steps that already exist would mean working out the
+                       difference on every save, which is how a form starts
+                       duplicating or deleting somebody's work. #}
+                    <div class="field">
+                      <label>Add sub tasks — one per line</label>
+                      <textarea name="steps" rows="2"
+                                placeholder="Anything typed here is added as a new sub task"></textarea>
+                      <span class="field-hint">
+                        Only adds. Existing sub tasks are edited on their own rows.
+                      </span>
+                    </div>
                     <div class="row">
                       <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
                       <button type="button" class="btn btn-ghost btn-sm"

@@ -360,6 +360,51 @@ def steps(collection_id: str, uid: str, request: Request,
     )
 
 
+def _add_steps(client, collection_id: str, parent_uid: str, steps: str,
+               now: dt.datetime) -> tuple[int, int]:
+    """Create a subtask for each non-empty line. Returns (made, failed).
+
+    Only ever adds. Nothing here renames or removes an existing step, which is
+    what makes it safe to offer on a form somebody may submit repeatedly: the
+    box is never filled in with what is already there, so saving a task without
+    typing in it adds nothing at all.
+
+    Each failure is counted rather than aborting the rest -- losing four steps
+    because the third had a bad character would be a poor trade for somebody
+    who typed all five.
+    """
+    made = failed = 0
+    for line in (steps or "").splitlines():
+        step = line.strip().lstrip("-*").strip()
+        if not step:
+            continue
+        child = CanonicalRecord(
+            uid=new_uid(),
+            kind=CollectionKind.TASKS,
+            parent_uid=parent_uid,
+            title=step[:500],
+            status=ItemStatus.NEEDS_ACTION,
+            origin_service=ServiceKind.LOCAL,
+            created_at=now,
+            updated_at=now,
+        )
+        try:
+            client.save_record(collection_id, child)
+            made += 1
+        except CalDAVError:
+            failed += 1
+    return made, failed
+
+
+def _said_about_steps(what: str, made: int, failed: int) -> str:
+    if failed:
+        return (f"{what} with {made} sub task{'' if made == 1 else 's'}, "
+                f"but {failed} could not be saved.")
+    if made:
+        return f"{what} with {made} sub task{'' if made == 1 else 's'}."
+    return f"{what}."
+
+
 def _back_to(collection: str, show_completed: str, q: str) -> str:
     """Return to the filtered list the task was added from, not a bare /tasks."""
     from urllib.parse import urlencode
@@ -442,47 +487,9 @@ def create_task(
         deps.flash(request, str(exc), "error")
         return deps.redirect(back)
 
-    # Steps typed alongside the task, one per line. Written after the parent so
-    # they can point at it, and each failure is counted rather than aborting the
-    # rest -- losing four steps because the third had a bad character would be a
-    # poor trade for somebody who typed all five.
-    made = 0
-    failed = 0
-    for line in (steps or "").splitlines():
-        step = line.strip().lstrip("-*").strip()
-        if not step:
-            continue
-        child = CanonicalRecord(
-            uid=new_uid(),
-            kind=CollectionKind.TASKS,
-            parent_uid=record.uid,
-            title=step[:500],
-            status=ItemStatus.NEEDS_ACTION,
-            origin_service=ServiceKind.LOCAL,
-            created_at=now,
-            updated_at=now,
-        )
-        try:
-            client.save_record(collection_id, child)
-            made += 1
-        except CalDAVError:
-            failed += 1
-
-    if failed:
-        deps.flash(
-            request,
-            f"Added {title!r} with {made} step{'' if made == 1 else 's'}, "
-            f"but {failed} could not be saved.",
-            "warning",
-        )
-    elif made:
-        deps.flash(
-            request,
-            f"Added {title!r} with {made} step{'' if made == 1 else 's'}.",
-            "success",
-        )
-    else:
-        deps.flash(request, f"Added {title!r}.", "success")
+    made, failed = _add_steps(client, collection_id, record.uid, steps, now)
+    deps.flash(request, _said_about_steps(f"Added {title!r}", made, failed),
+               "warning" if failed else "success")
     return deps.redirect(back)
 
 
@@ -549,6 +556,7 @@ def update_task(
     due_time: str = Form(""),
     priority: str = Form("0"),
     notes: str = Form(""),
+    steps: str = Form(""),
     db: Session = Depends(get_db),
 ):
     client = get_radicale_client(db)
@@ -595,7 +603,15 @@ def update_task(
         deps.flash(request, str(exc), "error")
         return deps.redirect("/tasks")
 
-    deps.flash(request, "Task updated.", "success")
+    # Purely additive, and the box is never filled in with the steps that
+    # already exist. Saving the form without typing in it therefore changes
+    # nothing, however many times it is saved -- which is what makes offering
+    # this here safe. Filling it in with the current steps and trying to work
+    # out the difference is the version that duplicates and deletes.
+    made, failed = _add_steps(client, collection_id, record.uid, steps,
+                              record.updated_at)
+    deps.flash(request, _said_about_steps("Task updated", made, failed),
+               "warning" if failed else "success")
     return deps.redirect("/tasks")
 
 
