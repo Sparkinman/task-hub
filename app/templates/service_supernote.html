@@ -164,6 +164,113 @@
   </div>
 </div>
 
+{# --- Note backup ---------------------------------------------------------- #}
+{% if accounts %}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Back up notebooks as PDFs</div>
+      <div class="card-subtitle">
+        Pick folders to copy. Task Hub reads them and nothing else — it never
+        writes to your tablet.
+      </div>
+    </div>
+    <div class="row">
+      <form method="post" action="/notes/backup-now">
+        <button type="submit" class="btn btn-sm">{{ ico.icon('refresh') }} Back up now</button>
+      </form>
+      <a class="btn btn-ghost btn-sm" href="/notes">{{ ico.icon('book') }} View notes</a>
+    </div>
+  </div>
+
+  <div class="card-body">
+    {% if folder_error %}
+      <div class="alert alert-warning">
+        <span class="alert-icon" aria-hidden="true">!</span>
+        <div class="grow">Could not read your Supernote folders: {{ folder_error }}</div>
+      </div>
+    {% elif not folder_tree %}
+      <p class="muted">No folders found in your Supernote cloud.</p>
+    {% else %}
+      <form method="post" action="/notes/folders" class="stack">
+        <div class="field">
+          <label class="checkbox">
+            <input type="checkbox" name="enabled" value="1"
+                   {{ 'checked' if backup_enabled }}>
+            <span>Back up automatically</span>
+          </label>
+          <span class="field-hint">
+            When off, notebooks are only fetched when you press
+            <span class="strong">Back up now</span>.
+          </span>
+        </div>
+
+        <div class="field" style="max-width: 320px;">
+          <label for="backup-interval">How often</label>
+          <select id="backup-interval" name="interval">
+            {% for minutes, label in [(30, 'Every 30 minutes'), (60, 'Every hour'),
+                                      (180, 'Every 3 hours'), (360, 'Every 6 hours'),
+                                      (720, 'Every 12 hours'), (1440, 'Once a day')] %}
+              <option value="{{ minutes }}" {{ 'selected' if backup_interval == minutes }}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+          <span class="field-hint">
+            {{ backup_floor }} minutes is the fastest allowed, on purpose. Converting a
+            notebook is real work on Supernote's servers, on an API they never
+            published — asking gently is what keeps this working. Notes are not
+            urgent, so once or twice a day suits most people.
+          </span>
+        </div>
+
+        <div class="field">
+          <label>Folders to back up</label>
+          <span class="field-hint">
+            Ticking a folder includes everything inside it, however deeply nested.
+          </span>
+          <div class="stack-sm mt-3">
+            {% for root in folder_tree %}
+              <div>
+                <label class="checkbox">
+                  <input type="checkbox" name="folder" value="{{ root.id }}"
+                         {{ 'checked' if root.id in backup_selected }}>
+                  <span class="strong">{{ root.name }}</span>
+                </label>
+                {% if root.children %}
+                  <div style="margin-left: var(--gap-5);">
+                    {% for child in root.children %}
+                      <label class="checkbox">
+                        <input type="checkbox" name="folder" value="{{ child.id }}"
+                               {{ 'checked' if child.id in backup_selected }}>
+                        <span>{{ child.name }}</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div>
+          <button type="submit" class="btn btn-primary">Save backup settings</button>
+        </div>
+      </form>
+
+      {% if backup_last_run %}
+        <p class="small muted mt-4">
+          Last backup {{ backup_last_run.when.strftime('%-d %B %Y at %H:%M UTC') }} —
+          {{ backup_last_run.converted }} converted,
+          {{ backup_last_run.unchanged }} already current{% if backup_last_run.errors %},
+          <span class="strong">{{ backup_last_run.errors }} problem(s)</span>{% endif %}.
+        </p>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 {# --- Connected accounts and their lists ---------------------------------- #}
 {% if accounts %}
   <div class="card mb-5">

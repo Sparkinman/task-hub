@@ -124,6 +124,28 @@ then close the terminal and go back to using whatever address you like.
 
 ---
 
+## Installing Task Hub on a phone
+
+Task Hub can be added to a phone or tablet's home screen and opened like any
+other app: its own icon, no browser chrome, and the pages laid out for a small
+screen. There is nothing to install from an app store — the web address *is*
+the app.
+
+- **iPhone or iPad:** open Task Hub in Safari, press Share, then
+  **Add to Home Screen**.
+- **Android:** open it in Chrome, press the menu, then **Install app** or
+  **Add to Home screen**.
+
+**This needs an HTTPS address.** Browsers only allow an installed web app to
+work offline over a secure connection, and a plain `http://192.168.…` address
+is not one. A Cloudflare tunnel or Tailscale gives you HTTPS — both are covered
+above — and once you have either, installing takes a few seconds.
+
+Without HTTPS the site still works normally in a browser; you simply do not get
+the icon, the full-screen view or the offline page.
+
+---
+
 ## Behind a reverse proxy
 
 If you run nginx, Caddy, Traefik or Nginx Proxy Manager, Task Hub reads the

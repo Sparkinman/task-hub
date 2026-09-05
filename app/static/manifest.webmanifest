@@ -1,0 +1,21 @@
+{
+  "name": "Task Hub",
+  "short_name": "Task Hub",
+  "description": "Your tasks, calendars and notes, kept in step across every service you use.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#042C53",
+  "theme_color": "#042C53",
+  "icons": [
+    { "src": "/static/img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/img/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/static/img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Tasks", "url": "/tasks" },
+    { "name": "Calendar", "url": "/calendar" },
+    { "name": "Notes", "url": "/notes" }
+  ]
+}

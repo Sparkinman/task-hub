@@ -448,10 +448,25 @@ def service_detail(service_key: str, request: Request, db: Session = Depends(get
     if service_key == ServiceKind.SUPERNOTE.value:
         # Neither OAuth nor a plain stored password: signing in needs a code
         # emailed at the time, so the form has two steps and a page of its own.
+        from app.web.notes_view import folder_tree
         from app.web.supernote_setup import any_pending, expiring_accounts
+        from app.sync import note_backup
+
+        # Only walked when an account is actually connected: it costs a request
+        # per top-level folder, and an unconnected page has nothing to show.
+        tree, tree_error = ([], None)
+        if accounts:
+            tree, tree_error = folder_tree(db)
 
         return deps.render(
             request, db, "service_supernote.html",
+            folder_tree=tree,
+            folder_error=tree_error,
+            backup_enabled=note_backup.backup_enabled(db),
+            backup_interval=note_backup.backup_interval(db),
+            backup_selected=note_backup.selected_folders(db),
+            backup_last_run=note_backup.last_run(db),
+            backup_floor=__import__("app.db.settings_store", fromlist=["x"]).MIN_NOTE_BACKUP_INTERVAL_MINUTES,
             definition=definition,
             accounts=accounts,
             free_slots=free_slots,

@@ -219,6 +219,62 @@ app.add_middleware(ForwardedHeadersMiddleware)
 
 # --- Mounts -------------------------------------------------------------------
 
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    """The service worker, served from the root so it can control every page.
+
+    A worker's scope is the directory it was served from, so one delivered from
+    /static/js/ could only ever manage /static/js/. Serving the same file here
+    is what lets it handle navigations. It is deliberately never cached: a
+    stale worker is the one bug in this area that users cannot clear themselves.
+    """
+    from fastapi.responses import FileResponse as _FileResponse
+
+    return _FileResponse(
+        STATIC_DIR / "js" / "sw.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+    )
+
+
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def web_manifest():
+    """What an installer reads to put Task Hub on a home screen."""
+    from fastapi.responses import FileResponse as _FileResponse
+
+    return _FileResponse(
+        STATIC_DIR / "manifest.webmanifest",
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.get("/offline", include_in_schema=False)
+def offline_page():
+    """Shown by the service worker when the network is gone.
+
+    Deliberately a bare page with no data on it: it is cached on the device, so
+    anything it contained would be a copy of somebody's tasks sitting outside
+    the session that fetched them.
+    """
+    from fastapi.responses import HTMLResponse as _HTMLResponse
+
+    return _HTMLResponse(
+        "<!doctype html><html lang=en><head><meta charset=utf-8>"
+        "<meta name=viewport content='width=device-width, initial-scale=1'>"
+        "<title>Task Hub is not reachable</title>"
+        "<link rel=stylesheet href=/static/css/app.css>"
+        "</head><body style='padding:2rem;font-family:system-ui'>"
+        "<h1>Task Hub is not reachable</h1>"
+        "<p>This device cannot reach your Task Hub right now. Nothing is lost — "
+        "everything is on the server, and this page will work again as soon as "
+        "the connection does.</p>"
+        "<p><a href='/'>Try again</a></p>"
+        "</body></html>",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # The embedded CalDAV server. External clients point here; so does Task Hub's
@@ -233,6 +289,7 @@ from app.web import (  # noqa: E402 - imported after app creation by design
     calendar_view,
     docs_view,
     google_setup,
+    notes_view,
     oauth_setup,
     obsidian_setup,
     password_setup,
@@ -264,6 +321,7 @@ app.include_router(oauth_setup.router)
 app.include_router(password_setup.router)
 app.include_router(obsidian_setup.router)
 app.include_router(supernote_setup.router)
+app.include_router(notes_view.router)
 app.include_router(sync_view.router)
 app.include_router(settings_view.router)
 app.include_router(docs_view.router)

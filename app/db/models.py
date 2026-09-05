@@ -768,3 +768,61 @@ class SyncLogEntry(Base):
     detail: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     run: Mapped[SyncRun] = relationship(back_populates="entries")
+
+
+class SupernoteNote(Base):
+    """One Supernote notebook, backed up as a PDF Task Hub can show.
+
+    A backup rather than a sync: the folders it reads are never written to, and
+    nothing here travels back to the tablet. The PDF is Supernote's own
+    rendering of the note, because ``.note`` is an undocumented binary format
+    and their converter is the only one guaranteed to understand the version
+    the tablet is writing today.
+
+    ``source_md5`` is what makes the job polite. Supernote reports an md5 for
+    every file, so a note that was opened but not changed is recognised and
+    never sent for conversion again -- conversion happens on Ratta's servers at
+    their expense, and re-rendering unchanged notebooks on a timer is the
+    fastest way to have this access withdrawn.
+    """
+
+    __tablename__ = "supernote_notes"
+    __table_args__ = (
+        UniqueConstraint("account_id", "note_id", name="uq_supernote_note"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), index=True
+    )
+    #: Supernote's own id for the .note file.
+    note_id: Mapped[str] = mapped_column(String(64), index=True)
+    #: The folder the user chose, so a note can be dropped when they untick it.
+    root_folder_id: Mapped[str] = mapped_column(String(64), index=True)
+
+    name: Mapped[str] = mapped_column(String(512))
+    #: Folder path below the chosen root, for display only.
+    folder_path: Mapped[str] = mapped_column(String(1024), default="")
+
+    #: The md5 of the .note the stored PDF was made from.
+    source_md5: Mapped[str] = mapped_column(String(64), default="")
+    source_size: Mapped[int] = mapped_column(Integer, default=0)
+    source_updated_at: Mapped[dt.datetime | None] = mapped_column(
+        UTCDateTime, nullable=True
+    )
+
+    #: File name under the notes directory. Not a path the user supplies, and
+    #: never derived from the note's own name, which could contain anything.
+    pdf_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    pdf_size: Mapped[int] = mapped_column(Integer, default=0)
+    converted_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+    #: Why the last attempt failed, or null. Kept so a note that cannot be
+    #: converted says so on the page instead of silently never appearing.
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        UTCDateTime, default=utcnow, onupdate=utcnow
+    )
+

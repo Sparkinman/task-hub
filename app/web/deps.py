@@ -31,6 +31,12 @@ PUBLIC_PREFIXES: tuple[str, ...] = (
     # discovery request with a login page -- which iOS reports as a rejected
     # password, sending people off to reset a password that was already right.
     "/.well-known",
+    # An installed web app fetches these before anyone has signed in, and a
+    # service worker only controls the pages below the path it was served from
+    # -- so it has to come from the root rather than from /static.
+    "/sw.js",
+    "/manifest.webmanifest",
+    "/offline",
 )
 
 #: Reachable while logged out, so a user can actually log in or set up.

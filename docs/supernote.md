@@ -129,6 +129,48 @@ task from every other service because you tidied it up.
 
 ---
 
+## Backing up your notebooks as PDFs
+
+Separate from the to-do sync, and read-only: Task Hub copies notebooks *out* of
+folders you choose and never writes anything back into them.
+
+**What it does.** For each notebook in a folder you tick, Task Hub asks
+Supernote's own converter to render it as a PDF and keeps the result. You read
+it under **Notes**, and you can download a copy onto whatever device you are
+using — phone, tablet or laptop.
+
+Supernote's converter is used rather than an open-source one on purpose.
+`.note` is an undocumented binary format that changes with the firmware, and
+Ratta's converter is the only one guaranteed to understand the version your
+tablet is writing today.
+
+**Setting it up.** On the Supernote page, under *Back up notebooks as PDFs*:
+
+1. Tick the folders you want. Ticking a folder includes everything inside it,
+   however deeply nested.
+2. Choose how often, and whether it runs automatically.
+3. Press **Save backup settings**, then **Back up now** to fetch the first copy.
+
+**Why it is slow on purpose.** The fastest setting is once every 30 minutes,
+and the default is every 6 hours. Converting a notebook is real work on
+Supernote's servers, on an API they never published and owe nobody. Task Hub
+also only converts notebooks that have actually changed — Supernote reports a
+checksum for every file, so opening a notebook without editing it costs
+nothing — pauses between conversions, and does at most 25 in one pass. A first
+backup of a large account therefore arrives over several runs rather than as
+one long burst. All of that is deliberate: being a good guest is what keeps
+this working.
+
+**Large notebooks may say "still converting".** Supernote queues big ones —
+year planners especially — and renders them in the background. That is not a
+failure and needs nothing from you; they appear on a later backup.
+
+**What it is not.** It is a backup, not a sync. Editing a PDF here is not
+possible, nothing travels back to the tablet, and deleting a notebook on the
+tablet removes it from Task Hub on the next pass.
+
+---
+
 ## Setting it up
 
 You need your Supernote Cloud email address and password — the same ones you

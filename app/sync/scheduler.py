@@ -25,6 +25,12 @@ JOB_ID = "taskhub-sync"
 #: must never interfere with syncing.
 DIGEST_JOB_ID = "taskhub-digest"
 
+#: The Supernote note backup, on its own far slower clock. Kept as a separate
+#: job rather than folded into the sync pass because it talks to a different
+#: server, on an unpublished API, doing work that costs its owner real money --
+#: so it must never inherit the task sync's cadence, whatever that is set to.
+NOTE_BACKUP_JOB_ID = "taskhub-note-backup"
+
 _scheduler: BackgroundScheduler | None = None
 _lock = threading.Lock()
 #: Guards against a scheduled pass starting while a manual one is still running.
@@ -123,6 +129,7 @@ def start_scheduler() -> None:
         logger.info("Scheduler started")
     reschedule()
     reschedule_digest()
+    reschedule_note_backup()
 
 
 def shutdown_scheduler() -> None:
@@ -194,6 +201,62 @@ def reschedule_digest() -> None:
             name="Task Hub daily summary", replace_existing=True,
         )
     logger.info("Daily summary at %s %s on %s", when, zone, ",".join(days))
+
+
+def _run_note_backup() -> None:
+    """Convert any changed Supernote notes, on the backup's own schedule."""
+    from app.sync.note_backup import run_backup
+
+    try:
+        result = run_backup()
+    except Exception:  # noqa: BLE001 - a scheduled job must never die silently
+        logger.exception("Supernote note backup failed")
+        return
+    if result.converted or result.removed or result.errors:
+        logger.info("Supernote note backup: %r", result)
+
+
+def reschedule_note_backup() -> None:
+    """Apply the note backup's own interval and switch.
+
+    The interval is read through :func:`app.sync.note_backup.backup_interval`,
+    which clamps it to the thirty-minute floor. Reading the raw setting here
+    would let a value written straight into the database schedule something far
+    too frequent against somebody else's server.
+    """
+    global _scheduler
+    if _scheduler is None:
+        return
+
+    from app.sync.note_backup import backup_enabled, backup_interval
+
+    with session_scope() as session:
+        enabled = backup_enabled(session)
+        minutes = backup_interval(session)
+
+    existing = _scheduler.get_job(NOTE_BACKUP_JOB_ID)
+    if not enabled:
+        if existing:
+            _scheduler.remove_job(NOTE_BACKUP_JOB_ID)
+            logger.info("Supernote note backup disabled")
+        return
+
+    trigger = IntervalTrigger(minutes=minutes)
+    if existing:
+        _scheduler.reschedule_job(NOTE_BACKUP_JOB_ID, trigger=trigger)
+    else:
+        _scheduler.add_job(
+            _run_note_backup, trigger=trigger, id=NOTE_BACKUP_JOB_ID,
+            name="Supernote note backup", replace_existing=True,
+        )
+    logger.info("Supernote note backup every %s minutes", minutes)
+
+
+def note_backup_next_run_time():
+    if _scheduler is None:
+        return None
+    job = _scheduler.get_job(NOTE_BACKUP_JOB_ID)
+    return job.next_run_time if job else None
 
 
 def digest_next_run_time():

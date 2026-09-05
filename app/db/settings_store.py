@@ -25,6 +25,11 @@ SYNC_INTERVAL_MINUTES: Final = "sync_interval_minutes"
 SYNC_ENABLED: Final = "sync_enabled"
 RADICALE_USERNAME: Final = "radicale_username"
 BASE_URL_OVERRIDE: Final = "base_url_override"
+
+#: Supernote note backup: which folders, how often, and whether it runs at all.
+SUPERNOTE_BACKUP_ENABLED: Final = "supernote_backup_enabled"
+SUPERNOTE_BACKUP_FOLDERS: Final = "supernote_backup_folders"
+SUPERNOTE_BACKUP_INTERVAL_MINUTES: Final = "supernote_backup_interval_minutes"
 THEME: Final = "theme"
 ADVANCED_MODE: Final = "advanced_mode"
 TUNNEL_ENABLED: Final = "tunnel_enabled"
@@ -67,7 +72,20 @@ DIGEST_WHEN_EMPTY: Final = "digest_when_empty"
 #: Enforced here rather than only in the form so an API caller cannot bypass it.
 MIN_SYNC_INTERVAL_MINUTES: Final = 3
 
+#: The note backup runs on its own clock, far slower than the task sync.
+#:
+#: Converting a notebook happens on Ratta's servers, on an API they never
+#: published and owe nobody. Polling it at task-sync speed would be both rude
+#: and the surest way to have the access withdrawn, so the floor here is thirty
+#: minutes rather than three, and the default is measured in hours. Notes are
+#: not urgent: a notebook written this morning is no less useful this evening.
+MIN_NOTE_BACKUP_INTERVAL_MINUTES: Final = 30
+DEFAULT_NOTE_BACKUP_INTERVAL_MINUTES: Final = 360
+
 DEFAULTS: Final[dict[str, str]] = {
+    SUPERNOTE_BACKUP_ENABLED: "0",
+    SUPERNOTE_BACKUP_FOLDERS: "",
+    SUPERNOTE_BACKUP_INTERVAL_MINUTES: "360",
     ONBOARDING_COMPLETE: "0",
     TIMEZONE: "UTC",
     DATE_FORMAT: "YYYY-MM-DD",

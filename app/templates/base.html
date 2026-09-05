@@ -6,6 +6,17 @@
   <meta name="color-scheme" content="light dark">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+
+  {# Installable web app. iOS reads none of the manifest for the home-screen
+     icon, so apple-touch-icon has to be given separately. #}
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Task Hub">
+  <meta name="mobile-web-app-capable" content="yes">
+  {# Matched to the app background so the status bar does not sit on a strip of
+     a different colour once installed. #}
+  <meta name="theme-color" content="#042C53">
   <link rel="stylesheet" href="/static/css/app.css?v={{ asset_version }}">
   <script>
     /* Applied before the first paint so the page never flashes the wrong
@@ -46,5 +57,19 @@
   {% block body %}{% endblock %}
 
   <script src="/static/js/app.js?v={{ asset_version }}" defer></script>
+  <script>
+    /* Registered only where it can work. A service worker needs a secure
+       context: HTTPS, or localhost. On a plain LAN address the browser refuses
+       it, and calling register() there throws an error into the console of
+       every page for no benefit -- so the check is made first rather than the
+       failure caught afterwards. */
+    if ("serviceWorker" in navigator && window.isSecureContext) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/sw.js").catch(function () {
+          /* Not worth reporting: the app works perfectly without it. */
+        });
+      });
+    }
+  </script>
 </body>
 </html>

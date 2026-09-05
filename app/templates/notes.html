@@ -1,0 +1,144 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Notes · {{ app_name }}{% endblock %}
+{% block page_title %}Notes{% endblock %}
+{% block page_subtitle %}
+  <div class="subtitle">
+    {% if total %}
+      {{ readable }} notebook{{ '' if readable == 1 else 's' }} backed up from Supernote
+    {% else %}
+      Supernote notebooks, backed up as PDFs
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="/notes/backup-now">
+    <button type="submit" class="btn btn-primary">{{ ico.icon('refresh') }} Back up now</button>
+  </form>
+  <a class="btn btn-ghost" href="/services/supernote">Choose folders</a>
+{% endblock %}
+
+{% block content %}
+
+{% if not enabled %}
+  <div class="alert alert-info mb-5">
+    <span class="alert-icon" aria-hidden="true">i</span>
+    <div class="grow">
+      <div class="alert-title">Automatic backup is off</div>
+      Notebooks are only fetched when you press <span class="strong">Back up now</span>.
+      Turn it on under <a href="/services/supernote">Supernote</a> to have it run
+      every {{ interval }} minutes.
+    </div>
+  </div>
+{% endif %}
+
+{% if last_run %}
+  <p class="small muted mb-4">
+    Last backup {{ last_run.when.strftime('%-d %B %Y at %H:%M UTC') }} —
+    {{ last_run.converted }} converted, {{ last_run.unchanged }} already current{% if last_run.removed %},
+    {{ last_run.removed }} removed{% endif %}{% if last_run.errors %},
+    <span class="strong">{{ last_run.errors }} problem(s)</span>{% endif %}.
+  </p>
+{% endif %}
+
+{% if pending %}
+  <div class="alert alert-info mb-5">
+    <span class="alert-icon" aria-hidden="true">i</span>
+    <div class="grow">
+      <div class="alert-title">
+        {{ pending | length }} notebook{{ '' if pending | length == 1 else 's' }} still converting
+      </div>
+      {% for note in pending %}
+        <div class="small"><span class="mono">{{ note.name }}</span></div>
+      {% endfor %}
+      <p class="small mt-3">
+        Supernote queues big notebooks and renders them in the background. These
+        will appear on a later backup — nothing is wrong and nothing needs doing.
+      </p>
+    </div>
+  </div>
+{% endif %}
+
+{% if failed %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <div class="grow">
+      <div class="alert-title">
+        {{ failed | length }} notebook{{ '' if failed | length == 1 else 's' }} could not be converted
+      </div>
+      {% for note in failed %}
+        <div class="small"><span class="mono">{{ note.name }}</span> — {{ note.error }}</div>
+      {% endfor %}
+      <p class="small mt-3">
+        Supernote's converter refused these. They are listed rather than hidden so
+        a notebook you expected is never silently absent.
+      </p>
+    </div>
+  </div>
+{% endif %}
+
+{% if not total %}
+  <div class="card">
+    <div class="card-body">
+      <p class="muted">
+        Nothing backed up yet. Choose which Supernote folders to copy on the
+        <a href="/services/supernote">Supernote page</a>, then press
+        <span class="strong">Back up now</span>.
+      </p>
+      <p class="small muted">
+        Task Hub only ever reads those folders. Nothing is written back to your
+        tablet, and nothing you do here can change a notebook.
+      </p>
+    </div>
+  </div>
+{% else %}
+  {% for folder, notes in grouped.items() %}
+    <div class="card mb-5">
+      <div class="card-header">
+        <div>
+          <div class="card-title">{{ folder if folder else 'Top level' }}</div>
+          <div class="card-subtitle">
+            {{ notes | length }} notebook{{ '' if notes | length == 1 else 's' }}
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ul class="plain-list">
+          {% for note in notes %}
+            <li class="flex items-center gap-3" style="padding: var(--gap-2) 0;">
+              <div class="grow">
+                {% if note.pdf_name and not note.error %}
+                  <a href="/notes/{{ note.id }}" class="strong">{{ note.name }}</a>
+                {% else %}
+                  <span class="strong muted">{{ note.name }}</span>
+                {% endif %}
+                <div class="tiny muted">
+                  {% if note.converted_at %}
+                    backed up {{ note.converted_at.strftime('%-d %b %Y') }}
+                    {%- if note.pdf_size %} · {{ (note.pdf_size / 1024) | round | int }} KB{% endif %}
+                  {% elif note.error %}
+                    {{ 'still converting at Supernote' if 'converted' in note.error or 'converting' in note.error else 'could not be converted' }}
+                  {% else %}
+                    not yet backed up
+                  {% endif %}
+                </div>
+              </div>
+              {% if note.pdf_name and not note.error %}
+                <a class="btn btn-sm" href="/notes/{{ note.id }}/pdf" target="_blank"
+                   rel="noopener">Open</a>
+                {# Saves onto whichever device is being used, rather than only
+                   showing it in a tab. #}
+                <a class="btn btn-ghost btn-sm" href="/notes/{{ note.id }}/pdf?download=1"
+                   download>Download</a>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% endblock %}
