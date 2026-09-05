@@ -60,7 +60,7 @@
          at once, and a native multi-select needs ctrl-clicking to do that,
          which is close to undiscoverable and worse still on a phone. #}
       <div class="field lists-filter" style="margin:0;">
-        <details class="lists-picker" {{ 'open' if selected_collections }}>
+        <details class="lists-picker">
           <summary>
             {% if not selected_collections %}All lists
             {% elif selected_collections|length == 1 %}
@@ -85,6 +85,8 @@
                 <span class="check-label">{{ c.display_name }}</span>
               </label>
             {% endfor %}
+            <button type="button" class="btn btn-ghost btn-sm lists-done"
+                    data-close-lists>Done</button>
 
           </div>
         </details>

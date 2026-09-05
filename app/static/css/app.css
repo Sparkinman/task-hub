@@ -799,7 +799,14 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
   flex-direction: column;
   gap: 0.35rem;
 }
-.check-inline { display: flex; align-items: center; gap: 0.45rem; white-space: nowrap; }
+.check-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lists-done { align-self: stretch; margin-top: 0.3rem; }
 .showing-count { display: flex; align-items: center; }
 .pill-count {
   font-variant-numeric: tabular-nums;
@@ -1585,8 +1592,9 @@ dialog.modal::backdrop { background: var(--overlay); }
     max-height: 50vh;
     margin-top: 0.4rem;
   }
-  .lists-options .check-inline { min-height: 40px; }
-  .lists-options input[type="checkbox"] { width: 20px; height: 20px; }
+  /* The label carries the tap target, so the box itself can stay square. */
+  .lists-options .check-inline { min-height: 44px; padding: 0.15rem 0; }
+  .lists-done { width: 100%; margin-top: 0.35rem; }
 
   /* The count sits beside the picker rather than starting a row of its own. */
   .showing-count { align-self: flex-start; }
@@ -1632,6 +1640,16 @@ dialog.modal::backdrop { background: var(--overlay); }
   input, select, textarea {
     font-size: 16px;  /* Anything smaller makes iOS zoom the page on focus. */
     min-height: 44px;
+  }
+  /* Not the tick boxes. A minimum height meant for text fields stretches a
+     checkbox into a tall oval, because a checkbox is square by nature and the
+     browser scales the whole control rather than padding it. The tappable area
+     comes from the label around it instead. */
+  input[type="checkbox"], input[type="radio"] {
+    min-height: 0;
+    width: 20px;
+    height: 20px;
+    flex: none;
   }
   .checkbox { padding: var(--gap-2) 0; min-height: 44px; }
   .checkbox input[type="checkbox"] { width: 20px; height: 20px; }

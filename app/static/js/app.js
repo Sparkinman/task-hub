@@ -184,6 +184,15 @@
   /* A disclosure stays open until it is told otherwise, which is not what a
      dropdown should do: pressing anywhere else ought to put it away. */
   document.addEventListener("click", function (event) {
+    /* An explicit way out. On a phone the panel fills the width, so "press
+       somewhere else" means pressing a search box or a button that does its own
+       thing -- there is nowhere harmless to aim at. */
+    var done = event.target.closest("[data-close-lists]");
+    if (done) {
+      var owner = done.closest("details.lists-picker");
+      if (owner) owner.removeAttribute("open");
+      return;
+    }
     document.querySelectorAll("details.lists-picker[open]").forEach(function (d) {
       if (!d.contains(event.target)) d.removeAttribute("open");
     });
