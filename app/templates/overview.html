@@ -25,6 +25,8 @@
 
 {% include "partials/sync_progress.html" %}
 
+{% include "partials/redirect_drift.html" %}
+
 {# --- Health warnings ---------------------------------------------------- #}
 {% if not radicale_status.configured %}
   <div class="alert alert-error">

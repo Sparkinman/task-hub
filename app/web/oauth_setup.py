@@ -333,9 +333,10 @@ def _handle_callback(
         return deps.redirect(page)
 
     client_id, client_secret = client_credentials_for(db, service.kind)
+    redirect_uri = redirect_uri_for(request, service)
     try:
         credentials = service.exchange_code(
-            client_id, client_secret, code, redirect_uri_for(request, service)
+            client_id, client_secret, code, redirect_uri
         )
     except ConnectorError as exc:
         logger.warning("%s token exchange failed: %s", service.name, exc)
@@ -357,6 +358,7 @@ def _handle_callback(
         db.add(account)
 
     account.credentials = encrypt_json(credentials)
+    account.connected_redirect_uri = redirect_uri
     account.enabled = True
     account.status = AccountStatus.CONNECTED
     account.status_detail = None
@@ -565,9 +567,10 @@ def paste_authorization(
     request.session.pop("oauth_service", None)
 
     client_id, client_secret = client_credentials_for(db, service.kind)
+    redirect_uri = redirect_uri_for(request, service)
     try:
         credentials = service.exchange_code(
-            client_id, client_secret, code, redirect_uri_for(request, service)
+            client_id, client_secret, code, redirect_uri
         )
     except ConnectorError as exc:
         deps.flash(request, str(exc), "error")
@@ -585,6 +588,7 @@ def paste_authorization(
         db.add(account)
 
     account.credentials = encrypt_json(credentials)
+    account.connected_redirect_uri = redirect_uri
     account.enabled = True
     account.status = AccountStatus.CONNECTED
     account.status_detail = None

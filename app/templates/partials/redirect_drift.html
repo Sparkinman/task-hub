@@ -1,0 +1,60 @@
+{# Accounts connected at an address Task Hub is no longer reached on.
+   Nothing is broken -- refreshing a token never sends an address -- so this
+   warns rather than alarms, and says plainly that the cost of ignoring it is
+   paid later, at the next reconnection, in a form that will not look like this.
+
+   Expects `drift`: a list of RedirectDrift. Renders nothing when it is empty. #}
+{% if drift %}
+  <div class="alert alert-warning mb-5">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <div class="grow">
+      <div class="strong">
+        Task Hub's address has changed since
+        {% if drift | length == 1 %}an account was{% else %}some accounts were{% endif %}
+        connected.
+      </div>
+      <p class="small">
+        Everything still syncs, and will keep syncing — renewing a connection
+        never involves the address. But reconnecting one of these, or adding
+        another account, would send the new address, and the sign-in fails at
+        its very last step if the console has not been told about it.
+      </p>
+      {% for d in drift %}
+        <div class="stack-sm mt-3">
+          <div class="small">
+            <span class="strong">{{ d.service_name }}</span>
+            slot {{ d.slot }}{% if d.identity %} ({{ d.identity }}){% endif %}
+            was connected at <span class="mono">{{ d.connected_uri }}</span>.
+          </div>
+          {% if d.current_uri_problem %}
+            <div class="small">
+              A connection started now would send
+              <span class="mono">{{ d.current_uri }}</span>, and putting that
+              into {{ d.console_name }} would not help:
+              {{ d.current_uri_problem }}
+              So reach Task Hub on an address it does accept before reconnecting
+              this one — the existing connection is unaffected either way.
+            </div>
+          {% else %}
+            <div class="small">
+              Add this to
+              {% if d.console_url %}
+                <a href="{{ d.console_url }}" target="_blank" rel="noopener">{{ d.console_name }}</a>
+              {% else %}{{ d.console_name }}{% endif %}
+              as a second redirect URI, alongside the one already there:
+            </div>
+            <div class="copy-field">
+              <input type="text" id="drift-uri-{{ d.account_id }}" readonly
+                     value="{{ d.current_uri }}">
+              <button type="button" class="btn" data-copy="#drift-uri-{{ d.account_id }}">Copy</button>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+      <p class="small mt-3">
+        Keeping both addresses registered is normal and costs nothing — it is
+        what lets you connect over a port forward and use Task Hub over a tunnel.
+      </p>
+    </div>
+  </div>
+{% endif %}

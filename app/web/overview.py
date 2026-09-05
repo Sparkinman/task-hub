@@ -119,8 +119,11 @@ def overview(request: Request, db: Session = Depends(get_db)):
 
     total_accounts = db.execute(select(func.count(Account.id))).scalar_one()
 
+    from app.web.redirect_drift import all_drift
+
     return deps.render(
         request, db, "overview.html",
+        drift=all_drift(request, db),
         service_cards=service_cards,
         radicale_status=radicale_status,
         task_totals=task_totals,

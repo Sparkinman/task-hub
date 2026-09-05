@@ -635,12 +635,14 @@ def _oauth_detail(request, db, definition, service, accounts, free_slots):
         redirect_uri_for,
         redirect_uri_problem,
     )
+    from app.web.redirect_drift import drift_in
 
     client_id, client_secret = client_credentials_for(db, service.kind)
     redirect_uri = redirect_uri_for(request, service)
 
     return deps.render(
         request, db, "service_oauth.html",
+        drift=drift_in(request, accounts),
         definition=definition,
         service=service,
         accounts=accounts,
@@ -703,6 +705,7 @@ def _google_detail(request, db, definition, accounts, free_slots):
         redirect_uri_for,
         redirect_uri_problem,
     )
+    from app.web.redirect_drift import drift_in
 
     client_id, _secret = get_google_client_credentials(db)
     redirect_uri = redirect_uri_for(request)
@@ -710,6 +713,7 @@ def _google_detail(request, db, definition, accounts, free_slots):
 
     return deps.render(
         request, db, "service_google.html",
+        drift=drift_in(request, accounts),
         definition=definition,
         accounts=accounts,
         free_slots=free_slots,

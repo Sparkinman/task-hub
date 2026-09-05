@@ -84,6 +84,26 @@ The two rules behind that table:
 Afterwards it keeps working from any address for ever, because renewing a
 connection does not involve your address at all.
 
+### What happens when you move afterwards
+
+Moving Task Hub — from a LAN address to Tailscale, from an SSH port forward to a
+Cloudflare tunnel — breaks nothing that is already connected. It breaks the
+*next* connection: reconnecting an account, adding a second one, or renewing
+TickTick, which has no refresh and must be reconnected when its token expires.
+Those send the address you are on at the time, and the console still holds only
+the old one, so the sign-in fails at its final step, weeks after the move that
+caused it, with an error that blames the service.
+
+Task Hub records the address each account was connected at, and tells you on the
+overview and on the service's own page when it no longer matches. Nothing is
+broken when that appears, and the fix is one paste while everything still works:
+add the new address to the console **alongside** the old one. Keeping several
+registered is normal — it is what lets you connect over a port forward and then
+use Task Hub through a tunnel.
+
+If you have moved to an address the console would refuse — back to a bare LAN
+address, say — Task Hub says that instead, because adding it is not the fix.
+
 ---
 
 ## Connecting Google or Microsoft with no setup at all

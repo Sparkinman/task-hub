@@ -102,6 +102,10 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
     # column existed has no record of the remote ids, and falls back to the
     # UID match it has always used.
     ("tombstones", "remote_ids", "JSON"),
+    # Null on existing rows, which is correct: an account connected before this
+    # column existed has no record of the address it was connected at, and a
+    # guess would produce a warning about a move that may never have happened.
+    ("accounts", "connected_redirect_uri", "VARCHAR(500)"),
 ]
 
 

@@ -240,6 +240,7 @@ def oauth_callback(
         db.add(account)
 
     account.credentials = encrypt_json(credentials)
+    account.connected_redirect_uri = redirect_uri
     account.status = AccountStatus.CONNECTED
     account.status_detail = None
     account.enabled = True

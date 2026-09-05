@@ -320,6 +320,18 @@ class Account(Base):
     #: credentials. Never logged and never rendered back into the page.
     credentials: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    #: The redirect URI this account was connected with, recorded so Task Hub
+    #: can notice that the address has since changed. Refreshing a token never
+    #: sends an address, so moving to a tunnel breaks nothing today -- it breaks
+    #: the *next* reconnection, weeks later, with an error that points at the
+    #: service rather than at the move. Null on accounts connected before this
+    #: was recorded, and on ones that never used a redirect at all (a password,
+    #: a personal token), both of which mean "nothing to compare" rather than
+    #: "no drift", so the check stays quiet.
+    connected_redirect_uri: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     status: Mapped[AccountStatus] = mapped_column(
         EnumString(AccountStatus, 24), default=AccountStatus.NEW
