@@ -92,4 +92,23 @@
     </ul>
   </div>
 </div>
+
+{# The obvious place to add one: you are already looking at the breakdown. #}
+<div class="card mt-4">
+  <form method="post" action="/tasks/create" class="card-body add-step">
+    <input type="hidden" name="collection_id" value="{{ collection.collection_id }}">
+    <input type="hidden" name="parent_uid" value="{{ root.uid }}">
+    <input type="hidden" name="back_collection" value="{{ collection.collection_id }}">
+    <div class="field grow" style="margin:0;">
+      <label class="sr-only" for="add-step">Add a step</label>
+      <input type="text" id="add-step" name="title" required maxlength="500"
+             placeholder="Add a step to “{{ root.title }}”…">
+    </div>
+    <div class="field" style="margin:0;">
+      <label class="sr-only" for="add-step-due">Due date</label>
+      <input type="date" id="add-step-due" name="due_date">
+    </div>
+    <button type="submit" class="btn btn-primary">Add step</button>
+  </form>
+</div>
 {% endblock %}

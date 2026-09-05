@@ -386,6 +386,24 @@
                  placeholder="What needs doing?">
         </div>
 
+        {# Making something a step of another task at the moment it is created,
+           rather than making it and then attaching it. Filtered as you type,
+           because a long list is unusable on a phone. #}
+        <div class="field">
+          <label for="new-parent">Part of</label>
+          <select id="new-parent" name="parent_uid" data-parent-picker>
+            <option value="">Nothing — this is a task of its own</option>
+            {% for p in parent_choices %}
+              <option value="{{ p.uid }}" data-collection="{{ p.collection_id }}">
+                {{ p.title }}
+              </option>
+            {% endfor %}
+          </select>
+          <span class="field-hint">
+            Choose a task to make this one of its steps.
+          </span>
+        </div>
+
         <div class="field">
           <label for="new-collection">List</label>
           <select id="new-collection" name="collection_id" required>

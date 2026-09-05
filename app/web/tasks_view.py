@@ -239,9 +239,26 @@ def index(
     completed_total = len(groups["completed"])
     groups["completed"] = groups["completed"][:COMPLETED_SHOWN]
 
+    # Offered as possible parents: everything still open, so a task can be
+    # made as a step of something in one go rather than created and then
+    # attached. Completed tasks are left out -- nobody adds a step to finished
+    # work -- and so are tasks that are already steps, since one level is what
+    # the interface shows.
+    parent_choices = [
+        {
+            "uid": row["record"].uid,
+            "title": row["record"].title,
+            "collection_id": row["collection"].collection_id,
+        }
+        for row in rows
+        if not row["record"].is_completed and not row["record"].parent_uid
+    ]
+    parent_choices.sort(key=lambda p: p["title"].lower())
+
     return deps.render(
         request, db, "tasks.html",
         configured=True,
+        parent_choices=parent_choices,
         collections=collections,
         selected_collections=chosen,
         # Kept for everything that only makes sense with one list in view:
@@ -366,6 +383,7 @@ def create_task(
     due_time: str = Form(""),
     priority: str = Form("0"),
     notes: str = Form(""),
+    parent_uid: str = Form(""),
     back_collection: str = Form(""),
     back_completed: str = Form(""),
     back_q: str = Form(""),
@@ -397,6 +415,10 @@ def create_task(
     record = CanonicalRecord(
         uid=new_uid(),
         kind=CollectionKind.TASKS,
+        # A step of something larger, when one was chosen. Held as the parent's
+        # UID rather than anything positional, so it survives both tasks being
+        # renamed, re-dated or moved between date groups.
+        parent_uid=parent_uid.strip() or None,
         title=title,
         notes=notes.strip() or None,
         status=ItemStatus.NEEDS_ACTION,

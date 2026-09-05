@@ -830,6 +830,18 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
 .lists-rule { border: 0; border-top: 1px solid var(--border); margin: 0.15rem 0; }
 .check-inline .check-label { font-size: 0.88rem; }
 
+.add-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--gap-3, 0.75rem);
+}
+.add-step .grow { flex: 1 1 14rem; }
+@media (max-width: 640px) {
+  .add-step { flex-direction: column; align-items: stretch; }
+  .add-step .btn { width: 100%; }
+}
+
 .steps-back { margin-bottom: var(--gap-3, 0.9rem); }
 .steps-back .icon { width: 0.9em; height: 0.9em; margin-right: 0.3rem; }
 
