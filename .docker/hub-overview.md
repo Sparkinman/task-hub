@@ -31,6 +31,12 @@ is ticked off everywhere.
   the to-dos, backs the notebooks up as PDFs, shows the digests and carries
   your tasks out to everything else. Disconnecting it leaves the account
   exactly as it was.
+- **Tasks that contain other tasks, carried between services that disagree
+  about them.** Real subtasks at Google, Todoist, TickTick and any CalDAV
+  server; checklist items at Microsoft; and on the Supernote, which cannot nest
+  at all, each step says where it belongs in its own title. A service that
+  cannot hold a parent link is never allowed to report that a task has none —
+  without that rule, one flat service would flatten the hierarchy everywhere.
 - **Fixes the Supernote's one-calendar limit.** Ratta's own calendar app can
   subscribe to exactly one calendar. **Task Hub aggregates as many as you like
   — work, family, shared — into a single feed the tablet can use**, so the

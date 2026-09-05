@@ -91,6 +91,27 @@ the device: capture handwriting straight into CalDAV tasks, with on-device task
 lists, calendar views and a daily agenda. It talks to Task Hub over CalDAV, so
 it works alongside everything above rather than instead of it.
 
+### Tasks that contain other tasks
+
+A task can hold steps, and they travel. **Google Tasks, Todoist, TickTick and
+any CalDAV server get real subtasks**, nested as they are here. Microsoft To Do
+gets them as its own checklist items. Obsidian's indented lines are read as
+hierarchy.
+
+The Supernote has no way to put one task inside another, so each step says so in
+its title instead — `Book flights [1 of 3 · Plan the Denver trip]`, with the
+parent counting what is left. Nothing is created on the tablet to make that
+work.
+
+**A service that cannot hold a parent link is never allowed to say a task has
+none.** That rule is the whole feature. Without it, sending a task and its steps
+to a flat list and reading the result back would flatten the hierarchy in every
+connected service at once, with nothing recording it ever existed. Completion is
+never contagious either: ticking off a parent marks that one task done and
+nothing else, whatever Todoist does on its own screen.
+
+[How subtasks work](docs/subtasks.md)
+
 ### And it fixes the one-calendar limit
 
 **Ratta's own calendar app can subscribe to exactly one calendar. Task Hub

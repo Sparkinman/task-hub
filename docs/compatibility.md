@@ -38,6 +38,27 @@ first time was broken in some way no test had caught.
 | **CalDAV (generic)** | ✓ | ✓ | Verified against a live Radicale server: sign-in, discovery, and a to-do created, read back and deleted with due time, priority and notes intact |
 | **Radicale (built in)** | ✓ | ✓ | The hub everything meets at |
 
+## Subtasks, service by service
+
+| Service | Subtasks | What it does with them |
+| --- | --- | --- |
+| **Radicale** (built in) | Real | `RELATED-TO`, so any CalDAV app reads the nesting |
+| **CalDAV** servers | Real | The same, on someone else's server |
+| **Google Tasks** | Real | Accepted more than one level when tested |
+| **Todoist** | Real | Several levels deep |
+| **TickTick** | Real | Real subtasks, plus its own checklist items |
+| **Obsidian** | Reading only | An indented task under another is a step of it |
+| **Microsoft To&nbsp;Do** | As steps | Checklist items: a name and a tick, nothing more |
+| **Things 3** | No | Has checklist items, but this connector only reads tasks |
+| **Supernote To-Do** | Labelled | No parent field at all, so the title carries it |
+
+**A service that cannot hold a parent link can never clear one.** The same rule
+that protects a due time from Google Tasks, applied to something that fails
+worse: a lost due date can be typed again, a flattened hierarchy cannot be
+reconstructed. [The full explanation](subtasks.md).
+
+---
+
 ## Priority, service by service
 
 Priority is the field services disagree about most, so it is worth seeing in
