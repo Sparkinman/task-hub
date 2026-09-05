@@ -182,6 +182,19 @@
 
                 {% if t.notes %}<div class="task-notes">{{ t.notes }}</div>{% endif %}
 
+                {# A task written on a page of a Supernote notebook, where that
+                   notebook is backed up here. Nothing is shown when it is not:
+                   the reference stays in the notes as plain text, and a link
+                   that could only fail is never offered. #}
+                {% set note = note_link_for(db_session, t) %}
+                {% if note %}
+                  <a class="task-notelink" href="{{ note.url }}" target="_blank"
+                     rel="noopener" title="{{ note.title }}">
+                    {{ ico.icon('book') }}
+                    <span>{{ note.name }}{% if note.page %} · page {{ note.page }}{% endif %}</span>
+                  </a>
+                {% endif %}
+
                 {# Inline editor, hidden until the pencil is clicked. #}
                 <div class="hidden mt-4" id="{{ row_id }}">
                   <form method="post" action="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/update"

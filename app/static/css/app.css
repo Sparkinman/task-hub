@@ -1545,3 +1545,19 @@ table.data tr:has(.checkdrop[open]) { position: relative; z-index: 41; }
 }
 .note-thumb-empty { background: var(--surface-2, #f3f4f6); }
 
+/* --- A task's link back to the notebook page it was written on ------------
+   Only rendered when that notebook is backed up here, so this never styles
+   something that cannot be opened. Quiet by default: it is provenance, not an
+   action, and it sits under a task that may already carry a due date and a
+   service badge. */
+.task-notelink {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 4px; padding: 2px 7px 2px 5px;
+  border: 1px solid var(--border); border-radius: 999px;
+  font-size: 0.76rem; color: var(--text-muted);
+  text-decoration: none; max-width: 100%;
+}
+.task-notelink:hover { color: var(--text); border-color: var(--accent); text-decoration: none; }
+.task-notelink .icon { width: 13px; height: 13px; flex: 0 0 13px; opacity: 0.8; }
+.task-notelink span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+

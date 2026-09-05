@@ -450,6 +450,26 @@ with session_scope() as session:
           str(warned.get(72, {}).get("email")))
     session.rollback()
 
+print("\nA notebook link is only offered when the notebook is actually here")
+# The rule that matters: a link that goes nowhere is worse than no link. It
+# invites a tap, spends a moment loading and answers with an error for
+# something that was never wrong.
+from app.web.note_links import reference_in  # noqa: E402
+
+for text, expected in [
+    ("From 20260821_041013.note, page 2", ("20260821_041013.note", 2)),
+    ("From Recipes.note", ("Recipes.note", None)),
+    ("ring Jason\n\nFrom Can Am.note, page 7", ("Can Am.note", 7)),
+    ("From Bathroom To Do's.note, page 1", ("Bathroom To Do's.note", 1)),
+    # Prose somebody typed must not be mistaken for a reference.
+    ("a note about the note I wrote", None),
+    ("From the meeting", None),
+    ("", None),
+    (None, None),
+]:
+    check(f"{str(text)[:30]!r} parses to {expected}",
+          reference_in(text) == expected, str(reference_in(text)))
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)

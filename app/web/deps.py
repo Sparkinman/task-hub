@@ -222,6 +222,11 @@ def build_template_context(request: Request, db: Session, **extra: Any) -> dict[
         "base_url": public_url.public_base_url(request, db),
         "detected_base_url": public_url.detected_base_url(request),
         "current_path": request.url.path,
+        # The request's own session, for the few template helpers that have to
+        # look something up -- resolving a task's notebook link needs to know
+        # whether that notebook is backed up, and the answer changes whenever
+        # somebody unticks a folder. Read-only use only.
+        "db_session": db,
         # Notes and Digests only exist because of Supernote, and a navigation
         # item for a service nobody has connected reads as a feature that is
         # broken rather than one that is unused. Both pages still work if
@@ -242,6 +247,24 @@ def render(request: Request, db: Session, template: str, **extra: Any):
 # --- Jinja registration -------------------------------------------------------
 
 templates.env.globals["badge_for"] = badge_for
+
+
+def note_link_for(db, item):
+    """Where a task's notebook reference points, or None if nowhere.
+
+    A global rather than something each view passes down: the task list, the
+    calendar and the search results all render the same rows, and three places
+    remembering to look it up is three places to forget.
+    """
+    from app.web.note_links import link_for
+
+    try:
+        return link_for(db, item)
+    except Exception:  # noqa: BLE001 - a decoration must never break a page
+        return None
+
+
+templates.env.globals["note_link_for"] = note_link_for
 templates.env.globals["app_name"] = "Task Hub"
 # Stamped onto the CSS and JS URLs so an upgrade cannot be served from a
 # browser cache that never revalidated.
