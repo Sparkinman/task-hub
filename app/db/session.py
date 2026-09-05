@@ -109,6 +109,9 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
     # Defaults to 0, which is right for every list discovered before this
     # existed: no service had declared one read-only, so none was.
     ("remote_lists", "read_only", "BOOLEAN DEFAULT 0"),
+    # Null on rows backed up before previews existed. They are filled in on the
+    # next pass from the PDFs already on disk, with no network involved.
+    ("supernote_notes", "thumb_name", "VARCHAR(128)"),
 ]
 
 

@@ -815,6 +815,12 @@ class SupernoteNote(Base):
     #: never derived from the note's own name, which could contain anything.
     pdf_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     pdf_size: Mapped[int] = mapped_column(Integer, default=0)
+
+    #: A small PNG of the first page, extracted from the PDF Task Hub already
+    #: holds rather than fetched separately. Null when one could not be made,
+    #: which is not a fault: the notebook is still readable, it just has no
+    #: picture beside its name.
+    thumb_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     converted_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     #: Why the last attempt failed, or null. Kept so a note that cannot be

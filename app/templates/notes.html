@@ -107,7 +107,19 @@
       <div class="card-body">
         <ul class="plain-list">
           {% for note in notes %}
-            <li class="flex items-center gap-3" style="padding: var(--gap-2) 0;">
+            <li class="flex items-start gap-3" style="padding: var(--gap-3) 0;">
+              {% if note.thumb_name %}
+                {# Sized in CSS rather than left to the image, so the row keeps
+                   its height while the picture is still loading and the list
+                   does not jump about as it fills in. #}
+                <a href="/notes/{{ note.id }}" class="note-thumb" aria-hidden="true"
+                   tabindex="-1">
+                  <img src="/notes/{{ note.id }}/thumb" alt="" loading="lazy"
+                       width="60" height="80">
+                </a>
+              {% else %}
+                <span class="note-thumb note-thumb-empty" aria-hidden="true"></span>
+              {% endif %}
               <div class="grow">
                 {% if note.pdf_name and not note.error %}
                   <a href="/notes/{{ note.id }}" class="strong">{{ note.name }}</a>

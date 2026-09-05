@@ -38,6 +38,7 @@ from app.crypto import decrypt_json
 from app.db import settings_store
 from app.db.models import Account, AccountStatus, ServiceKind, SupernoteNote, utcnow
 from app.db.session import session_scope
+from app.services.pdf_thumbnail import thumbnail
 from app.services.supernote_files import SupernoteFiles
 
 logger = logging.getLogger(__name__)
@@ -145,11 +146,60 @@ def _store_pdf(note_id: str, content: bytes) -> tuple[str, int]:
     return name, len(content)
 
 
+def thumb_path(note: SupernoteNote):
+    """Where one note's preview image lives, or None if it has none."""
+    return NOTES_DIR / note.thumb_name if note.thumb_name else None
+
+
+def _make_thumbnail(note_id: str, pdf: bytes) -> tuple[str, int] | None:
+    """Draw the preview from a PDF already in hand.
+
+    Costs Supernote nothing: the picture comes out of the file Task Hub just
+    downloaded, not from a second render on their servers.
+    """
+    png = thumbnail(pdf)
+    if not png:
+        return None
+    NOTES_DIR.mkdir(parents=True, exist_ok=True)
+    name = f"{note_id}.thumb.png"
+    (NOTES_DIR / name).write_bytes(png)
+    return name, len(png)
+
+
+def fill_missing_thumbnails() -> int:
+    """Draw previews for notebooks backed up before previews existed.
+
+    Reads the stored PDFs and touches the network not at all, so it is safe to
+    run at the end of every pass however often that is.
+    """
+    made = 0
+    with session_scope() as session:
+        rows = session.execute(
+            select(SupernoteNote).where(
+                SupernoteNote.pdf_name.isnot(None),
+                SupernoteNote.thumb_name.is_(None),
+            )
+        ).scalars().all()
+        for row in rows:
+            path = pdf_path(row)
+            if not path.exists():
+                continue
+            try:
+                result = _make_thumbnail(row.note_id, path.read_bytes())
+            except OSError:
+                continue
+            if result:
+                row.thumb_name = result[0]
+                made += 1
+        session.commit()
+    return made
+
+
 def _discard_pdf(note: SupernoteNote) -> None:
     try:
-        path = pdf_path(note)
-        if path.exists():
-            path.unlink()
+        for path in (pdf_path(note), thumb_path(note)):
+            if path is not None and path.exists():
+                path.unlink()
     except OSError as exc:  # pragma: no cover - filesystem edge
         logger.warning("Could not remove %s: %s", note.pdf_name, exc)
 
@@ -239,12 +289,18 @@ def run_backup(force: bool = False) -> BackupResult:
                 continue
 
             name, size = _store_pdf(entry.id, content)
-            _record_success(account_id, entry, path, folder_id, name, size)
+            preview = _make_thumbnail(entry.id, content)
+            _record_success(account_id, entry, path, folder_id, name, size,
+                            preview[0] if preview else None)
             converted += 1
             result.converted += 1
             time.sleep(PAUSE_BETWEEN_CONVERSIONS)
     finally:
         files.close()
+
+    # Costs nothing and no network: fills in previews for anything backed up
+    # before they existed, or where the draw failed last time.
+    fill_missing_thumbnails()
 
     _remember_run(result)
     return result
@@ -291,7 +347,8 @@ def _refresh_placement(account_id: int, entry, path: str, folder_id: str) -> Non
         session.commit()
 
 
-def _record_success(account_id, entry, path, folder_id, pdf_name, pdf_size) -> None:
+def _record_success(account_id, entry, path, folder_id, pdf_name, pdf_size,
+                    thumb_name=None) -> None:
     with session_scope() as session:
         row = _row_for(session, account_id, entry.id)
         if row is None:
@@ -308,6 +365,7 @@ def _record_success(account_id, entry, path, folder_id, pdf_name, pdf_size) -> N
         )
         row.pdf_name = pdf_name
         row.pdf_size = pdf_size
+        row.thumb_name = thumb_name
         row.converted_at = utcnow()
         row.error = None
         session.commit()

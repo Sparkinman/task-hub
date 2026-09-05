@@ -1339,6 +1339,75 @@ dialog.modal::backdrop { background: var(--overlay); }
   .agenda-date { position: static; }
 }
 
+/* --- Phones ----------------------------------------------------------------
+   The 900px rules above turn the sidebar into a scrolling strip, which is
+   enough for a tablet. A phone needs more: the page header stops competing
+   with the content for width, anything wide is allowed to scroll inside its
+   own box rather than stretching the page, and every control becomes big
+   enough to hit with a thumb.
+
+   44px is Apple's minimum touch target and a good floor everywhere. Below it,
+   ticking a checkbox in a mapping table becomes a game of chance. */
+@media (max-width: 640px) {
+  :root { --gap-6: 16px; }
+
+  /* The header stacks: a title that shares a row with three buttons leaves
+     room for neither. */
+  .topbar {
+    flex-direction: column; align-items: stretch; gap: var(--gap-3);
+    padding: var(--gap-4);
+    /* Not sticky on a phone: it would eat a third of a short screen. */
+    position: static;
+  }
+  .topbar h1 { font-size: 1.05rem; }
+  .page-actions, .topbar .row { flex-wrap: wrap; gap: var(--gap-2); }
+  .page-actions .btn, .topbar .row .btn { flex: 1 1 auto; min-width: 44%; }
+
+  .content { padding: var(--gap-4) var(--gap-3); }
+  .card-header {
+    flex-direction: column; align-items: flex-start; gap: var(--gap-3);
+  }
+  .card-body { padding: var(--gap-4); }
+
+  /* Comfortable to tap, and not squeezed to two words per line. */
+  .btn { padding: 11px 14px; min-height: 44px; }
+  .btn-sm { padding: 8px 12px; min-height: 38px; }
+  input, select, textarea {
+    font-size: 16px;  /* Anything smaller makes iOS zoom the page on focus. */
+    min-height: 44px;
+  }
+  .checkbox { padding: var(--gap-2) 0; min-height: 44px; }
+  .checkbox input[type="checkbox"] { width: 20px; height: 20px; }
+
+  /* Wide things scroll inside themselves instead of stretching the page and
+     leaving the whole document scrolling sideways. */
+  .table-wrap, .mapping-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.data { font-size: 0.84rem; }
+  table.data th, table.data td { padding: 10px var(--gap-3); }
+  pre, code { overflow-x: auto; }
+
+  /* A form field given a desktop width by an inline style still fits, because
+     max-width shrinks -- but the fixed ones need releasing. */
+  .field input, .field select, .field textarea { width: 100%; }
+
+  /* Notes: a smaller preview, so the name has room beside it. */
+  .note-thumb { width: 48px; height: 64px; }
+
+  /* Documentation reads as one column with no side rail. */
+  .doc-layout { gap: var(--gap-4); }
+}
+
+/* Phones with a notch or a home indicator: keep content out from under both. */
+@supports (padding: env(safe-area-inset-left)) {
+  @media (max-width: 900px) {
+    .content, .topbar, .sidebar {
+      padding-left: max(var(--gap-3), env(safe-area-inset-left));
+      padding-right: max(var(--gap-3), env(safe-area-inset-right));
+    }
+    .content { padding-bottom: max(var(--gap-6), env(safe-area-inset-bottom)); }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -1431,3 +1500,28 @@ table.data tr:has(.checkdrop[open]) { position: relative; z-index: 41; }
    change it is withdrawn. */
 .updates-only.is-locked { cursor: not-allowed; opacity: 0.55; }
 .updates-only.is-locked input { cursor: not-allowed; }
+
+/* --- Note previews ---------------------------------------------------------
+   A thumbnail of a notebook's first page, beside its name. Fixed size so a
+   list of them does not reflow as the images arrive, and bordered because a
+   page of handwriting is mostly white and would otherwise float without an
+   edge on a light background. */
+.note-thumb {
+  flex: 0 0 auto;
+  display: block;
+  width: 60px;
+  height: 80px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  overflow: hidden;
+  background: #fff;
+}
+.note-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+.note-thumb-empty { background: var(--surface-2, #f3f4f6); }
+

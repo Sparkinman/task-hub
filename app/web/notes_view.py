@@ -115,6 +115,30 @@ def note_pdf(
     )
 
 
+@router.get("/{note_row_id}/thumb")
+def note_thumb(note_row_id: int, db: Session = Depends(get_db)):
+    """The small preview of a notebook's first page.
+
+    Cached hard by the browser but marked private: it is a picture of somebody's
+    handwriting, so no shared cache should keep it, while the browser that
+    already displayed it may as well not fetch it twice. The image only ever
+    changes when the notebook does, and then it is written under the same name.
+    """
+    from fastapi.responses import Response
+
+    row = db.get(SupernoteNote, note_row_id)
+    if row is None or not row.thumb_name:
+        return Response(status_code=404)
+    path = note_backup.thumb_path(row)
+    if path is None or not path.exists():
+        return Response(status_code=404)
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
 @router.get("/{note_row_id}")
 def view(note_row_id: int, request: Request, db: Session = Depends(get_db)):
     """A page around one note, so the reader has a title and a way back."""
