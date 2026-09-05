@@ -39,6 +39,22 @@ the tablet's built-in To-Do app and its Digest.** Not a CalDAV app installed
 alongside them — the real ones, whose tasks and highlights appear in Supernote's
 own screens and in the Partner app on your phone.
 
+**This does not replace Supernote Cloud, and it is not a private cloud
+instance.** Your tablet stays signed in to Ratta's own service and keeps
+everything that comes with it — syncing between your devices, the Partner app,
+their web viewer, their backups. Task Hub signs in as you would and works
+alongside all of it: reading and writing the built-in to-dos, backing your
+notebooks up as PDFs you can read anywhere, showing your digests, and carrying
+your tasks out to every other service you use. Nothing has to be moved,
+migrated or given up, and disconnecting it leaves your Supernote account exactly
+as it was.
+
+**And it fixes the one-calendar limit.** Ratta's calendar app can subscribe to
+exactly one calendar, so a work calendar, a family one and a couple of shared
+ones mean choosing which of them the tablet gets to show. Task Hub aggregates as
+many as you like into a single feed the tablet can use — one address on the
+device, everything in it, still updating both ways.
+
 Ratta publish no API for it. The endpoints were read out of the Supernote
 Partner app itself and confirmed against a live account, and syncing runs in
 **both directions**: a task added, edited, ticked off or deleted in Task Hub

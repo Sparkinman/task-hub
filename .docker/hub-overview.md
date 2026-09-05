@@ -24,6 +24,13 @@ is ticked off everywhere.
   a notebook links straight to that page, when the notebook is one you have
   backed up. Ratta publish no API for this, so it may
   change at any time, and Task Hub says so plainly wherever it is shown.
+- **It works alongside Supernote Cloud, not instead of it.** This is not a
+  private cloud instance and nothing has to be migrated. Your tablet stays
+  signed in to Ratta's own service and keeps the Partner app, the web viewer
+  and syncing between your devices; Task Hub signs in as you would and reads
+  the to-dos, backs the notebooks up as PDFs, shows the digests and carries
+  your tasks out to everything else. Disconnecting it leaves the account
+  exactly as it was.
 - **Fixes the Supernote's one-calendar limit.** Ratta's own calendar app can
   subscribe to exactly one calendar. **Task Hub aggregates as many as you like
   — work, family, shared — into a single feed the tablet can use**, so the

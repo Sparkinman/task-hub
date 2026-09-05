@@ -18,6 +18,23 @@ how before you rely on it.
 
 ---
 
+## It works with Supernote Cloud, not instead of it
+
+Worth saying first, because it is the thing people assume otherwise: **this is
+not a private cloud instance and nothing is being migrated.**
+
+Your tablet stays signed in to Ratta's own service and keeps everything that
+comes with it — syncing between your devices, the Partner app on your phone,
+their web viewer, their backups. Task Hub signs in the same way you would, from
+the outside, and works alongside all of it: reading and writing the built-in
+to-dos, backing your notebooks up as PDFs you can read anywhere, showing your
+digests, and carrying your tasks out to every other service you use.
+
+Disconnecting it changes nothing on your Supernote account. Nothing is moved,
+nothing is taken over, and nothing stops working if you walk away from it.
+
+---
+
 ## What you are getting, plainly
 
 **Ratta publishes no API for Supernote.** None at all — no developer portal, no
