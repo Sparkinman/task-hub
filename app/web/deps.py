@@ -175,6 +175,28 @@ def format_time(value: dt.time | None, fmt: str = "24h") -> str:
     return value.strftime("%H:%M")
 
 
+def _supernote_connected(db: Session) -> bool:
+    """Whether any Supernote account is connected.
+
+    Cheap enough for every render -- one indexed count -- and the alternative
+    is every route remembering to pass it, which is exactly what this context
+    exists to avoid.
+    """
+    from sqlalchemy import func, select as _select
+
+    from app.db.models import Account as _Account
+    from app.db.models import ServiceKind as _ServiceKind
+
+    return bool(
+        db.execute(
+            _select(func.count(_Account.id)).where(
+                _Account.service == _ServiceKind.SUPERNOTE,
+                _Account.enabled.is_(True),
+            )
+        ).scalar_one()
+    )
+
+
 def build_template_context(request: Request, db: Session, **extra: Any) -> dict[str, Any]:
     """Base context every page render needs.
 
@@ -200,6 +222,11 @@ def build_template_context(request: Request, db: Session, **extra: Any) -> dict[
         "base_url": public_url.public_base_url(request, db),
         "detected_base_url": public_url.detected_base_url(request),
         "current_path": request.url.path,
+        # Notes and Digests only exist because of Supernote, and a navigation
+        # item for a service nobody has connected reads as a feature that is
+        # broken rather than one that is unused. Both pages still work if
+        # somebody has bookmarked them; only the link goes.
+        "has_supernote": _supernote_connected(db),
         "now": dt.datetime.now(dt.timezone.utc),
     }
     context.update(extra)

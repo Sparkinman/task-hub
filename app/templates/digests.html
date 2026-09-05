@@ -1,0 +1,165 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}Digests · {{ app_name }}{% endblock %}
+{% block page_title %}Digests{% endblock %}
+{% block page_subtitle %}
+  <div class="subtitle">
+    {% if total %}
+      {{ total }} highlight{{ '' if total == 1 else 's' }} from your Supernote
+    {% else %}
+      Passages highlighted on your Supernote
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block page_actions %}
+  <form method="post" action="/digests/refresh">
+    <button type="submit" class="btn btn-primary">{{ ico.icon('refresh') }} Refresh</button>
+  </form>
+  {% if total %}
+    <a class="btn" href="/digests/pdf" target="_blank" rel="noopener">All as PDF</a>
+  {% endif %}
+  <a class="btn btn-ghost" href="/services/supernote">Choose libraries</a>
+{% endblock %}
+
+{% block content %}
+
+{% if not has_account %}
+  <div class="alert alert-info mb-5">
+    <span class="alert-icon" aria-hidden="true">i</span>
+    <div class="grow">
+      Connect Supernote on the <a href="/services/supernote">Supernote page</a>
+      to see your digests here.
+    </div>
+  </div>
+{% else %}
+
+  {% if not enabled %}
+    <div class="alert alert-info mb-5">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <div class="grow">
+        <div class="alert-title">Not refreshing on its own</div>
+        Digests are only fetched when you press <span class="strong">Refresh</span>.
+        Turn it on under <a href="/services/supernote">Supernote</a> to keep them
+        up to date automatically.
+      </div>
+    </div>
+  {% endif %}
+
+  {# --- Adding one ------------------------------------------------------- #}
+  <div class="card mb-5">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Add a digest</div>
+        <div class="card-subtitle">
+          Written straight to Supernote — it appears in the Digest app on your
+          tablet.
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="post" action="/digests/add" class="stack">
+        <div class="field">
+          <label for="content">Text</label>
+          <textarea id="content" name="content" rows="3" required
+                    placeholder="A passage, a note, anything you want on the tablet"></textarea>
+        </div>
+        <div class="field" style="max-width: 340px;">
+          <label for="library_uid">Library</label>
+          <select id="library_uid" name="library_uid">
+            <option value="">No library</option>
+            {% for name, rows in grouped.items() %}
+              {% if rows and rows[0].library_uid %}
+                <option value="{{ rows[0].library_uid }}">{{ name }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div><button type="submit" class="btn btn-primary">Add to Supernote</button></div>
+      </form>
+    </div>
+  </div>
+
+  {% if not total %}
+    <div class="card">
+      <div class="card-body">
+        <p class="muted">
+          No digests yet. Choose which libraries to mirror on the
+          <a href="/services/supernote">Supernote page</a>, then press
+          <span class="strong">Refresh</span>.
+        </p>
+        <p class="small muted">
+          A digest is made on the tablet by dragging across text in a PDF or a
+          notebook. Anything you add above appears there too.
+        </p>
+      </div>
+    </div>
+  {% endif %}
+
+  {% for name, rows in grouped.items() %}
+    <div class="card mb-5">
+      <div class="card-header">
+        <div>
+          <div class="card-title">{{ name }}</div>
+          <div class="card-subtitle">
+            {{ rows | length }} digest{{ '' if rows | length == 1 else 's' }}
+          </div>
+        </div>
+        <div class="row">
+          <a class="btn btn-sm" href="/digests/library/{{ name | urlencode }}/pdf"
+             target="_blank" rel="noopener">View PDF</a>
+          <a class="btn btn-ghost btn-sm"
+             href="/digests/library/{{ name | urlencode }}/pdf?download=1" download>Download</a>
+        </div>
+      </div>
+      <div class="card-body stack">
+        {% for row in rows %}
+          <div style="padding: var(--gap-3) 0; border-bottom: 1px solid var(--border);">
+            <div style="white-space: pre-wrap;">{{ row.content }}</div>
+
+            <div class="tiny muted mt-2">
+              {%- if row.source_path %}{{ row.source_path.rsplit('/', 1)[-1] }}{% endif %}
+              {%- if row.page_number %} · page {{ row.page_number }}{% endif %}
+              {%- if source_types.get(row.source_type) %} · {{ source_types[row.source_type]|lower }}{% endif %}
+              {%- if row.remote_created_at %} · {{ row.remote_created_at.strftime('%-d %b %Y') }}{% endif %}
+            </div>
+
+            {% if row.comment %}
+              <div class="small mt-2"><span class="strong">Note:</span> {{ row.comment }}</div>
+            {% endif %}
+            {% if row.has_handwriting %}
+              <div class="tiny muted mt-1">
+                Has a handwritten comment, which stays on the tablet.
+              </div>
+            {% endif %}
+
+            <div class="row mt-2" style="gap: var(--gap-2);">
+              <button type="button" class="btn btn-ghost btn-sm"
+                      data-edit-toggle="digest-{{ row.id }}">Edit</button>
+              {# Says plainly that this one really does reach the tablet, unlike
+                 the notebook backup where Remove is local only. #}
+              <form method="post" action="/digests/{{ row.id }}/delete"
+                    data-confirm="Delete this digest from Supernote as well as from Task Hub? It will disappear from the Digest app on your tablet.">
+                <button type="submit" class="btn btn-ghost btn-sm">Delete</button>
+              </form>
+            </div>
+
+            <div class="hidden mt-3" id="digest-{{ row.id }}">
+              <form method="post" action="/digests/{{ row.id }}/edit" class="stack">
+                <textarea name="content" rows="3">{{ row.content }}</textarea>
+                <div class="row" style="gap: var(--gap-2);">
+                  <button type="submit" class="btn btn-primary btn-sm">Save to Supernote</button>
+                  <button type="button" class="btn btn-ghost btn-sm"
+                          data-edit-toggle="digest-{{ row.id }}">Cancel</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% endblock %}

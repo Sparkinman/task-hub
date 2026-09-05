@@ -29,7 +29,12 @@
       {{ nav_link('/', 'Overview', 'home', exact=true) }}
       {{ nav_link('/tasks', 'Tasks', 'check-square', new_tab=true) }}
       {{ nav_link('/calendar', 'Calendar', 'calendar', new_tab=true) }}
-      {{ nav_link('/notes', 'Notes', 'book') }}
+      {%- if has_supernote %}
+        {# Both pages exist only for Supernote. Shown once it is connected, so
+           nobody is offered a tab that could only ever be empty. #}
+        {{ nav_link('/notes', 'Notes', 'book') }}
+        {{ nav_link('/digests', 'Digests', 'pencil') }}
+      {%- endif %}
 
       <div class="nav-heading">Configure</div>
       {{ nav_link('/services', 'Services', 'plug') }}

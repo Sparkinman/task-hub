@@ -287,6 +287,7 @@ app.mount(RADICALE_MOUNT_PATH, WSGIMiddleware(get_radicale_app()), name="radical
 from app.web import (  # noqa: E402 - imported after app creation by design
     auth,
     calendar_view,
+    digests_view,
     docs_view,
     google_setup,
     notes_view,
@@ -323,6 +324,7 @@ app.include_router(password_setup.router)
 app.include_router(obsidian_setup.router)
 app.include_router(supernote_setup.router)
 app.include_router(notes_view.router)
+app.include_router(digests_view.router)
 app.include_router(push_view.router)
 app.include_router(sync_view.router)
 app.include_router(settings_view.router)

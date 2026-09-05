@@ -874,3 +874,53 @@ class PushSubscription(Base):
     last_sent_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+
+class SupernoteDigestItem(Base):
+    """One Supernote digest -- a passage highlighted out of a document.
+
+    Mirrored rather than fetched on demand so the page is readable, and
+    searchable, while Supernote is unreachable. The copy is what Task Hub shows;
+    Supernote remains the authority, and a change there wins on the next pass.
+
+    Unlike the notebook backup, this one is two-way: a digest written here is
+    created on Supernote, and appears on the tablet.
+    """
+
+    __tablename__ = "supernote_digests"
+    __table_args__ = (
+        UniqueConstraint("account_id", "remote_id", name="uq_supernote_digest"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), index=True
+    )
+    #: Supernote's own numeric id, as a string. Their ids exceed what SQLite
+    #: stores comfortably as an integer, and nothing here does arithmetic on it.
+    remote_id: Mapped[str] = mapped_column(String(64), index=True)
+
+    #: The library this belongs to, by Supernote's unique identifier for it.
+    #: Empty for a digest filed in no library, which the tablet permits.
+    library_uid: Mapped[str] = mapped_column(String(64), default="", index=True)
+    library_name: Mapped[str] = mapped_column(String(255), default="")
+
+    content: Mapped[str] = mapped_column(Text, default="")
+    comment: Mapped[str] = mapped_column(Text, default="")
+    #: The file the passage came from, and where in it.
+    source_path: Mapped[str] = mapped_column(String(1024), default="")
+    source_type: Mapped[int] = mapped_column(Integer, default=0)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Set when the digest carries a handwritten comment. The file itself is not
+    #: fetched; the flag exists so the page can say there is more on the tablet
+    #: rather than silently showing only half of it.
+    has_handwriting: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    remote_md5: Mapped[str] = mapped_column(String(64), default="")
+    remote_created_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    remote_updated_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        UTCDateTime, default=utcnow, onupdate=utcnow
+    )
+

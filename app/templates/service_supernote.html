@@ -271,6 +271,70 @@
 </div>
 {% endif %}
 
+{# --- Digest libraries ----------------------------------------------------- #}
+{% if accounts %}
+<div class="card mb-5">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Digests</div>
+      <div class="card-subtitle">
+        Passages you have highlighted out of documents and notebooks. This one
+        works both ways — anything you add in Task Hub appears on the tablet.
+      </div>
+    </div>
+    <div class="row">
+      <a class="btn btn-ghost btn-sm" href="/digests">{{ ico.icon('pencil') }} View digests</a>
+    </div>
+  </div>
+  <div class="card-body">
+    {% if digest_error %}
+      <div class="alert alert-warning">
+        <span class="alert-icon" aria-hidden="true">!</span>
+        <div class="grow">Could not read your digest libraries: {{ digest_error }}</div>
+      </div>
+    {% elif not digest_libraries %}
+      <p class="muted">
+        No digest libraries found. Make one on the tablet — open a PDF and drag
+        across some text — or add a digest from the
+        <a href="/digests">Digests page</a>.
+      </p>
+    {% else %}
+      <form method="post" action="/digests/libraries" class="stack">
+        <div class="field">
+          <label class="checkbox">
+            <input type="checkbox" name="enabled" value="1" {{ 'checked' if digest_enabled }}>
+            <span>Keep digests up to date automatically</span>
+          </label>
+          <span class="field-hint">
+            Refreshed alongside the notebook backup, on the same schedule. It is
+            one small request, so it costs nothing extra.
+          </span>
+        </div>
+
+        <div class="field">
+          <label>Libraries to mirror</label>
+          <span class="field-hint">
+            Tick none to mirror everything, including digests filed in no
+            library at all.
+          </span>
+          <div class="stack-sm mt-3">
+            {% for lib in digest_libraries %}
+              <label class="checkbox">
+                <input type="checkbox" name="library" value="{{ lib.unique_id }}"
+                       {{ 'checked' if lib.unique_id in digest_selected }}>
+                <span>{{ lib.name }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div><button type="submit" class="btn btn-primary">Save digest settings</button></div>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 {# --- Connected accounts and their lists ---------------------------------- #}
 {% if accounts %}
   <div class="card mb-5">

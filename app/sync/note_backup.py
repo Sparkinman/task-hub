@@ -309,6 +309,19 @@ def run_backup(force: bool = False) -> BackupResult:
     # Costs nothing and no network: fills in previews for anything backed up
     # before they existed, or where the draw failed last time.
     fill_missing_thumbnails()
+
+    # Digests ride this schedule rather than having a clock of their own: they
+    # come from the same account over one cheap request, and a third timer
+    # would be a third thing to explain.
+    try:
+        from app.sync.digest_sync import run_sync as sync_digests
+
+        digests = sync_digests()
+        if digests.added or digests.updated or digests.removed:
+            logger.info("Supernote digests: %r", digests)
+    except Exception:  # noqa: BLE001 - never fatal to a backup
+        logger.debug("Digest sync failed", exc_info=True)
+
     notify_expiring_sessions()
 
     _remember_run(result)

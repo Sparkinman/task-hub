@@ -29,21 +29,26 @@
 | **CalDAV** | ✓ | ✓ | Any other CalDAV server — Nextcloud, Fastmail, Baïkal, Synology, mailbox.org. Give it the address and it discovers the rest. Nothing is lost in either direction |
 | **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
 | **Things 3** | ✓ | — | Import only — Things has no supported way to write in. Its endpoint is unpublished and may change without warning |
-| **Supernote** | ✓ | — | **The tablet's own built-in To-Do app, both ways.** Nobody else reads it. Also backs your notebooks up as PDFs — [how it works](docs/supernote.md) |
+| **Supernote** | ✓ | — | **The tablet's built-in To-Do app and Digest, both ways.** Nobody else reads them. Also backs your notebooks up as PDFs — [how it works](docs/supernote.md) |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
 
 ### New: Supernote's built-in To-Do app
 
-**Task Hub is the only thing outside Supernote's own apps that can read and
-write the To-Do app built into the tablet.** Not a CalDAV app installed
-alongside it — the real one, whose tasks appear in Supernote's own To-Do screen
-and in the Partner app on your phone.
+**Task Hub is the only thing outside Supernote's own apps that reads and writes
+the tablet's built-in To-Do app and its Digest.** Not a CalDAV app installed
+alongside them — the real ones, whose tasks and highlights appear in Supernote's
+own screens and in the Partner app on your phone.
 
 Ratta publish no API for it. The endpoints were read out of the Supernote
 Partner app itself and confirmed against a live account, and syncing runs in
 **both directions**: a task added, edited, ticked off or deleted in Task Hub
 reaches the tablet, and changes made on the tablet come back — through to
 Google, Todoist, your iPhone or anywhere else you have connected.
+
+It also reads and writes **Digest** — the passages you highlight out of PDFs
+and notebooks on the tablet. They arrive with the file and page they came from,
+readable as a PDF Task Hub typesets itself, and anything you write here appears
+in the Digest app on your Supernote.
 
 The same connection also **backs up your handwritten notebooks as PDFs**. Pick
 which folders, and Task Hub keeps a readable copy you can open on any device,

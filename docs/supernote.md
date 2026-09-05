@@ -1,7 +1,16 @@
 # Supernote setup — complete walkthrough
 
-Connects the **To-Do app built into your Supernote tablet**, both ways:
-Supernote ⇄ Task Hub.
+Connects three things on your Supernote tablet, none of which anything else
+outside Supernote's own apps can reach:
+
+| | Direction | What it is |
+| --- | --- | --- |
+| **To-Do** | both ways | The tablet's built-in task app |
+| **Digest** | both ways | Passages you highlight out of documents and notebooks |
+| **Notebooks** | read only | Your handwriting, backed up as PDFs you can read anywhere |
+
+The **Notes** and **Digests** pages appear in Task Hub's sidebar once you have
+connected Supernote, and not before.
 
 Read the honest summary first. This connector is built differently from every
 other one in Task Hub, including the other unofficial ones, and you should know
@@ -146,6 +155,38 @@ deletion. Filing one of these tasks into a real list on the tablet is an
 ordinary thing to do, and it makes the task disappear from this view while the
 task itself is perfectly fine — so treating that as a deletion would delete your
 task from every other service because you tidied it up.
+
+---
+
+## Digests: your highlights, both ways
+
+A digest is a passage you have dragged out of a PDF or a notebook on the
+tablet. Task Hub mirrors them, shows them as readable PDFs, and — unlike the
+notebook backup — **writes back**: anything you add here appears in the Digest
+app on your Supernote.
+
+**Choosing what to mirror.** On the Supernote page, under *Digests*, tick the
+libraries you want. Ticking none mirrors everything, including digests filed in
+no library at all, which the tablet allows.
+
+**What comes across:** the passage, the file and page it came from, any typed
+note, and which library it belongs to. A handwritten comment stays on the
+tablet — the page says so against the digest rather than quietly showing you
+half of it.
+
+**Reading them as a PDF.** Task Hub sets the document itself, because a digest
+is text rather than a file: there is nothing to download until it is typeset.
+Each library has a **View PDF** and a **Download**, and there is an *All as
+PDF* for the lot.
+
+**Adding, editing and deleting.** All three reach Supernote. Deleting really
+does delete — from the tablet as well as from Task Hub — which is the opposite
+of the notebook backup, where *Remove* only clears Task Hub's copy. The
+confirmation says which you are doing.
+
+**When it refreshes.** Alongside the notebook backup, on the same schedule.
+Listing every digest on an account is one small request, so it costs nothing
+to include.
 
 ---
 
