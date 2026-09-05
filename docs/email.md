@@ -54,6 +54,33 @@ SSL/TLS.
 
 ---
 
+## Making a Gmail app password
+
+This is the one most people get stuck on, because Gmail's refusal reads exactly
+like a rejected password. It is not: **Gmail never accepts an ordinary account
+password over SMTP** — not even the correct one, with the right server. You need
+a separate sixteen-letter *app password*, which takes about a minute to make.
+
+1. Turn on 2-Step Verification if it is not already on:
+   [myaccount.google.com/security](https://myaccount.google.com/security) →
+   **2-Step Verification**. The app-passwords page does not exist until this is
+   switched on, and this is the step people miss.
+2. Go to
+   [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
+3. Type any name — "Task Hub" is fine — and press **Create**.
+4. Google shows sixteen letters in four groups, like `abcd efgh ijkl mnop`. That
+   is the password. The spaces are only there to make it readable; Task Hub
+   ignores them.
+5. Back in Task Hub, put your full Gmail address in **Username** and paste those
+   sixteen letters into **Password**, then save. It sends a test message straight
+   away, so you know at once whether it worked.
+
+**Yahoo and iCloud work the same way** — an ordinary password is always refused
+and an app password is required. Outlook.com needs one only if you have two-step
+verification switched on. Where to make each is listed just above.
+
+---
+
 ## Setting it up
 
 Task Hub offers this during first-time setup, as the last step of the wizard,
@@ -200,16 +227,7 @@ new one and paste it in.
 
 This is the most common failure, and it does not mean you typed the password
 wrongly. **Gmail refuses ordinary account passwords over SMTP, always** — even
-the correct one, even with the right server. You need an app password:
-
-1. Two-factor authentication has to be on:
-   [myaccount.google.com/security](https://myaccount.google.com/security) →
-   2-Step Verification. Without it the next page does not exist.
-2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
-3. Type any name — "Task Hub" — and press **Create**.
-4. Google shows sixteen letters in four groups. Paste them into **Password** in
-   Task Hub. The spaces do not matter.
-5. **Send a test message.**
-
-The same applies to Yahoo and iCloud. Outlook.com needs one only if you have
-two-step verification switched on.
+the correct one, even with the right server. The fix is an app password: the
+steps are under [Making a Gmail app password](#making-a-gmail-app-password)
+above. The same applies to Yahoo and iCloud; Outlook.com needs one only if you
+have two-step verification switched on.
