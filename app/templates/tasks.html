@@ -246,7 +246,8 @@
                   {% endif %}
                 </div>
 
-                {% if t.notes %}<div class="task-notes">{{ t.notes }}</div>{% endif %}
+                {% set shown = t.notes | notes_without_links %}
+                {% if shown %}<div class="task-notes">{{ shown }}</div>{% endif %}
 
                 {# A task written on a page of a Supernote notebook, where that
                    notebook is backed up here. Nothing is shown when it is not:
@@ -258,6 +259,19 @@
                      rel="noopener" title="{{ note.title }}">
                     {{ ico.icon('book') }}
                     <span>{{ note.name }}{% if note.page %} · page {{ note.page }}{% endif %}</span>
+                  </a>
+                {% endif %}
+
+                {# A task read out of a vault carries an obsidian:// address.
+                   As text it is a wall of percent-encoding; as a link it opens
+                   the vault at the right note, on a desktop or a phone with
+                   Obsidian installed. #}
+                {% set vault = obsidian_link_for(t) %}
+                {% if vault %}
+                  <a class="task-notelink" href="{{ vault.url }}"
+                     title="{{ vault.title }}">
+                    {{ ico.icon('book') }}
+                    <span>{{ vault.name }}</span>
                   </a>
                 {% endif %}
 

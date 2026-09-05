@@ -90,3 +90,55 @@ def link_for(db: Session, item) -> dict | None:
         "page": page,
         "title": f"Open {stem}" + (f" at page {page}" if page else ""),
     }
+
+
+# --- Obsidian ------------------------------------------------------------------
+
+#: The URI the Obsidian connector writes under a task, which opens the vault and
+#: the note the task was read from.
+_OBSIDIAN = re.compile(r"obsidian://open\?[^\s<>\"']+")
+
+#: The human-readable line above it: the vault and the path within it.
+_OBSIDIAN_WHERE = re.compile(r"^—\s*Obsidian\s*·\s*(?P<path>.+?)\s*$", re.MULTILINE)
+
+
+def obsidian_link(item) -> dict | None:
+    """Where to send somebody who wants the note a task came from.
+
+    The connector already writes both a readable path and an ``obsidian://``
+    URI into the task's notes, because those have to survive into services that
+    know nothing about Task Hub. Here there is a real interface, so the URI
+    becomes a button and stops being a line of raw text nobody can use.
+
+    Returns None when the task did not come from a vault or carries no URI --
+    an older task, or one somebody rewrote by hand.
+    """
+    text = getattr(item, "notes", None)
+    if not text or "obsidian://" not in text:
+        return None
+    match = _OBSIDIAN.search(text)
+    if match is None:
+        return None
+    where = _OBSIDIAN_WHERE.search(text)
+    path = where.group("path") if where else ""
+    return {
+        "url": match.group(0),
+        "name": path.rsplit("/", 1)[-1] or "the note",
+        "path": path,
+        "title": f"Open {path or 'this note'} in Obsidian",
+    }
+
+
+def without_obsidian_link(text: str | None) -> str | None:
+    """The notes with the machine-readable parts taken out, for display.
+
+    The URI is shown as a button beside the task, so leaving it in the text as
+    well means a wall of percent-encoding under every task read from a vault.
+    The readable path goes too, since the button names it.
+    """
+    if not text:
+        return text
+    cleaned = _OBSIDIAN.sub("", text)
+    cleaned = _OBSIDIAN_WHERE.sub("", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned or None

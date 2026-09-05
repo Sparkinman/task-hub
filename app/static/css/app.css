@@ -690,13 +690,13 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
    them from the parent at a glance without moving them out of their date
    group. */
 .task.is-subtask {
-  padding-left: 2.4rem;
+  padding-left: 3.6rem;
   position: relative;
 }
 .task.is-subtask::before {
   content: "";
   position: absolute;
-  left: 1.25rem;
+  left: 2.1rem;
   top: 0.55rem;
   bottom: 0.55rem;
   width: 2px;
@@ -708,33 +708,49 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
 
 /* Folds a task's steps away. Sits in the row's left margin so it does not
    push the tick box out of line with every other row. */
+/* Big enough to find and to hit. It is the only way to reach a task's steps
+   from this page, so a faint caret in the margin was the wrong size for the
+   job. */
 .task-fold {
   position: absolute;
-  left: 0.1rem;
-  top: 0.62rem;
-  width: 1.1rem;
-  height: 1.1rem;
+  left: 0;
+  top: 0.35rem;
+  width: 1.9rem;
+  height: 1.9rem;
   padding: 0;
-  border: 0;
-  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface, transparent);
   cursor: pointer;
   color: var(--text-subtle);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
-.task-fold:hover { color: var(--accent, #4b7bec); }
+.task-fold:hover {
+  border-color: var(--accent, #4b7bec);
+  color: var(--accent, #4b7bec);
+  background: var(--surface-2, rgba(75, 123, 236, 0.08));
+}
+.task-fold:focus-visible {
+  outline: 2px solid var(--accent, #4b7bec);
+  outline-offset: 2px;
+}
 .task-fold-caret {
-  width: 0.42em;
-  height: 0.42em;
-  border-right: 1.6px solid currentColor;
-  border-bottom: 1.6px solid currentColor;
-  transform: rotate(45deg);
-  transition: transform 0.12s ease;
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-0.1em, -0.1em);
+  transition: transform 0.14s ease;
 }
-.task-fold[aria-expanded="false"] .task-fold-caret { transform: rotate(-45deg); }
+.task-fold[aria-expanded="false"] .task-fold-caret {
+  transform: rotate(-45deg) translate(-0.1em, 0.1em);
+}
 .task { position: relative; }
-.task-fold + .task-check { margin-left: 0.85rem; }
+/* Every row's tick box lines up, folded or not. */
+.task-fold ~ .task-check { margin-left: 2.3rem; }
 
 .badge-tree {
   display: inline-flex;
@@ -1666,33 +1682,49 @@ dialog.modal::backdrop { background: var(--overlay); }
   /* A badge naming the piece of work must not push the row sideways. */
   /* Folds a task's steps away. Sits in the row's left margin so it does not
    push the tick box out of line with every other row. */
+/* Big enough to find and to hit. It is the only way to reach a task's steps
+   from this page, so a faint caret in the margin was the wrong size for the
+   job. */
 .task-fold {
   position: absolute;
-  left: 0.1rem;
-  top: 0.62rem;
-  width: 1.1rem;
-  height: 1.1rem;
+  left: 0;
+  top: 0.35rem;
+  width: 1.9rem;
+  height: 1.9rem;
   padding: 0;
-  border: 0;
-  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface, transparent);
   cursor: pointer;
   color: var(--text-subtle);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
-.task-fold:hover { color: var(--accent, #4b7bec); }
+.task-fold:hover {
+  border-color: var(--accent, #4b7bec);
+  color: var(--accent, #4b7bec);
+  background: var(--surface-2, rgba(75, 123, 236, 0.08));
+}
+.task-fold:focus-visible {
+  outline: 2px solid var(--accent, #4b7bec);
+  outline-offset: 2px;
+}
 .task-fold-caret {
-  width: 0.42em;
-  height: 0.42em;
-  border-right: 1.6px solid currentColor;
-  border-bottom: 1.6px solid currentColor;
-  transform: rotate(45deg);
-  transition: transform 0.12s ease;
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-0.1em, -0.1em);
+  transition: transform 0.14s ease;
 }
-.task-fold[aria-expanded="false"] .task-fold-caret { transform: rotate(-45deg); }
+.task-fold[aria-expanded="false"] .task-fold-caret {
+  transform: rotate(-45deg) translate(-0.1em, 0.1em);
+}
 .task { position: relative; }
-.task-fold + .task-check { margin-left: 0.85rem; }
+/* Every row's tick box lines up, folded or not. */
+.task-fold ~ .task-check { margin-left: 2.3rem; }
 
 .badge-tree { max-width: 100%; }
 
@@ -1707,8 +1739,10 @@ dialog.modal::backdrop { background: var(--overlay); }
   .steps-row.depth-5 { padding-left: 2.7rem; }
   .steps-row:not(.depth-0)::before { left: 0.35rem; }
   .steps-check { width: 20px; height: 20px; }
-  .task.is-subtask { padding-left: 1.15rem; }
-  .task.is-subtask::before { left: 0.3rem; }
+  .task.is-subtask { padding-left: 2.6rem; }
+  .task.is-subtask::before { left: 1.4rem; }
+  .task-fold { width: 2.1rem; height: 2.1rem; top: 0.3rem; }
+  .task-fold ~ .task-check { margin-left: 2.5rem; }
 
   /* The header stacks: a title that shares a row with three buttons leaves
      room for neither. */

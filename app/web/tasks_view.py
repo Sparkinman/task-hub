@@ -10,6 +10,7 @@ task list has to answer first is "what needs attention now", not "what exists".
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -222,6 +223,25 @@ def index(
     # in -- otherwise a piece of work is scattered across four headings and the
     # only thing holding it together is a badge.
     by_uid_row = {row["record"].uid: row for row in rows if row["record"].uid}
+
+    # A piece of work is as urgent as the soonest thing in it. A parent with no
+    # date of its own whose step is due today belongs under Today, not under
+    # Someday with the step dragged down beside it -- what needs doing this
+    # morning should be where somebody looks for what needs doing this morning.
+    steps_of: dict[str, list] = {}
+    for row in rows:
+        parent_uid = getattr(row["record"], "parent_uid", None)
+        if parent_uid:
+            steps_of.setdefault(parent_uid, []).append(row["record"])
+
+    def urgent_of(record):
+        """The soonest due date in this task and its steps, if any has one."""
+        dates = [record.due_date] if record.due_date else []
+        for step in steps_of.get(record.uid or "", []):
+            # A finished step no longer makes anything urgent.
+            if step.due_date and not step.is_completed:
+                dates.append(step.due_date)
+        return min(dates) if dates else None
     groups: dict[str, list[dict]] = {name: [] for name in GROUP_ORDER}
     for row in rows:
         record = row["record"]
@@ -229,12 +249,22 @@ def index(
         # Completion is the exception: a finished step belongs with the other
         # finished things, or the completed section would be missing the very
         # rows somebody opened it to un-tick.
-        if head is not None and not record.is_completed:
-            where = group_for(head["record"], today, tz_name)
-            if where == "completed":
-                where = group_for(record, today, tz_name)
+        if record.is_completed:
+            where = "completed"
         else:
-            where = group_for(record, today, tz_name)
+            # The whole family is placed by its soonest date, so it moves as one
+            # block rather than splitting across headings.
+            anchor = head["record"] if head is not None else record
+            soonest = urgent_of(anchor)
+            if soonest is None:
+                where = "someday"
+            else:
+                stand_in = dataclasses.replace(
+                    anchor, due_date=soonest,
+                    due_time=anchor.due_time if soonest == anchor.due_date else None,
+                    status=ItemStatus.NEEDS_ACTION,
+                )
+                where = group_for(stand_in, today, tz_name)
         groups[where].append(row)
 
     def family_key(row: dict) -> tuple:
@@ -247,11 +277,12 @@ def index(
         record = row["record"]
         head = by_uid_row.get(getattr(record, "parent_uid", None) or "")
         anchor = head["record"] if head is not None else record
+        soonest = urgent_of(anchor)
         # Undated last whichever way the dated ones are ordered.
-        undated = anchor.due_date is None
+        undated = soonest is None
         # Negated rather than reversed, so "latest first" applies to the
         # families without also turning each family upside down.
-        stamp = -anchor.due_date.toordinal() if anchor.due_date else 0
+        stamp = -soonest.toordinal() if soonest else 0
         return (
             undated,
             stamp,

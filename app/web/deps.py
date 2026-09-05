@@ -264,7 +264,29 @@ def note_link_for(db, item):
         return None
 
 
+def obsidian_link_for(item):
+    """The vault note a task came from, as something clickable."""
+    from app.web.note_links import obsidian_link
+
+    try:
+        return obsidian_link(item)
+    except Exception:  # noqa: BLE001 - a decoration must never break a page
+        return None
+
+
+def notes_without_links(text):
+    """A task's notes with the machine-readable link lines removed."""
+    from app.web.note_links import without_obsidian_link
+
+    try:
+        return without_obsidian_link(text)
+    except Exception:  # noqa: BLE001
+        return text
+
+
 templates.env.globals["note_link_for"] = note_link_for
+templates.env.globals["obsidian_link_for"] = obsidian_link_for
+templates.env.filters["notes_without_links"] = notes_without_links
 templates.env.globals["app_name"] = "Task Hub"
 # Stamped onto the CSS and JS URLs so an upgrade cannot be served from a
 # browser cache that never revalidated.
