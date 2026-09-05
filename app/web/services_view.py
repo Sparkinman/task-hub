@@ -475,6 +475,8 @@ def service_detail(service_key: str, request: Request, db: Session = Depends(get
             digest_error=digest_error,
             subtask_style=settings_store.get(
                 db, settings_store.SUPERNOTE_SUBTASK_STYLE) or "label",
+            tidy_lists=settings_store.get_bool(
+                db, settings_store.SUPERNOTE_TIDY_LISTS),
             digest_enabled=digest_sync.digest_enabled(db),
             digest_selected=digest_sync.selected_libraries(db),
             backup_floor=__import__("app.db.settings_store", fromlist=["x"]).MIN_NOTE_BACKUP_INTERVAL_MINUTES,
@@ -833,12 +835,14 @@ def _google_detail(request, db, definition, accounts, free_slots):
 def save_supernote_subtasks(
     request: Request,
     style: str = Form("label"),
+    tidy: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """How a task with steps should be presented on the tablet."""
     if style not in ("label", "lists", "plain"):
         style = "label"
     settings_store.set_value(db, settings_store.SUPERNOTE_SUBTASK_STYLE, style)
+    settings_store.set_bool(db, settings_store.SUPERNOTE_TIDY_LISTS, bool(tidy))
     db.commit()
     said = {
         "label": "Steps will be labelled in the task titles.",

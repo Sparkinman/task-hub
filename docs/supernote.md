@@ -419,7 +419,13 @@ Rename such a list on the tablet and the mark goes with it. It then becomes an
 ordinary list of yours, appears in the mapping table, and behaves like any
 other — which is the right answer, because you renamed it.
 
-Task Hub never deletes these lists. An emptied one stays until you remove it.
+**Emptied ones are cleared away**, unless you turn that off. Four conditions,
+all required, because this deletes something on your tablet and that cannot be
+taken back: the list carries Task Hub's mark, so it made it; there is nothing
+at all left in it, not even a completed task; it is a real list rather than the
+unfiled view; and the account read succeeded, so "empty" is an answer rather
+than a failed request. Your own lists are never touched, and neither is one you
+have renamed — renaming takes the mark off and makes it yours.
 
 **Being in one of those lists means nothing to Task Hub when reading.** A task
 is never treated as somebody's step because of the list it sits in: Supernote

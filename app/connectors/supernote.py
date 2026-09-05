@@ -687,6 +687,50 @@ class SupernoteConnector(Connector):
         # unreported rather than as gone.
         return PullResult(items=items, incremental=remote_list_id == UNFILED_LIST_ID)
 
+    def tidy_managed_lists(self) -> list[str]:
+        """Delete lists Task Hub made that have nothing left in them.
+
+        Four conditions, all required, because this deletes something on
+        somebody's tablet and that cannot be taken back:
+
+        * the list carries Task Hub's mark, so it was made here, not by them;
+        * it holds no tasks at all -- not even completed or deleted ones;
+        * it is not the unfiled view, which is not a list;
+        * and the account is readable, so "no tasks" is an answer rather than a
+          failed request.
+
+        A list that fails any of those is left alone. The worst this can do is
+        remove an empty list it created itself, which holds nothing to lose;
+        rename one on the tablet and the mark goes with it, at which point it is
+        theirs and this will not touch it.
+        """
+        try:
+            groups = self._get(LIST_GROUPS).get("scheduleTaskGroup") or []
+            rows = self._get(LIST_TASKS).get("scheduleTask") or []
+        except ConnectorError as exc:
+            # Never delete on a failed read: an empty answer would look exactly
+            # like an account with nothing in it.
+            logger.info("Not tidying Supernote lists: %s", exc)
+            return []
+
+        occupied = {str(row.get("taskListId") or "").strip() for row in rows}
+        removed: list[str] = []
+        for group in groups:
+            if yes(group.get("isDeleted")):
+                continue
+            title = (group.get("title") or "").strip()
+            list_id = str(group.get("taskListId") or "").strip()
+            if not list_id or not is_managed(title) or list_id in occupied:
+                continue
+            try:
+                self._request("DELETE", f"{CREATE_GROUP}/{list_id}")
+            except ConnectorError as exc:
+                logger.info("Could not remove the Supernote list %r: %s", title, exc)
+                continue
+            removed.append(title)
+            logger.info("Removed the emptied Supernote list %r", title)
+        return removed
+
     def _managed_lists_under(self, remote_list_id: str, rows: list[dict]) -> set[str]:
         """This list, plus any Task Hub made for tasks that live in it.
 

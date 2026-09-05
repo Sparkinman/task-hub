@@ -53,6 +53,9 @@ SUBTASKS_AS_SEPARATE: Final = "subtasks_as_separate_tasks"
 #: "plain"  sends them as ordinary tasks with nothing to tie them together.
 SUPERNOTE_SUBTASK_STYLE: Final = "supernote_subtask_style"
 
+#: Remove lists Task Hub made once nothing is left in them.
+SUPERNOTE_TIDY_LISTS: Final = "supernote_tidy_lists"
+
 SUPERNOTE_DIGEST_ENABLED: Final = "supernote_digest_enabled"
 SUPERNOTE_DIGEST_LIBRARIES: Final = "supernote_digest_libraries"
 #: Every library on the account, remembered from the last sync as JSON.
@@ -126,6 +129,7 @@ DEFAULTS: Final[dict[str, str]] = {
     SUPERNOTE_BACKUP_INTERVAL_MINUTES: "360",
     SUBTASKS_AS_SEPARATE: "0",
     SUPERNOTE_SUBTASK_STYLE: "label",
+    SUPERNOTE_TIDY_LISTS: "1",
     SUPERNOTE_DIGEST_ENABLED: "0",
     SUPERNOTE_DIGEST_LIBRARIES: "",
     SUPERNOTE_DIGEST_LIBRARY_CACHE: "",
