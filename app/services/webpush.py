@@ -191,9 +191,12 @@ def send(
         "Content-Encoding": "aes128gcm",
         "Content-Type": "application/octet-stream",
         "TTL": str(TTL_SECONDS),
-        # Chrome drops normal-priority pushes to a dozing phone until it next
-        # wakes, which for "your sync is failing" is too late to be useful.
-        "Urgency": "normal",
+        # High, because Android holds normal-priority pushes while the device
+        # is dozing and delivers them whenever it next wakes -- which for "your
+        # sync stopped working" or "your sign-in expires this week" can be
+        # hours. Task Hub sends few enough of these that treating each as
+        # timely is honest rather than greedy.
+        "Urgency": "high",
     }
     try:
         response = httpx.post(endpoint, content=body, headers=headers, timeout=timeout)
