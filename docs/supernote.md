@@ -133,12 +133,23 @@ the tablet just as an edit on the tablet reaches Task Hub.
   tested, so nothing is read from it yet.
 - **Reminders.** Supernote tracks these separately from the due date.
 
+### Tasks written on a page of a notebook
+
+A task made by circling handwriting carries a link back to the page it came
+from — the notebook icon beside it on the tablet, which jumps straight there.
+
+Task Hub keeps that link intact. An edit made here sends Supernote its own
+record with only the fields Task Hub owns laid over it, so the link survives
+being ticked off, renamed or given a due date. The reference also appears in
+the task's notes on this side — *"From 20260821_041013.note, page 2"* — so you
+can tell where a task came from without the tablet in front of you.
+
 ### Tasks that belong to no list
 
 Supernote lets a task exist without being in any list — it shows in the To-Do
 app's **All** view and in none of the named lists. Task Hub gathers these into a
-list of its own called **Unfiled tasks**, which appears alongside your real
-lists once there is something in it.
+list of its own called **Inbox** — the same name the tablet uses — which
+appears alongside your real lists once there is something in it.
 
 This exists so nothing on your account is invisible to Task Hub. Filtering
 tasks by list — the obvious way to build this — silently loses them, and a task

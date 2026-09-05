@@ -229,6 +229,39 @@ check("delete puts the id in the path",
       (method, path) == ("DELETE", f"{TASK}/abc123"), f"{method} {path}")
 check("and sends no body", payload is None, str(payload))
 
+print("\nA task written on a page of a notebook keeps its way back")
+# The tablet shows a notebook icon on these that jumps to the page. The field
+# is base64 around JSON, and it must survive the round trip -- an update sends
+# the server's row with only Task Hub's fields laid over it, so it does.
+from app.connectors.supernote import note_link  # noqa: E402
+
+REAL = ("eyJhcHBOYW1lIjoibm90ZSIsImZpbGVJZCI6IkYyMDI2MDgyMTA0MTAxNjM4OTA0MmNIVVdr"
+        "UUZuVVBNQiIsImZpbGVQYXRoIjoiL3N0b3JhZ2UvZW11bGF0ZWQvMC9Ob3RlLzIwMjYwODIx"
+        "XzA0MTAxMy5ub3RlIiwicGFnZSI6MiwicGFnZUlkIjoiUDIwMjYwOTA0MTMwNTIwMjAyNTg0"
+        "ZU9sOHlWd3hBV2NTIn0=")
+link = note_link(REAL)
+check("the notebook is named", link["name"] == "20260821_041013.note", str(link))
+check("and the page", link["page"] == 2, str(link))
+for junk in ("", None, "not base64", "eyJhIjoxfQ==", 12345):
+    check(f"{str(junk)[:14]!r} yields nothing rather than raising",
+          note_link(junk) is None)
+
+linked = connector()._record_from(dict(live_row, links=REAL), "abc123")
+check("the reference reaches the task",
+      "20260821_041013.note" in (linked.notes or ""), repr(linked.notes))
+check("with the page number", "page 2" in (linked.notes or ""), repr(linked.notes))
+# A task with its own notes keeps them; the reference is added, not substituted.
+both = connector()._record_from(
+    dict(live_row, links=REAL, detail="ring Jason"), "abc123")
+check("existing notes are not replaced", "ring Jason" in (both.notes or ""),
+      repr(both.notes))
+check("and the reference is there too", "page 2" in (both.notes or ""), repr(both.notes))
+# An update must send the server's own row, or the link is blanked by omission.
+r = Recorder(rows=[dict(LIVE_ROW, links=REAL)])
+r.update("1", "abc123", fresh, CollectionKind.TASKS)
+_, _, payload = r.calls[-1]
+check("an edit preserves the link", payload.get("links") == REAL, str(payload.get("links"))[:40])
+
 print("\nA task read from Supernote is never written back into Supernote")
 # Reachable through the unfiled view: a task belonging to no list is read from
 # it, and any real list of the same account that is a write-back target has no
@@ -238,10 +271,12 @@ already_there = CanonicalRecord(uid="supernote-abc123", kind=CollectionKind.TASK
                                 title="WPRD3- Place Order Today")
 r = Recorder()
 outcome = r.create("1", already_there, CollectionKind.TASKS)
-check("creating it again is refused", outcome.ok is False, str(outcome.error))
-check("and says why", "Already on Supernote" in (outcome.error or ""), str(outcome.error))
-check("and how to stop it recurring",
-      "collection of its own" in (outcome.error or ""), str(outcome.error))
+check("creating it again is declined", outcome.skipped is True, str(outcome))
+# Declined, not failed. It happens on every pass for every task read from
+# another Supernote list in the same collection -- as an error that made a
+# perfectly healthy sync report dozens of failures a minute.
+check("and it is not an error", outcome.ok is True and outcome.error is None,
+      str(outcome.error))
 check("nothing was sent", not any(m == "POST" and p == TASK for m, p, _ in r.calls),
       str([(m, p) for m, p, _ in r.calls]))
 # A task that genuinely originated elsewhere still writes normally.

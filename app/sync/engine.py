@@ -1477,6 +1477,12 @@ class SyncEngine:
 
         self._persist_refreshed_credentials(part)
 
+        if outcome.skipped:
+            # Declined rather than failed: nothing is wrong and nothing needs
+            # saying. Logging it would repeat on every pass for every item.
+            stats.skipped += 1
+            return
+
         if not outcome.ok:
             self.log(
                 f"{part.label}: could not write {item.title!r}: {outcome.error}",

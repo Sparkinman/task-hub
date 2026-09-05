@@ -99,7 +99,10 @@ TASK = "/file/schedule/task"
 #: The value cannot collide with a real id: theirs are 32-character hex strings,
 #: or the literal "1" for the default list.
 UNFILED_LIST_ID = "__unfiled__"
-UNFILED_LIST_NAME = "Unfiled tasks"
+#: The tablet calls this list "Inbox", so Task Hub does too. It was "Unfiled
+#: tasks" first, which was accurate and unrecognisable -- somebody looking for
+#: the list they see on the device would not know it was the same one.
+UNFILED_LIST_NAME = "Inbox"
 
 #: Their status vocabulary happens to match Google Tasks exactly.
 STATUS_FROM_REMOTE = {
@@ -168,6 +171,37 @@ def token_expiry(token: str) -> dt.datetime | None:
         return dt.datetime.fromtimestamp(seconds, dt.UTC)
     except (OverflowError, OSError, ValueError):
         return None
+
+
+def note_link(links: object) -> dict | None:
+    """Decode a task's link back to the note it was written on.
+
+    A task made by circling handwriting carries this, and the tablet shows a
+    notebook icon that jumps straight to the page. It is base64 around JSON:
+    ``{"appName", "fileId", "filePath", "page", "pageId"}``.
+
+    Task Hub keeps it whole on the way through -- an update sends the server's
+    own row with only the fields Task Hub owns laid over it, so the link
+    survives an edit -- and reads it here so the same jump can be offered on
+    this side, which is more than the raw field allows on its own.
+    """
+    raw = (links or "")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        decoded = json.loads(base64.b64decode(raw + "=" * (-len(raw) % 4)))
+    except (ValueError, binascii.Error, UnicodeDecodeError, TypeError):
+        return None
+    if not isinstance(decoded, dict) or not decoded.get("filePath"):
+        return None
+    path = str(decoded.get("filePath") or "")
+    return {
+        "path": path,
+        # The tablet's own storage prefix means nothing here.
+        "name": path.rsplit("/", 1)[-1],
+        "page": decoded.get("page"),
+        "file_id": str(decoded.get("fileId") or ""),
+    }
 
 
 def password_digest(password: str, random_code: str) -> str:
@@ -577,6 +611,17 @@ class SupernoteConnector(Connector):
         due = from_epoch_ms(row.get("dueTime"))
         notes = (row.get("detail") or "").strip() or None
 
+        # A task written on a page of a notebook says which page. Kept with the
+        # task rather than dropped, so Task Hub can offer the same jump back
+        # that the tablet does -- and it can do better, because the notebook is
+        # very likely already backed up here as a PDF.
+        source = note_link(row.get("links"))
+        if source:
+            reference = f"From {source['name']}"
+            if source.get("page"):
+                reference += f", page {source['page']}"
+            notes = f"{notes}\n\n{reference}" if notes else reference
+
         return CanonicalRecord(
             uid=f"supernote-{remote_id}",
             kind=CollectionKind.TASKS,
@@ -648,20 +693,10 @@ class SupernoteConnector(Connector):
         # to gain a second one, so the uid it was given on the way in is enough
         # to refuse.
         if record.uid.startswith("supernote-"):
-            return PushOutcome(
-                remote_id=None,
-                error=(
-                    "Already on Supernote, so it was not written again — Task "
-                    "Hub read this task from there. It happens when \"Unfiled "
-                    "tasks\" feeds a collection that also writes back to a "
-                    "Supernote list: the unfiled task has no list, so writing "
-                    "it to one would leave the original outside every list and "
-                    "a copy inside one. Nothing is wrong and nothing is lost. "
-                    "To stop it being mentioned, either untick write-back on "
-                    "the Supernote lists in that collection, or give \"Unfiled "
-                    "tasks\" a collection of its own."
-                ),
-            )
+            # Declined, not failed. This happens on every pass for every task
+            # read from another Supernote list in the same collection, which as
+            # an error made a working sync report dozens of failures a minute.
+            return PushOutcome(remote_id=None, skipped=True)
 
         payload = dict(self._fields_from(record))
         payload["taskListId"] = str(remote_list_id)

@@ -160,6 +160,15 @@ class PushOutcome:
     etag: str | None = None
     remote_updated_at: dt.datetime | None = None
     error: str | None = None
+    #: This item was not this service's to write, and nothing went wrong.
+    #:
+    #: Distinct from an error because it happens on every pass, for ever, by
+    #: design -- a service that already holds an item under another list should
+    #: not be offered it again, and reporting that as a failure turns a correct
+    #: refusal into a permanently broken-looking sync. Supernote is the case:
+    #: a task read from one of its lists must never be written back into
+    #: another, or the account gains a second copy.
+    skipped: bool = False
 
     @property
     def ok(self) -> bool:
