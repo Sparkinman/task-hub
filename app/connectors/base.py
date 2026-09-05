@@ -72,6 +72,17 @@ class Capabilities:
     max_title_length: int | None = None
     #: Longest note body accepted.
     max_notes_length: int | None = None
+    #: Whether this service can express one task belonging to another.
+    #:
+    #: Deliberately a flag of its own rather than a member of ``fields``, because
+    #: parenthood is a relationship and the rest are values. The distinction is
+    #: not pedantic: a service that cannot hold it must never be able to report
+    #: a task as having *no* parent, since that would flatten a hierarchy rather
+    #: than merely fail to carry it -- and unlike a lost due date, that cannot be
+    #: reconstructed afterwards. Supernote's to-do API is the motivating case:
+    #: its task rows have no parent field of any kind.
+    supports_parent: bool = False
+
     #: Whether the canonical UID can be stored remotely and read back. When
     #: False, links are tracked in Task Hub's database instead.
     stores_uid: bool = False
@@ -103,7 +114,7 @@ class Capabilities:
 #: Convenience: everything iCalendar can express. Used by the Radicale connector,
 #: which is the only fully lossless store in the system.
 FULL_CAPABILITIES = Capabilities(
-    fields=ALL_FIELDS, stores_uid=True, carries_origin=True
+    fields=ALL_FIELDS, stores_uid=True, carries_origin=True, supports_parent=True
 )
 
 

@@ -560,6 +560,11 @@ class Item(Base):
     location: Mapped[str | None] = mapped_column(Text, nullable=True)
     #: iCalendar scale: 0 = undefined, 1 = highest, 9 = lowest.
     priority: Mapped[int] = mapped_column(Integer, default=0)
+    #: The UID of the task this one belongs to. Held as a UID rather than a
+    #: foreign key on purpose: the parent may be created by a later pass of the
+    #: same sync, or live in a collection this row's own sync never touches, and
+    #: a constraint would refuse the child rather than wait for the parent.
+    parent_uid: Mapped[str | None] = mapped_column(String(255), nullable=True)
     #: Raw RRULE, stored verbatim so services with richer recurrence than ours
     #: round-trip unchanged instead of being flattened to a lossy approximation.
     rrule: Mapped[str | None] = mapped_column(Text, nullable=True)

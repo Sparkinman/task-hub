@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from icalendar import Calendar, Event, Todo
+from icalendar import Calendar, Event, Todo, vText
 
 from app.db.models import CollectionKind, ItemStatus, ServiceKind
 
@@ -96,6 +96,14 @@ class CanonicalRecord:
     priority: int = 0
     rrule: str | None = None
     tags: list[str] = field(default_factory=list)
+
+    #: The UID of the task this one belongs to, or None for a top-level task.
+    #:
+    #: A relationship rather than a value, and it behaves differently from every
+    #: other field here: a service that cannot express containment must never be
+    #: allowed to report this as None, because that would flatten a hierarchy
+    #: rather than merely fail to carry it.
+    parent_uid: str | None = None
 
     origin_service: ServiceKind = ServiceKind.LOCAL
     origin_name: str | None = None
@@ -218,6 +226,27 @@ def _parse_status(component, kind: CollectionKind) -> ItemStatus:
     return ItemStatus.NEEDS_ACTION
 
 
+def _parent_of(component) -> str | None:
+    """The UID this task is a child of, from its RELATED-TO properties.
+
+    A component may carry several RELATED-TO lines with different relationship
+    types -- PARENT, CHILD and SIBLING are all legal -- so this cannot simply
+    take the first one. An absent RELTYPE means PARENT by RFC 5545, which is why
+    the default below is that rather than "skip it".
+    """
+    related = component.get("RELATED-TO")
+    if related is None:
+        return None
+    for entry in (related if isinstance(related, list) else [related]):
+        params = getattr(entry, "params", {}) or {}
+        if str(params.get("RELTYPE", "PARENT")).upper() != "PARENT":
+            continue
+        value = str(entry).strip()
+        if value:
+            return value
+    return None
+
+
 def _parse_tags(component) -> list[str]:
     raw = component.get("CATEGORIES")
     if raw is None:
@@ -268,6 +297,8 @@ def component_to_record(component, kind: CollectionKind) -> CanonicalRecord:
         record.priority = int(component.get("PRIORITY", 0) or 0)
     except (TypeError, ValueError):
         record.priority = 0
+
+    record.parent_uid = _parent_of(component)
 
     rrule = component.get("RRULE")
     if rrule is not None:
@@ -364,6 +395,12 @@ def record_to_component(record: CanonicalRecord):
         component.add("LOCATION", record.location)
     if record.priority:
         component.add("PRIORITY", int(record.priority))
+    if record.parent_uid:
+        # RELTYPE=PARENT is the iCalendar way of saying "this belongs to that",
+        # and it is what CalDAV clients read to draw a task under another.
+        related = vText(record.parent_uid)
+        related.params["RELTYPE"] = "PARENT"
+        component.add("RELATED-TO", related)
     if record.tags:
         component.add("CATEGORIES", record.tags)
     if record.rrule:

@@ -1648,12 +1648,31 @@ class SyncEngine:
             all_day=item.all_day,
             location=item.location,
             priority=item.priority,
+            parent_uid=item.parent_uid,
             rrule=item.rrule,
             tags=list(item.tags or []),
             origin_service=item.origin_service,
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
+
+    @staticmethod
+    def apply_parent(item: Item, record: CanonicalRecord, caps) -> None:
+        """Set an item's parent from a service's report, if it may say.
+
+        The single rule that keeps a hierarchy alive across a service that has
+        no idea it exists. A service which cannot express containment gets no
+        say at all: not to set a parent, and -- the part that matters -- not to
+        clear one. Sending a parent and eight children to a flat list produces
+        nine unrelated tasks there, and if that flattening were allowed home the
+        structure would be gone everywhere, permanently.
+
+        A service that *can* express it is believed in both directions, because
+        for those a missing parent really does mean the task is top level.
+        """
+        if not getattr(caps, "supports_parent", False):
+            return
+        item.parent_uid = record.parent_uid or None
 
     @staticmethod
     def _record_to_item(record: CanonicalRecord, item: Item) -> None:
@@ -1674,6 +1693,10 @@ class SyncEngine:
         item.all_day = record.all_day
         item.location = record.location
         item.priority = record.priority
+        # Deliberately not written here. Parenthood is a relationship, and a
+        # service that cannot express one must never be able to clear it by
+        # reporting None -- so it is applied only where that has been checked.
+        # See apply_parent().
         item.rrule = record.rrule
         item.tags = list(record.tags or [])
 

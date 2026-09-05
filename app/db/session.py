@@ -89,6 +89,9 @@ def get_db() -> Iterator[Session]:
 #: existing table but cannot alter or drop one, so every entry here must be
 #: nullable or carry a default. Applied in order on every startup.
 _COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
+    # Null means "top level", which is what every task that existed before
+    # subtasks were supported genuinely is.
+    ("items", "parent_uid", "VARCHAR(255)"),
     ("item_links", "last_pushed_fields", "JSON"),
     ("item_links", "sync_group_id", "INTEGER"),
     # DEFAULT 1 so every mapping that existed before this column keeps behaving

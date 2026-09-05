@@ -56,8 +56,10 @@ logger = logging.getLogger(__name__)
 ICLOUD_URL = "https://caldav.icloud.com/"
 
 #: CalDAV round-trips iCalendar, so nothing is lost and nothing is withheld.
+#: RELATED-TO;RELTYPE=PARENT is part of RFC 5545, so any CalDAV server stores
+#: it. Whether the *client* on the other end draws the nesting is its business.
 CALDAV_CAPABILITIES = Capabilities(
-    fields=ALL_FIELDS, stores_uid=True, carries_origin=True
+    fields=ALL_FIELDS, stores_uid=True, carries_origin=True, supports_parent=True
 )
 
 
