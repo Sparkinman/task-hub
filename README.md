@@ -55,7 +55,7 @@ ones mean choosing which of them the tablet gets to show. Task Hub aggregates as
 many as you like into a single feed the tablet can use — one address on the
 device, everything in it, still updating both ways.
 
-Ratta publish no API for it. The endpoints were read out of the Supernote
+Ratta published no API for it. The endpoints were read out of the Supernote
 Partner app itself and confirmed against a live account, and syncing runs in
 **both directions**: a task added, edited, ticked off or deleted in Task Hub
 reaches the tablet, and changes made on the tablet come back — through to

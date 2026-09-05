@@ -37,7 +37,7 @@ nothing is taken over, and nothing stops working if you walk away from it.
 
 ## What you are getting, plainly
 
-**Ratta publishes no API for Supernote.** None at all — no developer portal, no
+**Ratta published no API for Supernote.** None at all — no developer portal, no
 documentation, no OAuth, no support channel. The two open-source Supernote
 projects that exist both cover file storage only, and neither touches to-dos.
 

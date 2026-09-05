@@ -22,7 +22,7 @@ is ticked off everywhere.
   pen as well as typed — and backs your handwritten notebooks up as PDFs you
   can read on any device. A task written on a page of
   a notebook links straight to that page, when the notebook is one you have
-  backed up. Ratta publish no API for this, so it may
+  backed up. Ratta published no API for this, so it may
   change at any time, and Task Hub says so plainly wherever it is shown.
 - **It works alongside Supernote Cloud, not instead of it.** This is not a
   private cloud instance and nothing has to be migrated. Your tablet stays
