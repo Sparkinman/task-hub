@@ -404,6 +404,76 @@
     });
   });
 
+  /* --- Folding a task's steps away ----------------------------------------
+   * The steps are rows in the same list rather than nested inside the parent,
+   * so this hides them. They start hidden: a list that opens with every step of
+   * every piece of work showing is longer than it is useful, and the parent row
+   * already says how many are left.
+   *
+   * The ones deliberately opened are remembered in the browser, because the
+   * page reloads itself after a task is ticked and losing the arrangement every
+   * time would make the control useless.
+   */
+  var FOLD_KEY = "taskhub.opened";
+
+  function foldedSet() {
+    try {
+      return new Set(JSON.parse(window.localStorage.getItem(FOLD_KEY) || "[]"));
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  function rememberFolds(set) {
+    try {
+      window.localStorage.setItem(FOLD_KEY, JSON.stringify(Array.from(set)));
+    } catch (e) {
+      /* Private browsing, or storage turned off. The fold still works for
+         this view; it simply is not remembered. */
+    }
+  }
+
+  function applyFold(uid, folded) {
+    document.querySelectorAll('[data-parent-uid="' + CSS.escape(uid) + '"]')
+      .forEach(function (row) { row.hidden = folded; });
+    var button = document.querySelector('[data-fold="' + CSS.escape(uid) + '"]');
+    if (button) {
+      button.setAttribute("aria-expanded", folded ? "false" : "true");
+      var name = button.getAttribute("aria-label") || "";
+      button.setAttribute(
+        "aria-label",
+        (folded ? "Show" : "Hide") + name.replace(/^(Show|Hide)/, "")
+      );
+    }
+  }
+
+  function restoreFolds() {
+    var opened = foldedSet();
+    document.querySelectorAll("[data-fold]").forEach(function (button) {
+      var uid = button.getAttribute("data-fold");
+      if (opened.has(uid)) applyFold(uid, false);
+    });
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-fold]");
+    if (!button) return;
+    event.preventDefault();
+    var uid = button.getAttribute("data-fold");
+    var folding = button.getAttribute("aria-expanded") !== "false";
+    applyFold(uid, folding);
+    var set = foldedSet();
+    // The set holds what has been opened, since folded is the resting state.
+    if (folding) { set.delete(uid); } else { set.add(uid); }
+    rememberFolds(set);
+  });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restoreFolds);
+  } else {
+    restoreFolds();
+  }
+
   /* --- Filter form auto-submit ------------------------------------------- */
   document.addEventListener("change", function (event) {
     var control = event.target.closest("[data-autosubmit]");

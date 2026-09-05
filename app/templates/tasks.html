@@ -179,7 +179,23 @@
             {# A child is marked as one rather than nested under its parent:
                the list is grouped by when things are due, and a step due today
                belongs under Today even when its parent is due next month. #}
-            <li class="task {{ 'is-done' if t.is_completed }} {{ 'is-subtask' if row.parent_title }}">
+            <li class="task {{ 'is-done' if t.is_completed }} {{ 'is-subtask' if row.parent_title }}"
+                data-task-uid="{{ t.uid }}"
+                {# Steps start folded away: a list that opens with every step of
+                   every piece of work showing is longer than it is useful, and
+                   the parent already says how many are left. Opened ones are
+                   remembered. #}
+                {% if row.parent_uid %}data-parent-uid="{{ row.parent_uid }}" hidden{% endif %}>
+              {% if row.step_count %}
+                {# Folds this task's steps away. The steps are rows of their own
+                   in the same list, so this hides them rather than containing
+                   them -- which keeps every row tickable exactly where it is. #}
+                <button type="button" class="task-fold" data-fold="{{ t.uid }}"
+                        aria-expanded="false"
+                        aria-label="Show the steps of {{ t.title }}">
+                  <span class="task-fold-caret" aria-hidden="true"></span>
+                </button>
+              {% endif %}
               <input type="checkbox" class="task-check"
                      {{ 'checked' if t.is_completed }}
                      aria-label="Mark {{ t.title }} complete"
@@ -266,6 +282,22 @@
                         <span class="field-hint">Leave empty for a date with no set time.</span>
                       </div>
                       <div class="field">
+                        <label>Repeats</label>
+                        {% set current = repeat_key(t.rrule) %}
+                        <select name="repeats">
+                          {% if current == 'custom' %}
+                            {# A rule written elsewhere that this menu cannot
+                               express. Kept, and left alone unless changed. #}
+                            <option value="custom" selected>Custom — leave as it is</option>
+                          {% endif %}
+                          {% for key, label in repeat_labels.items() %}
+                            <option value="{{ key }}" {{ 'selected' if key == current }}>
+                              {{ label }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
                         <label>Priority</label>
                         <select name="priority">
                           <option value="0" {{ 'selected' if not t.priority }}>None</option>
@@ -326,6 +358,21 @@
         <span class="task-group-count">{{ completed_count }}</span>
         <span class="small muted">— click to open, and to tick anything back on</span>
       </summary>
+
+      {# Clearing reaches every connected service, the same as deleting a task
+         by hand, so the confirmation says so rather than only naming a count. #}
+      <form method="post" class="clear-done mt-3"
+            action="/tasks/clear-completed{% if selected_collections %}?{% for c in selected_collections %}collection={{ c|urlencode }}{% if not loop.last %}&amp;{% endif %}{% endfor %}{% endif %}"
+            data-confirm="Delete {{ completed_count }} completed task{{ '' if completed_count == 1 else 's' }} from Task Hub and from every service they are synced to? Repeating tasks are left alone. This cannot be undone.">
+        <input type="hidden" name="back_collection" value="{{ selected_collection }}">
+        <button type="submit" class="btn btn-ghost btn-sm">
+          {{ ico.icon('trash', 'icon') }} Clear completed
+        </button>
+        <span class="tiny muted">
+          Removes them everywhere they are synced. Repeating tasks are kept —
+          deleting one would end the whole series.
+        </span>
+      </form>
 
       <ul class="task-list mt-3">
         {% for row in groups['completed'] %}
@@ -438,6 +485,14 @@
             <input type="time" id="new-due-time" name="due_time"
                    data-requires-date="#new-due-date">
             <span class="field-hint">Optional.</span>
+          </div>
+          <div class="field">
+            <label for="new-repeats">Repeats</label>
+            <select id="new-repeats" name="repeats">
+              {% for key, label in repeat_labels.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+              {% endfor %}
+            </select>
           </div>
           <div class="field">
             <label for="new-priority">Priority</label>

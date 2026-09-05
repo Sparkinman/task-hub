@@ -690,13 +690,13 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
    them from the parent at a glance without moving them out of their date
    group. */
 .task.is-subtask {
-  padding-left: 1.5rem;
+  padding-left: 2.4rem;
   position: relative;
 }
 .task.is-subtask::before {
   content: "";
   position: absolute;
-  left: 0.45rem;
+  left: 1.25rem;
   top: 0.55rem;
   bottom: 0.55rem;
   width: 2px;
@@ -705,6 +705,36 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
   opacity: 0.45;
 }
 .task.is-subtask.is-done::before { opacity: 0.18; }
+
+/* Folds a task's steps away. Sits in the row's left margin so it does not
+   push the tick box out of line with every other row. */
+.task-fold {
+  position: absolute;
+  left: 0.1rem;
+  top: 0.62rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-fold:hover { color: var(--accent, #4b7bec); }
+.task-fold-caret {
+  width: 0.42em;
+  height: 0.42em;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.12s ease;
+}
+.task-fold[aria-expanded="false"] .task-fold-caret { transform: rotate(-45deg); }
+.task { position: relative; }
+.task-fold + .task-check { margin-left: 0.85rem; }
 
 .badge-tree {
   display: inline-flex;
@@ -830,6 +860,17 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
 .lists-rule { border: 0; border-top: 1px solid var(--border); margin: 0.15rem 0; }
 .check-inline .check-label { font-size: 0.88rem; }
 
+.clear-done {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+.clear-done .icon { width: 0.9em; height: 0.9em; margin-right: 0.3rem; }
+@media (max-width: 640px) {
+  .clear-done .btn { width: 100%; }
+}
+
 .add-step {
   display: flex;
   flex-wrap: wrap;
@@ -838,7 +879,18 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
 }
 .add-step .grow { flex: 1 1 14rem; }
 @media (max-width: 640px) {
-  .add-step { flex-direction: column; align-items: stretch; }
+  .clear-done {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+.clear-done .icon { width: 0.9em; height: 0.9em; margin-right: 0.3rem; }
+@media (max-width: 640px) {
+  .clear-done .btn { width: 100%; }
+}
+
+.add-step { flex-direction: column; align-items: stretch; }
   .add-step .btn { width: 100%; }
 }
 
@@ -1612,7 +1664,37 @@ dialog.modal::backdrop { background: var(--overlay); }
   .showing-count { align-self: flex-start; }
 
   /* A badge naming the piece of work must not push the row sideways. */
-  .badge-tree { max-width: 100%; }
+  /* Folds a task's steps away. Sits in the row's left margin so it does not
+   push the tick box out of line with every other row. */
+.task-fold {
+  position: absolute;
+  left: 0.1rem;
+  top: 0.62rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-fold:hover { color: var(--accent, #4b7bec); }
+.task-fold-caret {
+  width: 0.42em;
+  height: 0.42em;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.12s ease;
+}
+.task-fold[aria-expanded="false"] .task-fold-caret { transform: rotate(-45deg); }
+.task { position: relative; }
+.task-fold + .task-check { margin-left: 0.85rem; }
+
+.badge-tree { max-width: 100%; }
 
   /* Indents that read as structure on a wide screen leave no room for words on
      a narrow one, so they tighten and stop deepening after the third level.

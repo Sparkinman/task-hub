@@ -217,11 +217,51 @@ def index(
     # usually to un-tick one, and a control you have to find first makes that
     # harder than it needs to be.
 
+    # A family stays together. A step is filed under whichever heading its
+    # parent is under, rather than under the one its own due date would put it
+    # in -- otherwise a piece of work is scattered across four headings and the
+    # only thing holding it together is a badge.
+    by_uid_row = {row["record"].uid: row for row in rows if row["record"].uid}
     groups: dict[str, list[dict]] = {name: [] for name in GROUP_ORDER}
     for row in rows:
-        groups[group_for(row["record"], today, tz_name)].append(row)
+        record = row["record"]
+        head = by_uid_row.get(getattr(record, "parent_uid", None) or "")
+        # Completion is the exception: a finished step belongs with the other
+        # finished things, or the completed section would be missing the very
+        # rows somebody opened it to un-tick.
+        if head is not None and not record.is_completed:
+            where = group_for(head["record"], today, tz_name)
+            if where == "completed":
+                where = group_for(record, today, tz_name)
+        else:
+            where = group_for(record, today, tz_name)
+        groups[where].append(row)
+
+    def family_key(row: dict) -> tuple:
+        """Sort parents by date, and hold each one's steps beneath it.
+
+        Latest first, with undated tasks last -- and a step is ordered by its
+        parent's date, then by its own, so the steps of one piece of work stay
+        in one block and in a sensible order within it.
+        """
+        record = row["record"]
+        head = by_uid_row.get(getattr(record, "parent_uid", None) or "")
+        anchor = head["record"] if head is not None else record
+        # Undated last whichever way the dated ones are ordered.
+        undated = anchor.due_date is None
+        # Negated rather than reversed, so "latest first" applies to the
+        # families without also turning each family upside down.
+        stamp = -anchor.due_date.toordinal() if anchor.due_date else 0
+        return (
+            undated,
+            stamp,
+            anchor.title.lower(),
+            head is not None,              # the parent leads its own steps
+            _sort_key(record) if head is not None else (),
+        )
+
     for name in groups:
-        groups[name].sort(key=lambda row: _sort_key(row["record"]))
+        groups[name].sort(key=family_key)
     # Most recently finished first is more useful than oldest-first here.
     groups["completed"].sort(
         key=lambda row: row["record"].completed_at or dt.datetime.min.replace(
@@ -259,6 +299,8 @@ def index(
         request, db, "tasks.html",
         configured=True,
         parent_choices=parent_choices,
+        repeat_labels=REPEAT_LABELS,
+        repeat_key=repeat_key,
         collections=collections,
         selected_collections=chosen,
         # Kept for everything that only makes sense with one list in view:
@@ -360,6 +402,45 @@ def steps(collection_id: str, uid: str, request: Request,
     )
 
 
+#: The repeats offered on the task forms, as iCalendar rules.
+#:
+#: A deliberately short list. RRULE can express "the last working day of every
+#: quarter", but a menu that can say that is a menu nobody can read, and every
+#: service Task Hub talks to supports these four.
+REPEATS: dict[str, str] = {
+    "": "",
+    "daily": "FREQ=DAILY",
+    "weekly": "FREQ=WEEKLY",
+    "monthly": "FREQ=MONTHLY",
+    "yearly": "FREQ=YEARLY",
+}
+
+REPEAT_LABELS: dict[str, str] = {
+    "": "Does not repeat",
+    "daily": "Every day",
+    "weekly": "Every week",
+    "monthly": "Every month",
+    "yearly": "Every year",
+}
+
+
+def repeat_key(rrule: str | None) -> str:
+    """Which of the offered repeats this rule is, if it is one of them.
+
+    A rule written elsewhere -- by another CalDAV client, or by a service with a
+    richer editor -- will not match, and that is deliberate: it is shown as
+    "custom" and left completely alone rather than being flattened into the
+    nearest thing this menu can say.
+    """
+    if not rrule:
+        return ""
+    normalised = rrule.upper().replace("RRULE:", "").strip()
+    for key, value in REPEATS.items():
+        if value and normalised == value:
+            return key
+    return "custom"
+
+
 def _add_steps(client, collection_id: str, parent_uid: str, steps: str,
                now: dt.datetime) -> tuple[int, int]:
     """Create a subtask for each non-empty line. Returns (made, failed).
@@ -430,6 +511,7 @@ def create_task(
     notes: str = Form(""),
     parent_uid: str = Form(""),
     steps: str = Form(""),
+    repeats: str = Form(""),
     back_collection: str = Form(""),
     back_completed: str = Form(""),
     back_q: str = Form(""),
@@ -475,6 +557,7 @@ def create_task(
         # calendar day everywhere rather than shifting across a date line.
         due_tz=settings_store.get_timezone(db) if parsed_time else None,
         priority=priority_value,
+        rrule=REPEATS.get(repeats) or None,
         # Created here, so it earns the blue "Task Hub" badge.
         origin_service=ServiceKind.LOCAL,
         created_at=now,
@@ -557,6 +640,7 @@ def update_task(
     priority: str = Form("0"),
     notes: str = Form(""),
     steps: str = Form(""),
+    repeats: str = Form("custom"),
     db: Session = Depends(get_db),
 ):
     client = get_radicale_client(db)
@@ -595,6 +679,11 @@ def update_task(
     except ValueError:
         record.priority = 0
 
+    # "custom" means the form could not represent what is already there, so it
+    # is left exactly as it is. Anything else is a choice somebody just made.
+    if repeats != "custom":
+        record.rrule = REPEATS.get(repeats) or None
+
     record.updated_at = dt.datetime.now(dt.timezone.utc)
 
     try:
@@ -613,6 +702,67 @@ def update_task(
     deps.flash(request, _said_about_steps("Task updated", made, failed),
                "warning" if failed else "success")
     return deps.redirect("/tasks")
+
+
+@router.post("/clear-completed")
+def clear_completed(
+    request: Request,
+    collection: list[str] = Query(default=[]),
+    back_collection: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Remove finished tasks, leaving anything that repeats.
+
+    A repeating task is one object, not one per occurrence: the rule lives on
+    the task itself. So ticking off this week's instance and then deleting it
+    would not tidy away a finished thing -- it would delete the whole series,
+    every future occurrence with it. Anything carrying a repeat rule is
+    therefore skipped, and said so afterwards.
+
+    Google is the reason to be careful rather than clever here. It handles a
+    repeating task by keeping the completed one and making the next itself, so
+    what looks like a finished task may be Google's own record of an occurrence
+    rather than something anybody wants removed.
+
+    Deleting reaches every service, the same as deleting a task by hand does.
+    That is the point -- clearing them here and leaving them everywhere else
+    would tidy nothing -- but it is why the button asks first.
+    """
+    client = get_radicale_client(db)
+    if client is None:
+        return deps.redirect("/tasks")
+
+    chosen = {c for c in collection if c}
+    removed = kept = failed = 0
+    for info in _task_collections(db, client):
+        if chosen and info.collection_id not in chosen:
+            continue
+        try:
+            records = client.list_records(
+                info.collection_id, CollectionKind.TASKS, include_completed=True
+            )
+        except CalDAVError:
+            continue
+        for record in records:
+            if not record.is_completed:
+                continue
+            if record.rrule:
+                kept += 1
+                continue
+            try:
+                client.delete_record(info.collection_id, record.uid)
+                removed += 1
+            except CalDAVError:
+                failed += 1
+
+    said = f"Cleared {removed} completed task{'' if removed == 1 else 's'}."
+    if kept:
+        said += (f" {kept} left alone because {'it repeats' if kept == 1 else 'they repeat'}"
+                 " — deleting one would end the whole series.")
+    if failed:
+        said += f" {failed} could not be removed."
+    deps.flash(request, said, "warning" if failed else "success")
+    return deps.redirect(_back_to(back_collection, "1", ""))
 
 
 @router.post("/{collection_id}/{uid}/delete")
