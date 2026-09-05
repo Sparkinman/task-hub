@@ -4,9 +4,10 @@
 hardware. Your data never leaves it.
 
 Task Hub syncs tasks and calendars between the services you already use —
-Google, Todoist, TickTick, Microsoft, Apple iCloud, Obsidian, Things 3 and any
-CalDAV server — and gives your phone and desktop apps a CalDAV server of their
-own to talk to. Tick something off in one place and it is ticked off everywhere.
+Google, Todoist, TickTick, Microsoft, Apple iCloud, Obsidian, Things 3,
+Supernote and any CalDAV server — and gives your phone and desktop apps a
+CalDAV server of their own to talk to. Tick something off in one place and it
+is ticked off everywhere.
 
 - **Self-hosted.** One container. No account with anybody, no cloud service in
   the middle, no telemetry.
@@ -14,6 +15,14 @@ own to talk to. Tick something off in one place and it is ticked off everywhere.
   notes survive the round trip wherever the far end can hold them — and where a
   service cannot (Google Tasks and Microsoft To Do both discard the time of
   day), Task Hub keeps the value separately so that service cannot erase it.
+- **Supernote's built-in To-Do app, both ways.** Task Hub is the only thing
+  outside Supernote's own apps that reads it — not a CalDAV app installed on
+  the tablet, but the real one. It also backs your handwritten notebooks up as
+  PDFs you can read on any device. Ratta publish no API for this, so it may
+  change at any time, and Task Hub says so plainly wherever it is shown.
+- **Installs on your phone.** Add it to a home screen and it opens like an app:
+  own icon, full screen, no browser bar. Needs an HTTPS address, which the
+  built-in Cloudflare tunnel or Tailscale provides.
 - **Set up in a browser.** No configuration files to edit and no terminal
   commands after the container is running.
 

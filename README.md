@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/static/img/logo.svg" alt="" width="150">
+  <img src="app/static/img/logo.svg" alt="" width="260">
 </p>
 
 <h1 align="center">Task Hub</h1>
@@ -29,7 +29,30 @@
 | **CalDAV** | ✓ | ✓ | Any other CalDAV server — Nextcloud, Fastmail, Baïkal, Synology, mailbox.org. Give it the address and it discovers the rest. Nothing is lost in either direction |
 | **Obsidian** | ✓ | — | Tasks written in your vault. Read-only unless you turn write-back on |
 | **Things 3** | ✓ | — | Import only — Things has no supported way to write in. Its endpoint is unpublished and may change without warning |
+| **Supernote** | ✓ | — | **The tablet's own built-in To-Do app, both ways.** Nobody else reads it. Also backs your notebooks up as PDFs — [how it works](docs/supernote.md) |
 | **Radicale** | ✓ | ✓ | Built in. The hub everything meets at |
+
+### New: Supernote's built-in To-Do app
+
+**Task Hub is the only thing outside Supernote's own apps that can read and
+write the To-Do app built into the tablet.** Not a CalDAV app installed
+alongside it — the real one, whose tasks appear in Supernote's own To-Do screen
+and in the Partner app on your phone.
+
+Ratta publish no API for it. The endpoints were read out of the Supernote
+Partner app itself and confirmed against a live account, and syncing runs in
+**both directions**: a task added, edited, ticked off or deleted in Task Hub
+reaches the tablet, and changes made on the tablet come back — through to
+Google, Todoist, your iPhone or anywhere else you have connected.
+
+The same connection also **backs up your handwritten notebooks as PDFs**. Pick
+which folders, and Task Hub keeps a readable copy you can open on any device,
+with a preview of each one — using Supernote's own converter, so it always
+understands the format the tablet is writing today.
+
+> Because none of this is published, Ratta can change or withdraw it at any
+> time. Task Hub says so plainly wherever it is shown, and every other service
+> keeps syncing if it ever stops. [What that means](docs/supernote.md).
 
 **[The full list](docs/compatibility.md)** — including the servers that should
 work through the CalDAV connector, the apps that connect straight to Task Hub,
@@ -63,7 +86,29 @@ without a connector at all:
 | **Thunderbird** | Windows, macOS, Linux | Calendars and tasks both |
 | **Super Productivity** | Desktop | Reads your tasks and syncs completion back. It cannot *create* tasks on the server, so treat it as a place to work through them |
 | **GNOME Calendar / GNOME To Do** | Linux | |
-| **Supernote and other e-ink tablets** | | Anything with a CalDAV client |
+| **Other e-ink tablets** | | Anything with a CalDAV client. Supernote has a connector of its own — see above |
+
+### On your phone: install it like an app
+
+Task Hub adds to a home screen and opens like any other app — its own icon, no
+browser bar, laid out for a small screen. There is no app store involved and
+nothing to download: the web address *is* the app.
+
+- **Android:** open Task Hub in Chrome, tap **⋮** → **Install app**
+- **iPhone or iPad:** open it in Safari, tap Share → **Add to Home Screen**
+
+**It needs an HTTPS address.** Browsers only allow an installed web app over a
+secure connection, so a plain `http://192.168.…` will not offer it. Either of
+the routes Task Hub sets up for you gives HTTPS:
+
+| | What it needs |
+| --- | --- |
+| **Cloudflare tunnel** | A domain you have added to Cloudflare. Runs from inside the container — tick a box in **Settings → Remote access** and paste a token. No port forwarding, no router changes |
+| **Tailscale** | Nothing but a free account. Installed on the machine, not in the container |
+
+Without HTTPS everything still works in a normal browser tab; you simply do not
+get the icon, the full-screen view or the offline page.
+[The address guide](docs/addresses.md) covers both routes.
 
 [How to connect each of them](docs/third-party-apps.md), and
 [the full compatibility list](docs/compatibility.md) — every service and app

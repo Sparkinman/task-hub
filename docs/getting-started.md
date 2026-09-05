@@ -121,6 +121,12 @@ always send you back to the address you are using at the time, so connect them
 from the address you want registered. See [Addresses](addresses.md) for which
 address each service will accept.
 
+> **Once you have an HTTPS address**, Task Hub can be installed on a phone like
+> an app — home-screen icon, full screen, no browser bar. On Android: Chrome
+> **⋮ → Install app**. On iPhone: Safari Share → **Add to Home Screen**. It
+> does not work over a plain `http://` address, because browsers do not allow
+> it. See [Addresses](addresses.md#installing-task-hub-on-a-phone).
+
 ### Reaching it from outside your home — the built-in tunnel
 
 The simplest safe route is a Cloudflare tunnel, and Task Hub ships one.

@@ -89,7 +89,7 @@ in to Task Hub directly. [Setup for each one](third-party-apps.md).
 | --- | --- | --- |
 | **Apple Calendar** | iPhone, iPad, Mac | Built in. Proven in both directions |
 | **Apple Reminders** | iPhone, iPad, Mac | Built in. A reminder made on the phone reaches Todoist; a change anywhere reaches the phone. **Needs an HTTPS address** — [why](third-party-apps.md) |
-| **Supernote** | E-ink tablet | Tasks created on the device arrive stamped as its own |
+| **Supernote** | E-ink tablet | Two routes, and both work. A CalDAV app installed on the device syncs like any other client, and items it creates arrive stamped as Supernote. Separately, Task Hub reads and writes the tablet's **built-in To-Do app** directly, and backs notebooks up as PDFs — [the connector](supernote.md) |
 | **Thunderbird** | Windows, macOS, Linux | Calendars and tasks both, over plain HTTP as well as HTTPS |
 | **DAVx⁵** | Android | The sync layer everything else on Android goes through |
 | **Super Productivity** | Desktop | Reads tasks and syncs completion back. It **cannot create** tasks on the server — a good place to work through a list, a poor place to capture into |
