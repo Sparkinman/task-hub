@@ -1507,6 +1507,16 @@ class SyncEngine:
             position = self._position_of(item)
             if position:
                 desired_hash = f"{desired_hash}:{position}"
+            # How a service is asked to present steps is part of what would be
+            # sent, so changing it has to count as a change. Without this,
+            # switching between labelling titles and making lists did nothing
+            # at all to tasks that already existed: every one of them looked
+            # identical to what had last been pushed, so nothing was written.
+            if part.service == ServiceKind.SUPERNOTE and position:
+                style = settings_store.get(
+                    self.session, settings_store.SUPERNOTE_SUBTASK_STYLE
+                ) or "label"
+                desired_hash = f"{desired_hash}:{style}"
 
         # The suppression step. If what this service already holds matches what
         # we would send, send nothing. This is what stops completed tasks being

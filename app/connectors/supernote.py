@@ -649,6 +649,7 @@ class SupernoteConnector(Connector):
         # lists, so nothing would ever read them.
         rows = list(body.get("scheduleTask") or [])
         mine = self._managed_lists_under(remote_list_id, rows)
+        managed_exists = len(mine) > 1 or self._has_managed_lists()
 
         for row in rows:
             cache_id = str(row.get("taskId") or "").strip()
@@ -674,6 +675,21 @@ class SupernoteConnector(Connector):
                 )
             )
 
+        # Moving a task into a list Task Hub made is not the same as deleting
+        # it, but from the mapped list's point of view the two look identical:
+        # the task is simply no longer there. And a real list is reported
+        # completely, so the engine is entitled to act on absence -- which it
+        # did, propagating a deletion to every connected service for tasks that
+        # had only been filed somewhere else.
+        #
+        # So while any managed list exists, this pull stops claiming to be
+        # complete. Absence then means "not reported" rather than "gone". The
+        # cost is that deleting a task on the tablet no longer propagates until
+        # the managed lists are gone; the cost of the alternative was losing
+        # tasks everywhere, which cannot be undone.
+        if managed_exists:
+            return PullResult(items=items, incremental=True)
+
         # A real list reports completely, so a task that has gone really has
         # gone and the engine may act on its absence.
         #
@@ -686,6 +702,25 @@ class SupernoteConnector(Connector):
         # incremental is what stops it: the engine then treats a missing item as
         # unreported rather than as gone.
         return PullResult(items=items, incremental=remote_list_id == UNFILED_LIST_ID)
+
+    def _has_managed_lists(self) -> bool:
+        """Whether this account holds any list Task Hub made.
+
+        Asked because their existence changes how absence from a mapped list
+        must be read -- see the note in :meth:`pull`.
+        """
+        try:
+            groups = self._get(LIST_GROUPS).get("scheduleTaskGroup") or []
+        except ConnectorError:
+            # Unknown, so assume the risky case and refuse to treat absence as
+            # deletion. Being cautious costs a delayed deletion; being wrong
+            # the other way costs tasks at every service.
+            return True
+        return any(
+            is_managed((row.get("title") or "").strip())
+            for row in groups
+            if not yes(row.get("isDeleted"))
+        )
 
     def tidy_managed_lists(self) -> list[str]:
         """Delete lists Task Hub made that have nothing left in them.
@@ -939,6 +974,12 @@ class SupernoteConnector(Connector):
 
         payload = dict(current)
         payload.update(self._fields_from(record))
+        # Which list it belongs in can change without the task itself changing:
+        # switching to a list per piece of work has to move the steps that are
+        # already there, not only file new ones correctly.
+        moved = self._destination(str(current.get("taskListId") or ""), record)
+        if moved:
+            payload["taskListId"] = moved
         # PUT is refused outright without this, and the message it gives blames
         # the list rather than the task.
         payload["lastModified"] = to_epoch_ms(dt.datetime.now(dt.UTC))
