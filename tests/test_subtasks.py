@@ -216,6 +216,24 @@ read_back = strip_steps(stored)
 again = steps_as_text(Parent([Kid("Book flights"), Kid("Renew passport", True)]), read_back)
 check("the second write matches the first", again == stored)
 
+print("\nFolding is only worth doing where the note is actually shown")
+# Supernote is the case that forced this. Its API stores a note and hands it
+# back faithfully, so folding looked right -- but the tablet's To-Do app shows
+# only the title and the date, confirmed on the device. A folded step there is
+# not tidied away, it is invisible, which is worse than the clutter it avoided.
+check("Supernote declares its notes are never displayed",
+      supernote.capabilities(CollectionKind.TASKS).notes_visible is False)
+check("and services are assumed to show notes unless they say otherwise",
+      Capabilities(fields=ALL_FIELDS).notes_visible is True)
+# The Supernote payload must not carry a folded block any more.
+parent = CanonicalRecord(uid="p", title="Plan the trip", notes="Passport in March")
+parent.children = [CanonicalRecord(uid="c", title="Book flights")]
+fields = supernote._fields_from(parent)
+check("the note sent to Supernote is just the note, with no folded steps",
+      fields.get("detail") == "Passport in March", repr(fields.get("detail")))
+check("and it carries no step heading at all",
+      STEPS_HEADING not in (fields.get("detail") or ""), repr(fields.get("detail")))
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)

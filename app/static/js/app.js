@@ -157,7 +157,8 @@
     var checkbox = event.target.closest(".task-check");
     if (!checkbox) return;
 
-    var row = checkbox.closest(".task");
+    /* The steps page uses the same checkbox in a different row. */
+    var row = checkbox.closest(".task, .steps-row");
     var url = checkbox.getAttribute("data-toggle-url");
     if (!row || !url) return;
 

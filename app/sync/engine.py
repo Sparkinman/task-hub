@@ -1504,7 +1504,8 @@ class SyncEngine:
         projected.parent_remote_id = (
             self._parent_remote_id(item, part) if caps.supports_parent else None
         )
-        if not caps.supports_parent and not self._subtasks_separate():
+        if (not caps.supports_parent and not self._subtasks_separate()
+                and getattr(caps, "notes_visible", True)):
             # This service cannot nest, so its copy of a parent carries the
             # steps itself. The children are not sent as tasks of their own --
             # see _skip_as_child.
@@ -1760,7 +1761,8 @@ class SyncEngine:
         None means this service is not being given any -- it can nest, or the
         user has asked for separate tasks -- and the ordinary hash stands.
         """
-        if caps.supports_parent or self._subtasks_separate():
+        if (caps.supports_parent or self._subtasks_separate()
+                or not getattr(caps, "notes_visible", True)):
             return None
         children = self._children_of(item)
         if not children:
@@ -1778,6 +1780,11 @@ class SyncEngine:
         if caps.supports_parent or not item.parent_uid:
             return False
         if self._subtasks_separate():
+            return False
+        # Folding only helps where somebody can read the result. At a service
+        # whose notes are never displayed, a folded step is not tidied away --
+        # it is gone, so the child is sent as a task of its own instead.
+        if not getattr(caps, "notes_visible", True):
             return False
         # Only skip it when the parent is actually going to carry it. An orphan
         # whose parent is not in this group would otherwise vanish entirely.

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -112,7 +112,7 @@ def _task_collections(db: Session, client) -> list:
 @router.get("/")
 def index(
     request: Request,
-    collection: str = "",
+    collection: list[str] = Query(default=[]),
     show_completed: str = "",
     q: str = "",
     db: Session = Depends(get_db),
@@ -137,7 +137,10 @@ def index(
             configured=True, collections=[], groups={}, total=0, errors=[str(exc)],
         )
 
-    selected = [c for c in collections if not collection or c.collection_id == collection]
+    # Several lists at once, so somebody can look at work and home together
+    # without either seeing everything or flipping between them one at a time.
+    chosen = {c for c in collection if c}
+    selected = [c for c in collections if not chosen or c.collection_id in chosen]
 
     rows: list[dict] = []
     for info in selected:
@@ -151,24 +154,55 @@ def index(
         for record in records:
             rows.append({"record": record, "collection": info})
 
-    # Parent and child are shown as a relationship rather than as a tree. The
-    # list is grouped by when things are due, and a task due today whose parent
-    # is due next month belongs under Today -- nesting it under the parent would
-    # move it out of the group that says when to do it.
+    # Every task in a hierarchy carries a badge naming the piece of work it
+    # belongs to, and the badge opens that whole breakdown. The list itself is
+    # grouped by when things are due, so a parent and its steps are scattered
+    # across date groups -- the badge is what ties them back together, and it
+    # has to be on the parent as well as the children or the parent is the one
+    # row with no way through to its own steps.
     by_uid = {row["record"].uid: row["record"] for row in rows if row["record"].uid}
     kids: dict[str, list] = {}
     for row in rows:
         parent_uid = getattr(row["record"], "parent_uid", None)
         if parent_uid:
             kids.setdefault(parent_uid, []).append(row["record"])
+
+    def root_of(record):
+        """The top of this task's tree, however deep it sits."""
+        seen = {record.uid}
+        while getattr(record, "parent_uid", None):
+            parent = by_uid.get(record.parent_uid)
+            # A parent outside this view, or a cycle: stop where we are rather
+            # than looping or pointing at something that cannot be opened.
+            if parent is None or parent.uid in seen:
+                break
+            seen.add(parent.uid)
+            record = parent
+        return record
+
     for row in rows:
         record = row["record"]
-        parent = by_uid.get(getattr(record, "parent_uid", None) or "")
-        row["parent_title"] = parent.title if parent is not None else None
-        row["parent_uid"] = parent.uid if parent is not None else None
         mine = kids.get(record.uid or "", [])
         row["step_count"] = len(mine)
         row["steps_done"] = sum(1 for k in mine if k.is_completed)
+
+        parent = by_uid.get(getattr(record, "parent_uid", None) or "")
+        row["parent_title"] = parent.title if parent is not None else None
+        row["parent_uid"] = parent.uid if parent is not None else None
+
+        # Present on both halves of a relationship, absent on a lone task.
+        if parent is not None or mine:
+            root = root_of(record)
+            row["tree_title"] = root.title
+            row["tree_uid"] = root.uid
+            row["tree_size"] = sum(
+                1 for r in rows
+                if root_of(r["record"]).uid == root.uid
+            ) - 1
+        else:
+            row["tree_title"] = None
+            row["tree_uid"] = None
+            row["tree_size"] = 0
 
     needle = q.strip().lower()
     if needle:
@@ -209,7 +243,11 @@ def index(
         request, db, "tasks.html",
         configured=True,
         collections=collections,
-        selected_collection=collection,
+        selected_collections=chosen,
+        # Kept for everything that only makes sense with one list in view:
+        # which list a new task goes into, and whether each row needs to say
+        # where it came from. Empty when several are showing, which is right.
+        selected_collection=(next(iter(chosen)) if len(chosen) == 1 else ""),
         groups=groups,
         group_order=GROUP_ORDER,
         group_labels=GROUP_LABELS,
@@ -389,6 +427,7 @@ def create_task(
 def toggle_task(
     collection_id: str,
     uid: str,
+    return_to: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """Flip a task between completed and needs-action.
@@ -421,6 +460,12 @@ def toggle_task(
         client.save_record(collection_id, record)
     except CalDAVError as exc:
         return JSONResponse({"error": str(exc)}, status_code=502)
+
+    # A form submitted without JavaScript names where to go back to. Answering
+    # that with JSON is what put a page of raw data in front of somebody who
+    # only ticked a box.
+    if return_to:
+        return deps.redirect(return_to)
 
     return JSONResponse(
         {

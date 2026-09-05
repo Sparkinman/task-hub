@@ -389,6 +389,10 @@ class SupernoteConnector(Connector):
             # for services that can read a field but not change it, which this
             # is not.
             writable_fields=frozenset({F_TITLE, F_NOTES, F_STATUS, F_DUE_DATE}),
+            # The API stores a note and returns it, but the tablet's To-Do app
+            # never shows one -- only the title and the date. Confirmed on the
+            # device. So steps folded into a note would be invisible there.
+            notes_visible=False,
             stores_uid=False,
             carries_origin=False,
         )
@@ -666,12 +670,11 @@ class SupernoteConnector(Connector):
 
         fields = {
             "title": record.title or "",
-            # Supernote's to-do has no nesting at all -- verified on a live
-            # account, its task rows carry no parent field of any kind -- so a
-            # task's steps are written into the note beneath it. One task on the
-            # tablet, still legible, instead of a parent and its steps scattered
-            # flat through the same list with nothing marking which is which.
-            "detail": steps_as_text(record, record.notes) or None,
+            # Just the note. Steps are *not* folded in here: the tablet never
+            # displays a note, so they would vanish rather than be tidied away.
+            # The engine sends them as tasks of their own instead -- see
+            # notes_visible in capabilities().
+            "detail": record.notes or None,
             # 0 rather than None: the API uses it for "no due date", and null is
             # rejected on some paths.
             "dueTime": due or 0,

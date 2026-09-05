@@ -14,13 +14,15 @@
   </div>
 {% endblock %}
 
-{% block page_actions %}
-  <a class="btn btn-ghost" href="/tasks?collection={{ collection.collection_id }}">
-    Back to tasks
-  </a>
-{% endblock %}
-
 {% block content %}
+{# Under the heading rather than across in the corner: it is a way back, which
+   belongs at the start of the reading order, not among the page's actions. #}
+<div class="steps-back">
+  <a class="btn btn-ghost btn-sm" href="/tasks?collection={{ collection.collection_id }}">
+    {{ ico.icon('check-square', 'icon') }} Back to tasks
+  </a>
+</div>
+
 <div class="card">
   <div class="card-body">
     {# The whole point of this page: the shape of the work, in order, rather
@@ -33,13 +35,24 @@
         <li class="steps-row depth-{{ row.depth if row.depth < 6 else 5 }}
                    {{ 'is-done' if t.is_completed }}
                    {{ 'is-focused' if t.uid == focused }}">
-          <form method="post"
-                action="/tasks/{{ collection.collection_id }}/{{ t.uid|urlencode }}/toggle"
-                class="steps-check-form">
-            <button type="submit" class="steps-check {{ 'is-checked' if t.is_completed }}"
-                    aria-label="Mark {{ t.title }} {{ 'not done' if t.is_completed else 'done' }}">
-              {% if t.is_completed %}{{ ico.icon('check', 'icon') }}{% endif %}
-            </button>
+          {# The same checkbox the main list uses, so the same script ticks it
+             without a page load. The form around it is the fallback when there
+             is no JavaScript: it names where to come back to, because the
+             endpoint otherwise answers with JSON and a browser would render
+             that raw. #}
+          <form method="post" class="steps-check-form"
+                action="/tasks/{{ collection.collection_id }}/{{ t.uid|urlencode }}/toggle">
+            <input type="hidden" name="return_to"
+                   value="/tasks/{{ collection.collection_id }}/{{ focused|urlencode }}/steps">
+            <input type="checkbox" class="task-check steps-check"
+                   {{ 'checked' if t.is_completed }}
+                   aria-label="Mark {{ t.title }} {{ 'not done' if t.is_completed else 'done' }}"
+                   data-toggle-url="/tasks/{{ collection.collection_id }}/{{ t.uid|urlencode }}/toggle">
+            <noscript>
+              <button type="submit" class="btn btn-ghost btn-sm">
+                {{ 'Mark not done' if t.is_completed else 'Mark done' }}
+              </button>
+            </noscript>
           </form>
 
           <div class="steps-body">

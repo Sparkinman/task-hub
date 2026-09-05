@@ -56,20 +56,36 @@
                value="{{ query|default('') }}">
       </div>
 
-      <div class="field" style="margin:0; min-width: 170px;">
-        <label class="sr-only" for="collection">List</label>
-        <select id="collection" name="collection" data-autosubmit>
-          <option value="">All lists</option>
-          {% for c in collections %}
-            <option value="{{ c.collection_id }}" {{ 'selected' if c.collection_id == selected_collection }}>
-              {{ c.display_name }}
-            </option>
-          {% endfor %}
-        </select>
+      {# Checkboxes rather than a multi-select box: several lists can be shown
+         at once, and a native multi-select needs ctrl-clicking to do that,
+         which is close to undiscoverable and worse still on a phone. #}
+      <div class="field lists-filter" style="margin:0;">
+        <details class="lists-picker" {{ 'open' if selected_collections }}>
+          <summary>
+            {% if not selected_collections %}All lists
+            {% elif selected_collections|length == 1 %}
+              {{ (collections|selectattr('collection_id','in',selected_collections)|first).display_name }}
+            {% else %}{{ selected_collections|length }} lists
+            {% endif %}
+          </summary>
+          <div class="lists-options">
+            {% for c in collections %}
+              <label class="check check-inline">
+                <input type="checkbox" name="collection" value="{{ c.collection_id }}"
+                       {{ 'checked' if c.collection_id in selected_collections }}
+                       data-autosubmit>
+                <span class="check-label">{{ c.display_name }}</span>
+              </label>
+            {% endfor %}
+            <p class="tiny muted" style="margin:0.4rem 0 0;">
+              Tick none to see every list.
+            </p>
+          </div>
+        </details>
       </div>
 
       <button type="submit" class="btn" data-allow-repeat>{{ ico.icon('search') }} Filter</button>
-      {% if query or selected_collection %}
+      {% if query or selected_collections %}
         <a class="btn btn-ghost" href="/tasks">Clear</a>
       {% endif %}
     </div>
@@ -154,23 +170,22 @@
                      data-toggle-url="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/toggle">
 
               <div class="task-main">
-                {% if row.parent_title %}
-                  {# A link, not a caption: the point of naming the parent is to
-                     be able to get to it and see the whole piece of work. #}
-                  <a class="task-parent"
-                     href="/tasks/{{ c.collection_id }}/{{ row.parent_uid|urlencode }}/steps"
-                     title="See {{ row.parent_title }} and all its steps">
-                    {{ row.parent_title }}
-                  </a>
-                {% endif %}
                 <div class="task-title">{{ t.title }}</div>
 
                 <div class="task-meta">
-                  {% if row.step_count %}
-                    <a class="pill pill-steps"
-                       href="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/steps"
-                       title="See all {{ row.step_count }} steps in order">
-                      {{ ico.icon('check-square', 'icon') }}{{ row.steps_done }}/{{ row.step_count }} steps
+                  {# On every task in a hierarchy, parent and child alike, so
+                     any of them can reach the whole breakdown. Names the piece
+                     of work rather than the immediate parent: that is the thing
+                     the badge opens. #}
+                  {% if row.tree_uid %}
+                    <a class="badge badge-tree {{ 'is-parent' if row.step_count }}"
+                       href="/tasks/{{ c.collection_id }}/{{ row.tree_uid|urlencode }}/steps"
+                       title="See “{{ row.tree_title }}” and all {{ row.tree_size }} step{{ '' if row.tree_size == 1 else 's' }} in order">
+                      {{ ico.icon('check-square', 'icon') }}
+                      <span class="badge-tree-name">{{ row.tree_title }}</span>
+                      {%- if row.step_count %}
+                        <span class="badge-tree-count">{{ row.steps_done }}/{{ row.step_count }}</span>
+                      {%- endif %}
                     </a>
                   {% endif %}
                   <span class="badge badge-{{ badge.colour }}">

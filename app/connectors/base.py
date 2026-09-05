@@ -83,6 +83,18 @@ class Capabilities:
     #: its task rows have no parent field of any kind.
     supports_parent: bool = False
 
+    #: Whether a note written to this service is actually shown to the person
+    #: using it.
+    #:
+    #: Not the same question as whether the service *stores* one. Supernote's
+    #: to-do API accepts a ``detail`` field and hands it back faithfully, but
+    #: the tablet's To-Do app displays only the title and the date -- confirmed
+    #: on the device. So folding a task's steps into its note there does not
+    #: tidy them away, it hides them completely, which is worse than the clutter
+    #: it was meant to avoid. Where this is False, subtasks are sent as tasks of
+    #: their own instead, because a visible mess beats invisible information.
+    notes_visible: bool = True
+
     #: Whether the canonical UID can be stored remotely and read back. When
     #: False, links are tracked in Task Hub's database instead.
     stores_uid: bool = False
