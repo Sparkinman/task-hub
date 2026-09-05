@@ -172,6 +172,25 @@
         </label>
       </div>
 
+      <div class="field">
+        <label class="check">
+          <input type="checkbox" name="subtasks_separate" value="1"
+                 {{ 'checked' if subtasks_separate }}>
+          <span>
+            <span class="check-label">Send subtasks as separate tasks</span>
+            <span class="check-hint">
+              Some services cannot hold one task inside another — the Supernote's
+              To-Do and Microsoft To Do among them. Normally Task Hub sends those
+              a single task with its steps listed on it, so the list stays
+              readable. Turn this on to send every subtask as a task of its own
+              instead, which lets you tick them off individually but puts a
+              parent and its steps side by side with nothing marking which is
+              which. Services that do support subtasks are unaffected either way.
+            </span>
+          </span>
+        </label>
+      </div>
+
       <button type="submit" class="btn btn-primary">Save sync settings</button>
     </form>
   </div>

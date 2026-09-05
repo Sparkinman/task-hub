@@ -129,8 +129,10 @@ the tablet just as an edit on the tablet reaches Task Hub.
 - **Repeats.** Supernote stores repeating to-dos, but the format has not been
   confirmed, so a repeating task syncs as a single one rather than as a wrong
   repeating one.
-- **Priority.** The field exists in Supernote's data and was empty on every task
-  tested, so nothing is read from it yet.
+- **Priority.** Supernote's To-Do has no priority. There is a leftover field in
+  the data that will store whatever it is given — it accepted the word "high"
+  when tested — but the tablet does not set it or show it, so Task Hub leaves
+  it alone rather than writing somewhere nothing reads.
 - **Reminders.** Supernote tracks these separately from the due date.
 
 ### Tasks written on a page of a notebook
@@ -384,3 +386,12 @@ Supernote, which is where that origin badge in the task list comes from.
 - [What works today](compatibility.md) — every service and its current state
 - [Connecting your own apps](third-party-apps.md) — the CalDAV route described
   above
+
+---
+
+## Subtasks
+
+Supernote's To-Do has no idea a task can contain another — its tasks carry no
+parent field at all. So a task with subtasks arrives as **one** task with its
+steps written into the note beneath it, rather than as a parent and its steps
+scattered flat through the same list. [How subtasks work](subtasks.md).

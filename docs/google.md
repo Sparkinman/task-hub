@@ -490,3 +490,11 @@ from Google's side as well, go to **https://myaccount.google.com/permissions**,
 find Task Hub, and click **Remove access**.
 
 Neither action deletes any of your tasks or events, in Google or in Task Hub.
+
+---
+
+## Subtasks
+
+Carried both ways. Google's API accepted more than one level of nesting when
+tested, though Google's own apps appear to show only one — so Task Hub may be
+holding more structure than Google displays. [How subtasks work](subtasks.md).

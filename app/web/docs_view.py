@@ -117,6 +117,10 @@ def list_docs() -> list[DocEntry]:
         "install-linux": 6,
         "addresses": 7,
         "email": 8,
+        # A feature that spans every service rather than belonging to one, so
+        # it sits with the general guides rather than among the per-service
+        # walkthroughs below.
+        "subtasks": 9,
         # 10 is the default, and is where the per-service guides sit.
         # CalDAV comes after the named services: it is the one to read when
         # none of them is yours.

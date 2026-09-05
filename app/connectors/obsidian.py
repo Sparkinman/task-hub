@@ -144,6 +144,11 @@ class ObsidianConnector(Connector):
             fields=VAULT_FIELDS,
             can_create=False,
             can_delete=False,
+            # A vault expresses nesting by indenting a line under another, which
+            # is read here. Never written: this connector only ever patches a
+            # completion into somebody's notes, and re-indenting their file is
+            # not something to do on their behalf.
+            supports_parent=True,
             stores_uid=False,
             carries_origin=False,
             writable_fields=frozenset({F_STATUS}) if self.write_back else frozenset(),
@@ -332,10 +337,27 @@ class ObsidianConnector(Connector):
             )]
 
         found: list[RemoteItem] = []
+        #: Open ancestors while walking one file, as (indent width, remote id).
+        #: Reset per file, because nesting never spans one.
+        stack: list[tuple[int, str]] = []
         for number, line in enumerate(text.splitlines()):
             task = parse_line(line, number)
             if task is None or not is_task(task, global_filter):
                 continue
+
+            # Indentation is how a vault says one task belongs to another, so
+            # the parent is the nearest task above it that is less indented.
+            #
+            # Only tasks are considered, never plain checklist lines. A vault is
+            # full of shopping lists and packing lists, and treating one of
+            # those as the parent of a real task would invent a hierarchy the
+            # author never wrote.
+            width = len(task.indent.expandtabs(4))
+            while stack and stack[-1][0] >= width:
+                stack.pop()
+            parent_remote = stack[-1][1] if stack else None
+            this_remote = f"{relative}#{stable_id(relative, task)}"
+            stack.append((width, this_remote))
             record = to_record(
                 task, uid="", vault_name=self.vault_name,
                 relative_path=relative, global_filter=global_filter,
@@ -353,8 +375,9 @@ class ObsidianConnector(Connector):
                             "does not recognise. Dates must be written "
                             "YYYY-MM-DD, for example 2026-09-10."
                         )
+            record.parent_remote_id = parent_remote
             found.append(RemoteItem(
-                remote_id=f"{relative}#{stable_id(relative, task)}",
+                remote_id=this_remote,
                 record=record,
                 # A line cannot hold a time. Saying so per item is what stops it
                 # appearing to erase a 2:30pm that Todoist is holding.

@@ -318,3 +318,12 @@ Application ID and secret.
 Microsoft's side as well, go to
 **https://account.live.com/consent/Manage** (personal) or ask your
 administrator (work). Neither action deletes any of your tasks or events.
+
+---
+
+## Subtasks
+
+Subtasks arrive as Microsoft's own **checklist items** on the parent task. They
+hold a name and a tick, which is all Microsoft allows — a due date on one is
+refused outright — so a subtask's date stays in Task Hub.
+[How subtasks work](subtasks.md).

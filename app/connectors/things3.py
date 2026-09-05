@@ -78,6 +78,13 @@ THINGS_CAPABILITIES = Capabilities(
     can_delete=False,
     writable_fields=frozenset(),
     stores_uid=False,
+    # Things has checklist items -- the sync payload carries them as their own
+    # ChecklistItem3 entity, with the parent task's id in a one-element list --
+    # but they are steps rather than tasks: no dates, no identity of their own.
+    # Reading them as subtasks would promise more than they are, and this
+    # connector cannot write anything back regardless, so nesting is left out
+    # deliberately rather than by omission.
+    supports_parent=False,
 )
 
 def _notes(value: Any) -> str | None:

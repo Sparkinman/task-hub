@@ -55,6 +55,9 @@ def index(request: Request, db: Session = Depends(get_db)):
         minimum_interval=settings_store.MIN_SYNC_INTERVAL_MINUTES,
         sync_interval=settings_store.get_sync_interval(db),
         sync_enabled=settings_store.get_bool(db, settings_store.SYNC_ENABLED),
+        subtasks_separate=settings_store.get_bool(
+            db, settings_store.SUBTASKS_AS_SEPARATE
+        ),
         backup_sizes={
             name: backup.human_size(size)
             for name, size in backup.size_breakdown().items()
@@ -168,6 +171,7 @@ def save_sync(
     request: Request,
     interval_minutes: str = Form("15"),
     sync_enabled: str = Form(""),
+    subtasks_separate: str = Form(""),
     db: Session = Depends(get_db),
 ):
     minimum = settings_store.MIN_SYNC_INTERVAL_MINUTES
@@ -188,6 +192,9 @@ def save_sync(
 
     stored = settings_store.set_sync_interval(db, requested)
     settings_store.set_bool(db, settings_store.SYNC_ENABLED, sync_enabled == "1")
+    settings_store.set_bool(
+        db, settings_store.SUBTASKS_AS_SEPARATE, subtasks_separate == "1"
+    )
     db.commit()
 
     # Apply immediately rather than at the next restart, so the setting the user

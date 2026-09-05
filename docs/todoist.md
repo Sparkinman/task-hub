@@ -437,3 +437,14 @@ workspace or team you are a member of rather than owner of. Re-run Refresh lists
 after opening it once in Todoist.
 
 ---
+
+---
+
+## Subtasks
+
+Carried both ways, several levels deep.
+
+One behaviour worth knowing: **completing a parent inside Todoist completes
+every subtask under it.** That is Todoist's own behaviour, and Task Hub reads
+the result rather than causing it — Task Hub itself never completes a task
+because another one was completed. [How subtasks work](subtasks.md).

@@ -284,3 +284,14 @@ container.
 Your vault is stored unencrypted inside Task Hub's data volume, in the same
 place as everything else. Back it up with the same care —
 [backing up](getting-started.md#backing-up).
+
+---
+
+## Subtasks
+
+A task indented under another in your notes is read as a subtask of it. This is
+**read only**: Task Hub will never re-indent your files.
+
+Only real tasks count. A plain checklist line with no task metadata is not a
+task, so shopping lists and packing lists are not swept in and cannot become
+anybody's parent. [How subtasks work](subtasks.md).

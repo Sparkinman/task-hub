@@ -225,3 +225,11 @@ Things. Drag the list out of its group if Things cannot see it.
 change your Things Cloud password at
 **https://culturedcode.com/things/cloud/** as well. Nothing in Things is
 altered either way — this connector has never written to it.
+
+---
+
+## Subtasks
+
+Not read. Things has checklist items, but they are steps rather than tasks — no
+dates and no identity of their own — and this connector only reads, so nothing
+could be written back regardless. [How subtasks work](subtasks.md).

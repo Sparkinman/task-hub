@@ -434,3 +434,10 @@ overwrite each other's bookkeeping.
 
 Disconnecting an account deletes its stored token immediately. It does not delete
 anything from TickTick, and it does not remove anything from your collections.
+
+---
+
+## Subtasks
+
+Carried both ways. TickTick has real subtasks as well as its own checklist
+items, and Task Hub uses the real ones. [How subtasks work](subtasks.md).
