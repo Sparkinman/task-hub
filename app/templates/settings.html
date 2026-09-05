@@ -114,15 +114,20 @@
           works on a home network address, through a Cloudflare tunnel, over
           Tailscale or behind your own reverse proxy without being told which.
           Right now you are reaching it on
-          <span class="mono strong">{{ detected_base_url }}</span>, and that is
-          the address it will register with Google, Microsoft, Todoist and
-          TickTick, and show to CalDAV clients.
+          <span class="mono strong">{{ detected_base_url }}</span>.
           <br><br>
           Fill this in only when the address to hand out is not the address you
           are using — for example if you set Task Hub up from the machine it
-          runs on, but your phone will reach it by a different name. Whatever
-          you put here is used everywhere instead, so a stale value here breaks
-          sign-in and phone sync with no obvious cause.
+          runs on, but your phone will reach it by a different name. It changes
+          the CalDAV address shown for phones and other calendar apps, and
+          nothing else, so a stale value here breaks phone sync with no obvious
+          cause.
+          <br><br>
+          <span class="strong">It does not affect signing in to Google,
+          Microsoft, Todoist or TickTick.</span> Those always send you back to
+          the address you are using at the time, whatever is set here — so
+          connect them from the address you want registered, which right now
+          would be <span class="mono strong">{{ detected_base_url }}</span>.
         </span>
       </div>
 

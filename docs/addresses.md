@@ -146,8 +146,15 @@ one case: the address you need to hand out is not the address you are using.
 Setting up from the machine Task Hub runs on, while your phone will reach it by
 a different name, is the example.
 
-Whatever you put there is used everywhere instead of the live address, which
-also means a value left over from an earlier setup silently breaks sign-in and
-phone sync with no obvious cause. Task Hub warns you on the Radicale page when
-the override disagrees with the address you are actually using, but the safest
-setting is an empty one.
+It changes the CalDAV address Task Hub hands out, and nothing else. A value left
+over from an earlier setup therefore breaks phone sync with no obvious cause, so
+Task Hub warns you on the Radicale page when the override disagrees with the
+address you are actually using. The safest setting is an empty one.
+
+**It does not change where the task services send you back to.** Connecting
+Google, Microsoft, Todoist or TickTick always uses the address you are reaching
+Task Hub on at that moment, whatever is set here. That is deliberate: the
+address that just delivered the page to your browser is one that demonstrably
+works, and a redirect address that disagrees with the browser by a single
+character fails at the last step of sign-in. So to register a particular
+address with a service, reach Task Hub on that address and connect it there.

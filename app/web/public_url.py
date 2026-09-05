@@ -39,7 +39,14 @@ def configured_override(db: Session) -> str:
 
 
 def public_base_url(request: Request, db: Session) -> str:
-    """The address to show the user and register with other services."""
+    """The address to hand out to CalDAV clients.
+
+    Not used for OAuth redirect URIs, which are built from the live request in
+    :mod:`app.web.oauth_setup` and :mod:`app.web.google_setup` even when an
+    override is set: a redirect address that disagrees with the browser by one
+    character fails at the last step of sign-in, so the address that delivered
+    the page is the only one worth sending.
+    """
     return configured_override(db) or detected_base_url(request)
 
 
@@ -47,8 +54,8 @@ def override_conflict(request: Request, db: Session) -> str | None:
     """The address in use, when an override is set and disagrees with it.
 
     Worth surfacing: an override left over from an earlier deployment silently
-    sends OAuth callbacks and CalDAV clients somewhere that no longer works,
-    and every symptom of that appears far away from the setting that caused it.
+    sends CalDAV clients somewhere that no longer works, and every symptom of
+    that appears far away from the setting that caused it.
     """
     override = configured_override(db)
     if not override:

@@ -109,11 +109,17 @@ your phone or another computer, you need the server's address on your network.
 It will look like `192.168.1.42`. Other devices on the same network can then
 reach Task Hub at `http://192.168.1.42:8080`.
 
-**Tell Task Hub its own address.** Go to **Settings → Public address** and enter
-that same address, for example `http://192.168.1.42:8080`. This matters for two
-reasons: it is the address shown to you for CalDAV clients, and it is what gets
-registered as the OAuth redirect address with Google and Microsoft. If it is
-wrong, those connections will fail with a redirect mismatch error.
+**If you will set Task Hub up from the machine it runs on**, but use it from a
+phone, go to **Settings → Public address** and enter that same address, for
+example `http://192.168.1.42:8080`. That is the address Task Hub then shows you
+for CalDAV clients, so your phone gets an address it can actually reach instead
+of `localhost`. Otherwise leave it empty — Task Hub works its address out from
+however you reach it.
+
+It has no effect on connecting Google, Microsoft, Todoist or TickTick. Those
+always send you back to the address you are using at the time, so connect them
+from the address you want registered. See [Addresses](addresses.md) for which
+address each service will accept.
 
 ### Reaching it from outside your home — the built-in tunnel
 
@@ -162,9 +168,9 @@ No inbound port is opened anywhere, and your home IP address is never exposed.
 
 Two settings to change afterwards:
 
-- **Settings → Public address** → `https://tasks.yourdomain.com`. Until you do,
-  every address Task Hub shows says `localhost`, which on your phone means your
-  phone.
+- **Settings → Public address** → `https://tasks.yourdomain.com`, if you set Task
+  Hub up from the machine it runs on. Until you do, the CalDAV addresses it shows
+  you say `localhost`, which on your phone means your phone.
 - Add `https://tasks.yourdomain.com/oauth/google/callback` to your Google Cloud
   OAuth client, alongside the localhost one.
 
