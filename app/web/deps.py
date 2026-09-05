@@ -106,9 +106,9 @@ def redirect(url: str, status_code: int = 303) -> RedirectResponse:
 
 # --- Presentation helpers -----------------------------------------------------
 
-#: Badge colours, as specified: Google green, Todoist red, TickTick yellow,
-#: Obsidian purple, items created in Task Hub blue, and everything else black
-#: and labelled "3rd party".
+#: Badge colours: Google green, Todoist red, TickTick yellow, Obsidian purple,
+#: Microsoft and Things 3 in their own blues, Supernote black, items created in
+#: Task Hub blue, and anything still unknown black and labelled "3rd party".
 #:
 #: Obsidian is named rather than lumped in with "3rd party" on purpose. A task
 #: from a vault is one whose real home is a note somewhere, and knowing that at
@@ -129,10 +129,14 @@ SERVICE_BADGES: dict[str, dict[str, str]] = {
     # because that is genuinely all Task Hub knows: Nextcloud, Fastmail and a
     # self-hosted Baikal are indistinguishable from the wire.
     ServiceKind.CALDAV.value: {"label": "CalDAV", "colour": "amber"},
-    ServiceKind.MICROSOFT.value: {"label": "3rd party", "colour": "black"},
-    ServiceKind.THINGS3.value: {"label": "3rd party", "colour": "black"},
+    # Named and coloured for themselves now that both are connectors rather
+    # than possibilities. Each takes its own brand blue, which also keeps them
+    # apart from the blue used for items made in Task Hub itself.
+    ServiceKind.MICROSOFT.value: {"label": "Microsoft", "colour": "msblue"},
+    ServiceKind.THINGS3.value: {"label": "Things 3", "colour": "things"},
     ServiceKind.OBSIDIAN.value: {"label": "Obsidian", "colour": "purple"},
-    ServiceKind.SUPERNOTE.value: {"label": "Supernote", "colour": "teal"},
+    # Black, for a device whose whole point is electronic ink.
+    ServiceKind.SUPERNOTE.value: {"label": "Supernote", "colour": "black"},
 }
 
 DEFAULT_BADGE = {"label": "3rd party", "colour": "black"}

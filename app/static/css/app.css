@@ -57,6 +57,12 @@
   --badge-purple:  #6d3bd1;
   --badge-black:   #2c313a;
   --badge-teal:    #0f766e;
+  /* Microsoft's brand blue, and Things 3's lighter one. Both differ from
+     --badge-blue (#2f5fd0, used for items made in Task Hub itself), because
+     two badges on one task is the normal case and they have to be told apart
+     at a glance rather than by staring. */
+  --badge-msblue:  #0067c0;
+  --badge-things:  #2f8fe0;
   /* Apple's red, kept clearly apart from Todoist's. Todoist is a warm brick
      (#c0392f); this is a cooler crimson, so the two service badges differ by
      hue and not merely by shade -- which is the difference between telling
@@ -127,6 +133,8 @@
     --badge-purple:  #b08bff;
     --badge-black:   #b6becd;
   --badge-teal:    #4fd1c5;
+    --badge-msblue:  #4cc2ff;
+    --badge-things:  #7cc0f8;
     --badge-crimson: #ff5f8a;
     --badge-amber:   #e0913f;
 
@@ -169,6 +177,8 @@
   --badge-purple:  #b08bff;
   --badge-black:   #b6becd;
   --badge-teal:    #4fd1c5;
+  --badge-msblue:  #4cc2ff;
+  --badge-things:  #7cc0f8;
   --badge-crimson: #ff5f8a;
   --badge-amber:   #e0913f;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -600,6 +610,8 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
 .badge-crimson { color: var(--badge-crimson); background: color-mix(in srgb, var(--badge-crimson) 13%, transparent); border-color: color-mix(in srgb, var(--badge-crimson) 30%, transparent); }
 .badge-black  { color: var(--badge-black);  background: color-mix(in srgb, var(--badge-black) 12%, transparent);  border-color: color-mix(in srgb, var(--badge-black) 28%, transparent); }
 .badge-teal   { color: var(--badge-teal);   background: color-mix(in srgb, var(--badge-teal) 13%, transparent);   border-color: color-mix(in srgb, var(--badge-teal) 30%, transparent); }
+.badge-msblue { color: var(--badge-msblue); background: color-mix(in srgb, var(--badge-msblue) 13%, transparent); border-color: color-mix(in srgb, var(--badge-msblue) 30%, transparent); }
+.badge-things { color: var(--badge-things); background: color-mix(in srgb, var(--badge-things) 13%, transparent); border-color: color-mix(in srgb, var(--badge-things) 30%, transparent); }
 .badge-amber  { color: var(--badge-amber);  background: color-mix(in srgb, var(--badge-amber) 13%, transparent);  border-color: color-mix(in srgb, var(--badge-amber) 30%, transparent); }
 
 .pill {

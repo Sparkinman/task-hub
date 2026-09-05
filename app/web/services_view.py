@@ -268,7 +268,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.MICROSOFT.value,
         name="Microsoft",
-        colour="black",
+        colour="msblue",
         supports_tasks=True,
         supports_calendar=True,
         auth_kind="OAuth 2.0 (Azure app registration)",
@@ -297,7 +297,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.THINGS3.value,
         name="Things 3",
-        colour="black",
+        colour="things",
         supports_tasks=True,
         supports_calendar=False,
         auth_kind="Things Cloud email and password (unofficial)",
@@ -333,7 +333,7 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
     ServiceDefinition(
         key=ServiceKind.SUPERNOTE.value,
         name="Supernote",
-        colour="teal",
+        colour="black",
         supports_tasks=True,
         supports_calendar=False,
         auth_kind="Supernote Cloud email and password (unofficial)",
