@@ -113,6 +113,74 @@ class Capabilities:
 
 #: Convenience: everything iCalendar can express. Used by the Radicale connector,
 #: which is the only fully lossless store in the system.
+def folded_steps(record) -> list[tuple[str, bool]]:
+    """A parent's children as (title, done) pairs, for services that cannot nest.
+
+    Shared because three connectors need the same thing and the tidying is the
+    same each time: skip the untitled, keep the order the engine sent, and say
+    whether each is finished. What a connector does with the pairs is its own
+    business -- a real checklist where there is one, a few lines of notes where
+    there is not.
+    """
+    steps: list[tuple[str, bool]] = []
+    for child in getattr(record, "children", None) or []:
+        title = (getattr(child, "title", "") or "").strip()
+        if not title:
+            continue
+        steps.append((title, getattr(child, "is_completed", False)))
+    return steps
+
+
+#: The heading written above folded subtasks in a notes field.
+STEPS_HEADING = "Steps:"
+
+
+def strip_steps(text: str | None) -> str | None:
+    """Remove a folded step list from notes read back off a service.
+
+    The counterpart to :func:`steps_as_text`, and not optional. A service given
+    a task whose steps were written into its notes reports those notes back
+    verbatim; taken at face value they become the canonical note, and the next
+    push folds the steps in again -- below the copy already there. Left alone
+    that grows without limit, and the real note is buried in it.
+
+    Only a block this wrote is removed. It has to be the last thing in the text
+    and every line under the heading has to look like a step, so a note where
+    somebody has genuinely typed "Steps:" and then a paragraph survives intact.
+    """
+    if not text or STEPS_HEADING not in text:
+        return text
+    head, _, tail = text.rpartition(f"\n\n{STEPS_HEADING}\n")
+    if not head and not _:
+        # The block is the whole note rather than appended to one.
+        if text.startswith(f"{STEPS_HEADING}\n"):
+            head, tail = "", text[len(STEPS_HEADING) + 1:]
+        else:
+            return text
+    lines = [line for line in tail.splitlines() if line.strip()]
+    if not lines or not all(
+        line.lstrip().startswith(("[ ]", "[x]", "[X]")) for line in lines
+    ):
+        return text  # Somebody's own writing, not ours. Leave it be.
+    return head or None
+
+
+def steps_as_text(record, existing: str | None = None) -> str | None:
+    """The children written into a notes field, for services with nothing better.
+
+    Appended below whatever notes the task already has, under a heading, so it
+    reads as a list somebody wrote rather than mangled text. Marked with the
+    same tick and bullet characters a person would use by hand.
+    """
+    steps = folded_steps(record)
+    if not steps:
+        return existing
+    lines = [f"{'[x]' if done else '[ ]'} {title}" for title, done in steps]
+    block = f"{STEPS_HEADING}\n" + "\n".join(lines)
+    body = (existing or "").rstrip()
+    return f"{body}\n\n{block}" if body else block
+
+
 FULL_CAPABILITIES = Capabilities(
     fields=ALL_FIELDS, stores_uid=True, carries_origin=True, supports_parent=True
 )

@@ -45,6 +45,8 @@ import logging
 import httpx
 
 from app.connectors.base import (
+    steps_as_text,
+    strip_steps,
     F_DUE_DATE,
     F_DUE_TIME,
     F_NOTES,
@@ -404,6 +406,10 @@ class SupernoteConnector(Connector):
         """
         import dataclasses
 
+        # Subtasks are written into the note, but read back out of it again, so
+        # what Supernote reports is the note without them -- which is exactly
+        # what was sent. Nothing to correct here; said out loud because the
+        # opposite assumption would rewrite every parent task on every pass.
         if record.status == ItemStatus.COMPLETED and record.completed_at is None:
             return dataclasses.replace(record, completed_at=None)
         return record
@@ -609,7 +615,10 @@ class SupernoteConnector(Connector):
             completed_at = from_epoch_ms(row.get("completedTime"))
 
         due = from_epoch_ms(row.get("dueTime"))
-        notes = (row.get("detail") or "").strip() or None
+        # Steps this connector folded into the note are not part of the note.
+        # Reading them back as one would bury the real text under a copy that
+        # doubles on every pass.
+        notes = strip_steps((row.get("detail") or "").strip()) or None
 
         # A task written on a page of a notebook says which page. Kept with the
         # task rather than dropped, so Task Hub can offer the same jump back
@@ -657,7 +666,12 @@ class SupernoteConnector(Connector):
 
         fields = {
             "title": record.title or "",
-            "detail": record.notes or None,
+            # Supernote's to-do has no nesting at all -- verified on a live
+            # account, its task rows carry no parent field of any kind -- so a
+            # task's steps are written into the note beneath it. One task on the
+            # tablet, still legible, instead of a parent and its steps scattered
+            # flat through the same list with nothing marking which is which.
+            "detail": steps_as_text(record, record.notes) or None,
             # 0 rather than None: the API uses it for "no due date", and null is
             # rejected on some paths.
             "dueTime": due or 0,

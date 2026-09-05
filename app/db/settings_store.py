@@ -36,6 +36,14 @@ SUPERNOTE_BACKUP_INTERVAL_MINUTES: Final = "supernote_backup_interval_minutes"
 PUSH_PRIVATE_KEY: Final = "push_vapid_private_enc"
 PUSH_PUBLIC_KEY: Final = "push_vapid_public"
 #: Supernote digests: which libraries, and whether to mirror them at all.
+#: Send subtasks to services that cannot nest as separate top-level tasks.
+#:
+#: Off by default. A parent and its eight steps arrive at a flat list as nine
+#: unrelated tasks with nothing marking which is which, which on a small screen
+#: is a mess; folded into the parent instead, they stay legible. On for anybody
+#: who would rather tick them off individually on the device.
+SUBTASKS_AS_SEPARATE: Final = "subtasks_as_separate_tasks"
+
 SUPERNOTE_DIGEST_ENABLED: Final = "supernote_digest_enabled"
 SUPERNOTE_DIGEST_LIBRARIES: Final = "supernote_digest_libraries"
 #: Every library on the account, remembered from the last sync as JSON.
@@ -107,6 +115,7 @@ DEFAULTS: Final[dict[str, str]] = {
     SUPERNOTE_BACKUP_ENABLED: "0",
     SUPERNOTE_BACKUP_FOLDERS: "",
     SUPERNOTE_BACKUP_INTERVAL_MINUTES: "360",
+    SUBTASKS_AS_SEPARATE: "0",
     SUPERNOTE_DIGEST_ENABLED: "0",
     SUPERNOTE_DIGEST_LIBRARIES: "",
     SUPERNOTE_DIGEST_LIBRARY_CACHE: "",

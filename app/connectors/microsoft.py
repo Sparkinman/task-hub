@@ -25,6 +25,7 @@ from typing import Any
 import httpx
 
 from app.connectors.base import (
+    folded_steps,
     F_DUE_DATE,
     F_END,
     F_LOCATION,
@@ -477,6 +478,37 @@ class MicrosoftConnector(Connector):
 
     # -- Writing ---------------------------------------------------------------
 
+    def _write_steps(self, list_id: str, task_id: str | None,
+                     record: CanonicalRecord) -> None:
+        """Put a task's subtasks on it as Microsoft's own checklist items.
+
+        Verified against a live account: a checklist item holds a name and
+        whether it is ticked, and nothing else -- a due date on one is refused
+        outright. So this is the honest shape for subtasks here, and their dates
+        stay in Task Hub rather than being silently dropped on the floor.
+
+        Replaced wholesale rather than merged. They carry no identifier of ours,
+        so matching them up would mean guessing by title, and two steps called
+        "Call back" would defeat it.
+        """
+        steps = folded_steps(record)
+        if not task_id:
+            return
+        base = f"/me/todo/lists/{list_id}/tasks/{task_id}/checklistItems"
+        try:
+            existing = (self._request("GET", base) or {}).get("value") or []
+            if not steps and not existing:
+                return
+            for item in existing:
+                self._request("DELETE", f"{base}/{item['id']}")
+            for title, done in steps:
+                self._request("POST", base,
+                              json={"displayName": title, "isChecked": done})
+        except ConnectorError as exc:
+            # The task itself saved; only its steps did not. Worth a line in the
+            # log and another try next pass, not a failed write.
+            logger.info("Could not write checklist items: %s", exc)
+
     def create(self, remote_list_id: str, record: CanonicalRecord,
                kind: CollectionKind) -> PushOutcome:
         try:
@@ -484,6 +516,7 @@ class MicrosoftConnector(Connector):
                 created = self._request(
                     "POST", f"/me/todo/lists/{remote_list_id}/tasks",
                     json=self._record_to_task(record))
+                self._write_steps(remote_list_id, (created or {}).get("id"), record)
             else:
                 created = self._request(
                     "POST", f"/me/calendars/{remote_list_id}/events",
@@ -503,6 +536,7 @@ class MicrosoftConnector(Connector):
                 updated = self._request(
                     "PATCH", f"/me/todo/lists/{remote_list_id}/tasks/{remote_id}",
                     json=self._record_to_task(record))
+                self._write_steps(remote_list_id, remote_id, record)
             else:
                 updated = self._request(
                     "PATCH", f"/me/calendars/{remote_list_id}/events/{remote_id}",

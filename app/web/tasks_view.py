@@ -151,6 +151,24 @@ def index(
         for record in records:
             rows.append({"record": record, "collection": info})
 
+    # Parent and child are shown as a relationship rather than as a tree. The
+    # list is grouped by when things are due, and a task due today whose parent
+    # is due next month belongs under Today -- nesting it under the parent would
+    # move it out of the group that says when to do it.
+    by_uid = {row["record"].uid: row["record"] for row in rows if row["record"].uid}
+    kids: dict[str, list] = {}
+    for row in rows:
+        parent_uid = getattr(row["record"], "parent_uid", None)
+        if parent_uid:
+            kids.setdefault(parent_uid, []).append(row["record"])
+    for row in rows:
+        record = row["record"]
+        parent = by_uid.get(getattr(record, "parent_uid", None) or "")
+        row["parent_title"] = parent.title if parent is not None else None
+        mine = kids.get(record.uid or "", [])
+        row["step_count"] = len(mine)
+        row["steps_done"] = sum(1 for k in mine if k.is_completed)
+
     needle = q.strip().lower()
     if needle:
         rows = [

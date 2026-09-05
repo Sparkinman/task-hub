@@ -144,16 +144,30 @@
             {% set c = row.collection %}
             {% set badge = badge_for(t.origin_service) %}
             {% set row_id = 'edit-' ~ c.collection_id ~ '-' ~ loop.index %}
-            <li class="task {{ 'is-done' if t.is_completed }}">
+            {# A child is marked as one rather than nested under its parent:
+               the list is grouped by when things are due, and a step due today
+               belongs under Today even when its parent is due next month. #}
+            <li class="task {{ 'is-done' if t.is_completed }} {{ 'is-subtask' if row.parent_title }}">
               <input type="checkbox" class="task-check"
                      {{ 'checked' if t.is_completed }}
                      aria-label="Mark {{ t.title }} complete"
                      data-toggle-url="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/toggle">
 
               <div class="task-main">
+                {% if row.parent_title %}
+                  <div class="task-parent" title="Part of {{ row.parent_title }}">
+                    {{ row.parent_title }}
+                  </div>
+                {% endif %}
                 <div class="task-title">{{ t.title }}</div>
 
                 <div class="task-meta">
+                  {% if row.step_count %}
+                    <span class="pill pill-steps"
+                          title="{{ row.steps_done }} of {{ row.step_count }} steps done">
+                      {{ row.steps_done }}/{{ row.step_count }} steps
+                    </span>
+                  {% endif %}
                   <span class="badge badge-{{ badge.colour }}">
                     <span class="badge-dot" aria-hidden="true"></span>{{ badge.label }}
                   </span>

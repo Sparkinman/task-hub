@@ -120,6 +120,16 @@ class CanonicalRecord:
     #: connector learning how to look one up.
     parent_remote_id: str | None = None
 
+    #: This task's children, attached by the engine only when pushing to a
+    #: service that cannot nest, and empty at every other time.
+    #:
+    #: Those services get one task carrying its steps rather than a parent and
+    #: its children scattered flat through the same list, where nothing marks
+    #: which is which. What a connector does with them differs by what it can
+    #: hold: Microsoft has real checklist items, Supernote has only a notes
+    #: field, and both are better than nine unrelated tasks.
+    children: list = field(default_factory=list)
+
     #: CalDAV href and etag, populated when the record came from a server.
     href: str | None = None
     etag: str | None = None

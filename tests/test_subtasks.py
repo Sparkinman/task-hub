@@ -150,6 +150,72 @@ supernote = SupernoteConnector.__new__(SupernoteConnector)
 check("Supernote, whose tasks are flat, may not",
       not supernote.capabilities(CollectionKind.TASKS).supports_parent)
 
+print("\nA service that cannot nest folds the steps in instead")
+from app.connectors.base import STEPS_HEADING, folded_steps, steps_as_text, strip_steps  # noqa: E402
+
+
+class Kid:
+    def __init__(self, title, done=False):
+        self.title = title
+        self.is_completed = done
+
+
+class Parent:
+    def __init__(self, children):
+        self.children = children
+
+
+both = Parent([Kid("Book flights"), Kid("Renew passport", True)])
+check("children become title and done pairs",
+      folded_steps(both) == [("Book flights", False), ("Renew passport", True)],
+      str(folded_steps(both)))
+check("an untitled child is left out",
+      folded_steps(Parent([Kid("  "), Kid("Real")])) == [("Real", False)])
+check("no children means no block", steps_as_text(Parent([]), "just a note") == "just a note")
+text = steps_as_text(both, "Remember the tickets")
+check("the original note is kept", text.startswith("Remember the tickets"), text)
+check("the steps follow under a heading", STEPS_HEADING in text, text)
+check("done ones are ticked", "[x] Renew passport" in text, text)
+check("open ones are not", "[ ] Book flights" in text, text)
+
+print("\nAnd reading them back does not bury the note under copies of itself")
+# The runaway this prevents. A service told to store the folded text reports it
+# back verbatim; taken as the note, the next push folds the steps in *again*,
+# below the copy already there, and it doubles on every pass until the real
+# note is lost in it.
+check("a folded block is removed on the way back in",
+      strip_steps(text) == "Remember the tickets", repr(strip_steps(text)))
+check("a note that was only steps comes back empty",
+      strip_steps(steps_as_text(both, None)) is None,
+      repr(strip_steps(steps_as_text(both, None))))
+# Round-tripping repeatedly must reach a fixed point rather than growing.
+carried = "Remember the tickets"
+for _ in range(5):
+    carried = strip_steps(steps_as_text(both, carried))
+check("five round trips leave the note unchanged", carried == "Remember the tickets",
+      repr(carried))
+
+print("\nBut somebody's own writing is never eaten")
+# The rule is narrow on purpose: only a block this wrote, at the very end, with
+# every line looking like a step.
+for own in (
+    "Steps:\nfirst go to the shop\nthen come back",
+    "Notes about steps: see below",
+    "Steps:\n[ ] real step\nand then a sentence",
+    "A note that just mentions Steps: in passing",
+):
+    check(f"{own.splitlines()[0][:28]!r} survives", strip_steps(own) == own,
+          repr(strip_steps(own)))
+check("empty stays empty", strip_steps("") == "")
+check("None stays None", strip_steps(None) is None)
+
+print("\nA parent's steps still reach a flat service after a round trip")
+# End to end through the two functions a connector actually calls.
+stored = steps_as_text(both, "Remember the tickets")
+read_back = strip_steps(stored)
+again = steps_as_text(Parent([Kid("Book flights"), Kid("Renew passport", True)]), read_back)
+check("the second write matches the first", again == stored)
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)

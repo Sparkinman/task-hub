@@ -14,6 +14,7 @@ the pull was complete, error-free, and not suspiciously empty.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -576,6 +577,9 @@ class SyncEngine:
         #: which case every lookup below falls back to querying, so nothing
         #: depends on it having been built.
         self._index: _GroupIndex | None = None
+        #: Read once per run rather than per task: it cannot change mid-pass,
+        #: and it is consulted for every item at every flat service.
+        self._separate_setting: bool | None = None
         #: Items a service stopped reporting during this run, collected during
         #: the push pass and judged afterwards by _resolve_vanished. They are
         #: held rather than acted on immediately because "gone" and "deleted"
@@ -1451,6 +1455,10 @@ class SyncEngine:
             stats.skipped += 1
             return
 
+        if self._skip_as_child(item, caps):
+            stats.skipped += 1
+            return
+
         links = self._links_in_list(item.id, part.account.id, part.remote_list.id)
         link = links[0] if links else None
 
@@ -1458,6 +1466,14 @@ class SyncEngine:
         # elsewhere must not queue a write to a service that only writes
         # completions -- it would be attempted, and refused, on every pass.
         desired_hash = content_hash(record, caps, caps.push_fields())
+
+        # A service that folds its subtasks in has to notice when one of them
+        # changes. The hash covers this service's own fields, and the children
+        # are not among them, so renaming a step or ticking one off would
+        # otherwise leave the parent looking untouched and never be written.
+        folded = self._folded_children(item, caps)
+        if folded is not None:
+            desired_hash = f"{desired_hash}:{folded}"
 
         # The suppression step. If what this service already holds matches what
         # we would send, send nothing. This is what stops completed tasks being
@@ -1488,6 +1504,13 @@ class SyncEngine:
         projected.parent_remote_id = (
             self._parent_remote_id(item, part) if caps.supports_parent else None
         )
+        if not caps.supports_parent and not self._subtasks_separate():
+            # This service cannot nest, so its copy of a parent carries the
+            # steps itself. The children are not sent as tasks of their own --
+            # see _skip_as_child.
+            projected.children = [
+                self._item_to_record(child) for child in self._children_of(item)
+            ]
 
         try:
             if link is None:
@@ -1711,6 +1734,60 @@ class SyncEngine:
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
+
+    def _subtasks_separate(self) -> bool:
+        """Whether flat services should get subtasks as top-level tasks."""
+        if self._separate_setting is None:
+            self._separate_setting = settings_store.get_bool(
+                self.session, settings_store.SUBTASKS_AS_SEPARATE
+            )
+        return self._separate_setting
+
+    def _children_of(self, item: Item) -> list[Item]:
+        """The tasks belonging to this one, within the same sync group."""
+        if not item.uid:
+            return []
+        return list(self.session.execute(
+            select(Item).where(
+                Item.parent_uid == item.uid,
+                Item.sync_group_id == item.sync_group_id,
+            ).order_by(Item.id)
+        ).scalars())
+
+    def _folded_children(self, item: Item, caps) -> str | None:
+        """A fingerprint of the steps this service will be given, or None.
+
+        None means this service is not being given any -- it can nest, or the
+        user has asked for separate tasks -- and the ordinary hash stands.
+        """
+        if caps.supports_parent or self._subtasks_separate():
+            return None
+        children = self._children_of(item)
+        if not children:
+            return None
+        parts = [f"{c.title}\x1f{c.status.value}" for c in children]
+        return hashlib.sha256("\x1e".join(parts).encode("utf-8")).hexdigest()[:16]
+
+    def _skip_as_child(self, item: Item, caps) -> bool:
+        """Whether this task should be left out of a flat service entirely.
+
+        A child sent to a list that cannot nest becomes a task indistinguishable
+        from its own parent. Unless somebody has asked for exactly that, it is
+        folded into the parent instead and not sent on its own.
+        """
+        if caps.supports_parent or not item.parent_uid:
+            return False
+        if self._subtasks_separate():
+            return False
+        # Only skip it when the parent is actually going to carry it. An orphan
+        # whose parent is not in this group would otherwise vanish entirely.
+        parent = self.session.execute(
+            select(Item).where(
+                Item.uid == item.parent_uid,
+                Item.sync_group_id == item.sync_group_id,
+            )
+        ).scalars().first()
+        return parent is not None
 
     def _parent_uid_from(self, remote, part) -> str | None:
         """Turn a service's own parent id into Task Hub's UID for that task.
