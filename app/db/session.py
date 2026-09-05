@@ -106,6 +106,9 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
     # column existed has no record of the address it was connected at, and a
     # guess would produce a warning about a move that may never have happened.
     ("accounts", "connected_redirect_uri", "VARCHAR(500)"),
+    # Defaults to 0, which is right for every list discovered before this
+    # existed: no service had declared one read-only, so none was.
+    ("remote_lists", "read_only", "BOOLEAN DEFAULT 0"),
 ]
 
 

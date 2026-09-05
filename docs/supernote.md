@@ -1,7 +1,7 @@
 # Supernote setup — complete walkthrough
 
-Connects the **To-Do app built into your Supernote tablet**, one way:
-Supernote → Task Hub.
+Connects the **To-Do app built into your Supernote tablet**, both ways:
+Supernote ⇄ Task Hub.
 
 Read the honest summary first. This connector is built differently from every
 other one in Task Hub, including the other unofficial ones, and you should know
@@ -31,13 +31,15 @@ nobody would announce it. The first sign would be a Supernote sync that fails.
 Every other service keeps syncing normally when that happens, disconnecting
 Supernote changes nothing else, and anything already synced stays where it is.
 
-**2. It is read-only.** Your Supernote to-dos come into Task Hub. Nothing Task
-Hub does is written back to the tablet. The write operations do exist in the
-Partner app — creating, updating, deleting and ticking off — but their exact
-request formats have never been tested against a real account, and a wrong guess
-would damage your real tasks rather than simply fail to read them. Reading
-cannot do that. Writing may be added later, once the formats can be confirmed
-safely.
+**2. It syncs both ways.** Tasks you add, edit, tick off or delete in Task Hub
+reach the tablet, and changes made on the tablet come back. Each write operation
+was worked out against a live account rather than guessed, which mattered:
+saving an edit the obvious way turns out to create a *second copy* of the task
+rather than changing it, and does so without reporting any error. Task Hub does
+the one thing that actually updates a task.
+
+The lists themselves are only read. Task Hub maps to lists you have already made
+on the tablet and never creates or deletes one there.
 
 **3. Signing in needs a code from your email, and lasts thirty days.** Supernote
 will not issue a session without emailing you a six-character code. The session
@@ -64,7 +66,7 @@ confuse the two.
 | What it reads | The **To-Do app built into** Supernote | Whatever a CalDAV app **installed on** the tablet syncs |
 | Where the tasks show | Supernote's own To-Do app, and the Partner app on your phone | Inside the third-party app you installed |
 | Needs an app installing on the tablet | No | Yes |
-| Direction | Read-only | Two-way |
+| Direction | Two-way | Two-way |
 | Official | No | Yes — CalDAV is a standard |
 
 If the tasks you want are the ones you see in Supernote's own To-Do app, and in
@@ -85,6 +87,9 @@ There is no harm in using both.
 - Its notes, where you have written any
 - Whether it is done
 - Its due date
+
+Everything in that list syncs in both directions — an edit in Task Hub reaches
+the tablet just as an edit on the tablet reaches Task Hub.
 
 **Does not come across:**
 
@@ -109,6 +114,12 @@ lists once there is something in it.
 This exists so nothing on your account is invisible to Task Hub. Filtering
 tasks by list — the obvious way to build this — silently loses them, and a task
 you cannot see is worse than one you have chosen not to sync.
+
+Task Hub never writes into this list, and never treats a task leaving it as a
+deletion. Filing one of these tasks into a real list on the tablet is an
+ordinary thing to do, and it makes the task disappear from this view while the
+task itself is perfectly fine — so treating that as a deletion would delete your
+task from every other service because you tidied it up.
 
 ---
 
@@ -137,6 +148,14 @@ the next scheduled sync.
 
 **6.** Map each list to a collection, the same way as any other service. See
 [Getting started](getting-started.md) if you have not done this before.
+
+> **One thing to get right when write-back is on.** Ticking a collection makes
+> that list two-way. If you tick *several* Supernote lists into the same
+> collection, then every new task in that collection is created in **every one
+> of those lists** — one task becomes four. That is how syncing works for any
+> service, not something peculiar to Supernote, but Supernote makes it easy to
+> hit because one account gives you several lists at once. Send write-back to a
+> single list and read from the rest.
 
 ### If the code does not arrive
 

@@ -54,6 +54,7 @@ from app.connectors.base import (
     Connector,
     ConnectorAuthError,
     ConnectorError,
+    ConnectorGoneError,
     PullResult,
     PushOutcome,
     RemoteItem,
@@ -71,6 +72,20 @@ BASE_URL = "https://viewer.supernote.com/api"
 
 LIST_GROUPS = "/file/schedule/group/all"
 LIST_TASKS = "/file/schedule/task/all"
+#: One task. The verb decides the operation, and each has a trap of its own.
+#:
+#: ``POST`` inserts, and inserts *even when the body carries a taskId* -- it
+#: answers with a brand new id and leaves the original untouched. Using it to
+#: save an edit therefore silently duplicates the task rather than failing, so
+#: :meth:`SupernoteConnector.update` must never fall back to it.
+#:
+#: ``PUT`` updates, and refuses a body without ``lastModified``. The complaint
+#: is "The last modification time of the To-Do list cannot be empty", which
+#: names the list rather than the task and sends you looking in the wrong place.
+#:
+#: ``DELETE`` takes the id in the path. Sent as a body or a query parameter it
+#: answers 500.
+TASK = "/file/schedule/task"
 
 #: Stand-in list for tasks that belong to no list at all.
 #:
@@ -171,12 +186,20 @@ def password_digest(password: str, random_code: str) -> str:
 # Kept as module functions rather than methods: the web layer runs these while
 # there is no account to build a connector from yet.
 
-def _post(client: httpx.Client, path: str, payload: dict, token: str = "") -> dict:
+def _call(
+    client: httpx.Client,
+    method: str,
+    path: str,
+    payload: dict | None = None,
+    token: str = "",
+) -> dict:
     headers = {"Content-Type": "application/json"}
     if token:
         headers["x-access-token"] = token
     try:
-        response = client.post(BASE_URL + path, json=payload, headers=headers, timeout=30)
+        response = client.request(
+            method, BASE_URL + path, json=payload, headers=headers, timeout=30
+        )
     except httpx.HTTPError as exc:
         raise ConnectorError(f"Could not reach Supernote Cloud: {exc}") from exc
     if response.status_code in (401, 403):
@@ -194,6 +217,10 @@ def _post(client: httpx.Client, path: str, payload: dict, token: str = "") -> di
     if not isinstance(body, dict):
         raise ConnectorError("Supernote Cloud returned an unexpected response.")
     return body
+
+
+def _post(client: httpx.Client, path: str, payload: dict, token: str = "") -> dict:
+    return _call(client, "POST", path, payload, token)
 
 
 def begin_sign_in(email: str, password: str) -> dict:
@@ -284,13 +311,16 @@ def finish_sign_in(email: str, code: str, valid_code_key: str, timestamp: object
 # --- The connector ------------------------------------------------------------
 
 class SupernoteConnector(Connector):
-    """Read the built-in To-Do app's lists and tasks.
+    """Read and write the built-in To-Do app's lists and tasks.
 
-    Read-only for now. The Partner app's own code carries ``taskInsert``,
-    ``taskUpdate``, ``taskDelete`` and ``taskConfirm``, so writing back is
-    reachable, but the request shapes for those were never observed against a
-    live account -- and a write built on a guess would damage the user's tasks
-    rather than merely fail to read them.
+    Both directions were worked out against a live account rather than guessed,
+    which mattered: the three verbs on :data:`TASK` each behave in a way the
+    obvious implementation gets wrong, and the worst of them fails silently.
+    See that constant for what each one does.
+
+    Lists themselves are read but never created or deleted. Task Hub maps to
+    lists that already exist, and inventing them on somebody's tablet is a
+    bigger liberty than syncing the tasks inside them.
     """
 
     service = ServiceKind.SUPERNOTE
@@ -299,6 +329,10 @@ class SupernoteConnector(Connector):
     def __init__(self, account_id: int, credentials: dict, sync_state: dict | None = None):
         super().__init__(account_id, credentials, sync_state)
         self._client = httpx.Client(timeout=30)
+        #: taskId -> the server's row, so an update can be laid over the copy
+        #: Supernote already holds rather than blanking fields by omission.
+        #: Lives for one sync pass, which is the lifetime of this object.
+        self._cache: dict[str, dict] = {}
 
     # -- Capabilities ---------------------------------------------------------
 
@@ -313,12 +347,32 @@ class SupernoteConnector(Connector):
         """
         return Capabilities(
             fields=frozenset({F_TITLE, F_NOTES, F_STATUS, F_DUE_DATE}),
-            can_create=False,
-            can_delete=False,
-            writable_fields=frozenset(),
+            can_create=True,
+            can_delete=True,
+            # Everything it can hold, it can also write. The narrower set exists
+            # for services that can read a field but not change it, which this
+            # is not.
+            writable_fields=frozenset({F_TITLE, F_NOTES, F_STATUS, F_DUE_DATE}),
             stores_uid=False,
             carries_origin=False,
         )
+
+    def echo_of(self, record: CanonicalRecord, kind: CollectionKind) -> CanonicalRecord:
+        """What Supernote will report back after being told ``record``.
+
+        One thing changes on the way through. A due date is stored as an instant
+        in milliseconds, so a date is written as midnight UTC and read back as
+        that instant -- which lands on the same date, and therefore needs no
+        correction. What does need saying is completion: Supernote stamps its
+        own ``completedTime`` when a task is marked done, so the moment recorded
+        here is not the moment sent. Declaring that stops the next pull reading
+        Supernote's timestamp as somebody having edited the task.
+        """
+        import dataclasses
+
+        if record.status == ItemStatus.COMPLETED and record.completed_at is None:
+            return dataclasses.replace(record, completed_at=None)
+        return record
 
     def supports_kind(self, kind: CollectionKind) -> bool:
         return kind == CollectionKind.TASKS
@@ -335,8 +389,8 @@ class SupernoteConnector(Connector):
     def expires_at(self) -> dt.datetime | None:
         return token_expiry(self.credentials.get("token") or "")
 
-    def _get(self, path: str, payload: dict | None = None) -> dict:
-        body = _post(self._client, path, payload or {}, token=self._token)
+    def _request(self, method: str, path: str, payload: dict | None = None) -> dict:
+        body = _call(self._client, method, path, payload, token=self._token)
         if body.get("success") is False:
             # Their generic failure is a 200 with success:false, so an HTTP
             # status check alone would treat every one of these as fine.
@@ -344,6 +398,28 @@ class SupernoteConnector(Connector):
                 body.get("errorMsg") or f"Supernote Cloud refused {path}."
             )
         return body
+
+    def _get(self, path: str, payload: dict | None = None) -> dict:
+        return self._request("POST", path, payload or {})
+
+    def _put(self, path: str, payload: dict) -> dict:
+        return self._request("PUT", path, payload)
+
+    def _task_row(self, remote_id: str) -> dict | None:
+        """The server's own copy of one task, for laying an update over.
+
+        Cached per connector instance, which lasts one sync pass: a pass that
+        updates ten tasks would otherwise fetch the whole account ten times.
+        A miss refetches once, because the task may have been created earlier
+        in this same pass.
+        """
+        if remote_id in self._cache:
+            return self._cache[remote_id]
+        for row in self._get(LIST_TASKS).get("scheduleTask") or []:
+            task_id = str(row.get("taskId") or "").strip()
+            if task_id:
+                self._cache[task_id] = row
+        return self._cache.get(remote_id)
 
     def verify(self) -> str:
         """Confirm the session works, and say when it runs out."""
@@ -379,7 +455,6 @@ class SupernoteConnector(Connector):
                     remote_id=remote_id,
                     name=(row.get("title") or "").strip() or "Untitled list",
                     kind=CollectionKind.TASKS,
-                    read_only=True,
                 )
             )
 
@@ -391,6 +466,10 @@ class SupernoteConnector(Connector):
                     remote_id=UNFILED_LIST_ID,
                     name=UNFILED_LIST_NAME,
                     kind=CollectionKind.TASKS,
+                    # Read-only, unlike the real lists: this one is a view of
+                    # tasks that sit outside every list, so there is nowhere for
+                    # a new task to go. Saying so here stops the engine offering
+                    # it as a write target and then failing on every pass.
                     read_only=True,
                 )
             )
@@ -446,6 +525,9 @@ class SupernoteConnector(Connector):
         live_ids = self._live_list_ids() if remote_list_id == UNFILED_LIST_ID else set()
 
         for row in body.get("scheduleTask") or []:
+            cache_id = str(row.get("taskId") or "").strip()
+            if cache_id:
+                self._cache[cache_id] = row
             if remote_list_id == UNFILED_LIST_ID:
                 if self._filed_under(row, live_ids):
                     continue
@@ -465,7 +547,19 @@ class SupernoteConnector(Connector):
                     deleted=yes(row.get("isDeleted")),
                 )
             )
-        return PullResult(items=items, incremental=False)
+
+        # A real list reports completely, so a task that has gone really has
+        # gone and the engine may act on its absence.
+        #
+        # The unfiled view must never be read that way. It holds tasks that
+        # belong to no list, so filing one on the tablet -- an ordinary thing to
+        # do -- removes it from this view while the task itself is perfectly
+        # alive in its new list. Letting absence imply deletion there would have
+        # the engine delete a task the user had just tidied up, and propagate
+        # that deletion to every other connected service. Claiming the pull is
+        # incremental is what stops it: the engine then treats a missing item as
+        # unreported rather than as gone.
+        return PullResult(items=items, incremental=remote_list_id == UNFILED_LIST_ID)
 
     def _record_from(self, row: dict, remote_id: str) -> CanonicalRecord:
         status = STATUS_FROM_REMOTE.get(
@@ -498,27 +592,112 @@ class SupernoteConnector(Connector):
         )
 
     # -- Writing --------------------------------------------------------------
-    #
-    # Declared unsupported rather than silently doing nothing, so that a
-    # misconfiguration surfaces as a clear message instead of tasks quietly
-    # failing to appear on the tablet.
 
-    _READ_ONLY = (
-        "Task Hub can read the Supernote To-Do app but not write to it yet. Its "
-        "write API exists but has never been exercised against a real account, "
-        "and a wrong guess there would damage tasks rather than just fail."
-    )
+    def _fields_from(self, record: CanonicalRecord) -> dict:
+        """The parts of a task Task Hub is allowed to set.
 
-    def create(self, remote_list_id: str, record: CanonicalRecord, kind: CollectionKind) -> PushOutcome:
-        return PushOutcome(remote_id=None, error=self._READ_ONLY)
+        Deliberately not a whole task: an update sends the row the server
+        already holds with these laid over the top, so that the sort orders,
+        reminder flags and recurrence blocks Supernote maintains for itself are
+        returned untouched rather than blanked by omission.
+        """
+        due = None
+        if record.due_date is not None:
+            # Stored as an instant, so a bare date becomes midnight UTC. Read
+            # back it lands on the same date, which is why capabilities() can
+            # honestly claim a date and no time.
+            due = to_epoch_ms(
+                dt.datetime.combine(record.due_date, dt.time(0, 0), tzinfo=dt.UTC)
+            )
+
+        fields = {
+            "title": record.title or "",
+            "detail": record.notes or None,
+            # 0 rather than None: the API uses it for "no due date", and null is
+            # rejected on some paths.
+            "dueTime": due or 0,
+            "status": STATUS_TO_REMOTE.get(record.status, "needsAction"),
+        }
+        if record.status == ItemStatus.COMPLETED:
+            fields["completedTime"] = to_epoch_ms(
+                record.completed_at or dt.datetime.now(dt.UTC)
+            )
+        return fields
+
+    def create(
+        self, remote_list_id: str, record: CanonicalRecord, kind: CollectionKind
+    ) -> PushOutcome:
+        if kind != CollectionKind.TASKS:
+            return PushOutcome(remote_id=None, error="Supernote holds tasks, not events.")
+        if remote_list_id == UNFILED_LIST_ID:
+            # Writing here would have to invent a list to put it in, and any
+            # choice would be one the user never made.
+            return PushOutcome(
+                remote_id=None,
+                error="\"Unfiled tasks\" is a view of tasks Supernote holds "
+                      "outside any list, so nothing can be created in it. Map a "
+                      "real Supernote list to write there.",
+            )
+
+        payload = dict(self._fields_from(record))
+        payload["taskListId"] = str(remote_list_id)
+        try:
+            body = self._get(TASK, payload)
+        except ConnectorError as exc:
+            return PushOutcome(remote_id=None, error=str(exc))
+
+        remote_id = str(body.get("taskId") or "").strip()
+        if not remote_id:
+            return PushOutcome(
+                remote_id=None,
+                error="Supernote accepted the task but returned no id for it.",
+            )
+        self._cache.pop(remote_id, None)
+        return PushOutcome(remote_id=remote_id)
 
     def update(
-        self, remote_list_id: str, remote_id: str, record: CanonicalRecord, kind: CollectionKind
+        self,
+        remote_list_id: str,
+        remote_id: str,
+        record: CanonicalRecord,
+        kind: CollectionKind,
     ) -> PushOutcome:
-        return PushOutcome(remote_id=remote_id, error=self._READ_ONLY)
+        if kind != CollectionKind.TASKS:
+            return PushOutcome(remote_id=remote_id, error="Supernote holds tasks, not events.")
 
-    def delete(self, remote_list_id: str, remote_id: str, kind: CollectionKind) -> PushOutcome:
-        return PushOutcome(remote_id=remote_id, error=self._READ_ONLY)
+        current = self._task_row(remote_id)
+        if current is None:
+            # Never fall back to POST here. POST inserts even when the body
+            # carries a taskId, so "update the task that is not there" would
+            # quietly become "make a second one".
+            raise ConnectorGoneError(
+                f"Supernote no longer has a task with id {remote_id}."
+            )
+
+        payload = dict(current)
+        payload.update(self._fields_from(record))
+        # PUT is refused outright without this, and the message it gives blames
+        # the list rather than the task.
+        payload["lastModified"] = to_epoch_ms(dt.datetime.now(dt.UTC))
+
+        try:
+            self._put(TASK, payload)
+        except ConnectorError as exc:
+            return PushOutcome(remote_id=remote_id, error=str(exc))
+        self._cache.pop(remote_id, None)
+        return PushOutcome(remote_id=remote_id)
+
+    def delete(
+        self, remote_list_id: str, remote_id: str, kind: CollectionKind
+    ) -> PushOutcome:
+        try:
+            # The id goes in the path. As a body or a query parameter the
+            # server answers 500.
+            self._request("DELETE", f"{TASK}/{remote_id}")
+        except ConnectorError as exc:
+            return PushOutcome(remote_id=remote_id, error=str(exc))
+        self._cache.pop(remote_id, None)
+        return PushOutcome(remote_id=remote_id)
 
     # -- Housekeeping ---------------------------------------------------------
 

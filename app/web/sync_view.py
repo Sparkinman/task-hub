@@ -641,7 +641,14 @@ def save_account_mapping(
             mapping = ListMapping(remote_list_id=list_id, sync_group_id=group_id)
             db.add(mapping)
         mapping.read_enabled = wanted["read"]
-        mapping.write_enabled = wanted["write"]
+        # A list the service itself says cannot be written to is never a write
+        # target, whatever the form asked for. The user's switch expresses what
+        # they want; this expresses what the service will allow, and no choice
+        # can overrule it. Without this the engine offers the list as a
+        # destination and then fails on it once per item on every single pass --
+        # Supernote's "Unfiled tasks" view is the case that showed it.
+        target = db.get(RemoteList, list_id)
+        mapping.write_enabled = wanted["write"] and not (target and target.read_only)
         mapping.create_from_remote = wanted.get("create", True)
         # A full member holds the whole collection, so it carries no filter. An
         # aggregate carries the lists it was set up to gather.

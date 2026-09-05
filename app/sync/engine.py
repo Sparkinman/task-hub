@@ -355,12 +355,14 @@ def refresh_remote_lists(session: Session, account: Account) -> list:
                 kind=info.kind,
                 colour=info.colour,
                 is_default=info.is_default,
+                read_only=info.read_only,
             ))
         else:
             row.name = info.name
             row.kind = info.kind
             row.colour = info.colour or row.colour
             row.is_default = info.is_default
+            row.read_only = info.read_only
             row.unavailable = False
 
     for remote_id, row in known.items():

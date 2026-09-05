@@ -357,10 +357,15 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
             "what that app syncs. This one reads the To-Do app built into "
             "Supernote, which is the one whose tasks appear in the Partner app "
             "on your phone.",
-            "It is read-only. The write operations exist in the Partner app, "
-            "but their request shapes have never been exercised against a real "
-            "account, and a wrong guess would damage your tasks rather than "
-            "simply fail to read them.",
+            "It syncs both ways. Tasks created, edited, completed and deleted "
+            "in Task Hub reach the tablet, and the same in reverse. Each of the "
+            "three write operations was established against a live account "
+            "rather than guessed, which mattered: saving an edit the obvious "
+            "way makes a second copy of the task instead of changing it, and "
+            "fails silently while doing so.",
+            "The lists themselves are read but never created or deleted. Task "
+            "Hub maps to lists that already exist on your tablet; making new "
+            "ones there is a bigger liberty than syncing the tasks inside them.",
             "The sign-in needs a verification code emailed to you, and the "
             "session it produces lasts thirty days. There is no way to renew it "
             "in the background -- Supernote offers none -- so you will need to "

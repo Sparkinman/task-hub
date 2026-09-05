@@ -145,10 +145,12 @@ class ServiceKind(str, enum.Enum):
     MICROSOFT = "microsoft"
     THINGS3 = "things3"
     OBSIDIAN = "obsidian"
-    #: Not a service Task Hub connects to: the Supernote plugin stamps items it
-    #: creates so they can be told apart from anything else arriving over
-    #: CalDAV. It is an origin only, like LOCAL, and never appears in the
-    #: service catalogue.
+    #: Two things at once, which is worth knowing before changing either. It is
+    #: a connected service -- the tablet's built-in To-Do app, over an API read
+    #: out of the Partner app -- and it is also the stamp the Supernote plugin
+    #: puts on items it creates so they can be told apart from anything else
+    #: arriving over CalDAV. An item carrying this origin may have come by
+    #: either route.
     SUPERNOTE = "supernote"
     RADICALE = "radicale"
     LOCAL = "local"
@@ -388,6 +390,14 @@ class RemoteList(Base):
     kind: Mapped[CollectionKind] = mapped_column(EnumString(CollectionKind, 16))
     colour: Mapped[str | None] = mapped_column(String(16), nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    #: Whether the service says this list cannot be written to. Distinct from a
+    #: mapping's write switch, which is the user's choice: this is the service's
+    #: own answer, and no choice can override it. Supernote's "Unfiled tasks" is
+    #: the case that needed it -- a view of tasks belonging to no list, so a new
+    #: task written there would have nowhere to go, and the engine offered it as
+    #: a target and then failed on every pass.
+    read_only: Mapped[bool] = mapped_column(Boolean, default=False)
 
     #: Legacy single-target columns, kept so an older database still opens and
     #: so the migration has something to read. Participation is now decided by

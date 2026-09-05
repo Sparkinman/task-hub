@@ -19,7 +19,7 @@ from __future__ import annotations
 import datetime as dt
 import sys
 
-from app.connectors.base import F_DUE_TIME, F_TITLE
+from app.connectors.base import F_DUE_DATE, F_DUE_TIME, F_NOTES, F_STATUS, F_TITLE
 from app.connectors.supernote import (
     STATUS_FROM_REMOTE,
     SupernoteConnector,
@@ -135,21 +135,124 @@ check("it can hold a title", capabilities.supports(F_TITLE))
 # read back is an artefact of the encoding, and must not overwrite a real time
 # set in Todoist or Google.
 check("it declares no due time", not capabilities.supports(F_DUE_TIME))
-check("it cannot create", capabilities.can_create is False)
-check("it cannot delete", capabilities.can_delete is False)
-check("and nothing is writable", capabilities.push_fields() == frozenset())
 check("tasks only, not calendars",
       connector().supports_kind(CollectionKind.TASKS)
       and not connector().supports_kind(CollectionKind.CALENDAR))
 
-print("\nWrites refuse clearly rather than failing silently")
-for outcome in (
-    connector().create("list-1", record, CollectionKind.TASKS),
-    connector().update("list-1", "abc123", record, CollectionKind.TASKS),
-    connector().delete("list-1", "abc123", CollectionKind.TASKS),
-):
-    check("a write reports an error", outcome.ok is False)
-    check("and explains why", "never been exercised" in (outcome.error or ""))
+print("\nWrites use the right verb, which is not obvious for any of the three")
+# Each verb on /file/schedule/task behaves in a way the obvious implementation
+# gets wrong, and the worst of them fails silently. These were established
+# against a live account, so the checks are about not regressing them.
+from app.connectors.base import ConnectorGoneError  # noqa: E402
+from app.connectors.supernote import (  # noqa: E402
+    LIST_GROUPS, LIST_TASKS, TASK, UNFILED_LIST_ID,
+)
+from app.services.ical_model import CanonicalRecord  # noqa: E402
+
+#: The lists the recorder reports, kept beside it rather than shared with the
+#: unfiled-list fixtures further down: those are built for a different question
+#: and a write test that quietly depended on them would be hard to follow.
+RECORDER_GROUPS = {"scheduleTaskGroup": [
+    {"taskListId": "1", "title": "Tasks", "isDeleted": "N"},
+]}
+
+LIVE_ROW = dict(live_row, taskId="abc123", taskListId="1", sort=7, planerSort=3,
+                isReminderOn="Y", recurrence="FREQ=WEEKLY")
+
+
+class Recorder(SupernoteConnector):
+    """Records the calls a write makes instead of making them."""
+
+    def __init__(self, rows=None):
+        super().__init__(1, {"token": "x.y.z"}, {})
+        self.calls = []
+        self._rows = rows if rows is not None else [LIVE_ROW]
+
+    def _request(self, method, path, payload=None):
+        self.calls.append((method, path, payload))
+        if path == LIST_TASKS:
+            return {"scheduleTask": self._rows}
+        if path == LIST_GROUPS:
+            return RECORDER_GROUPS
+        return {"success": True, "taskId": "new999"}
+
+
+fresh = CanonicalRecord(uid="u", kind=CollectionKind.TASKS, title="Write me",
+                        notes="notes", due_date=dt.date(2026, 12, 25))
+
+r = Recorder()
+outcome = r.create("1", fresh, CollectionKind.TASKS)
+method, path, payload = r.calls[-1]
+check("create posts", (method, path) == ("POST", TASK), f"{method} {path}")
+check("create returns the new id", outcome.remote_id == "new999", str(outcome.remote_id))
+check("create names the list", payload.get("taskListId") == "1", str(payload))
+check("a bare date is written as an instant", isinstance(payload.get("dueTime"), int))
+check("and it round-trips to the same date",
+      from_epoch_ms(payload["dueTime"]).date() == dt.date(2026, 12, 25),
+      str(payload.get("dueTime")))
+
+r = Recorder()
+r.update("1", "abc123", fresh, CollectionKind.TASKS)
+method, path, payload = r.calls[-1]
+check("update PUTs, never POSTs", method == "PUT", method)
+# POST inserts even with a taskId in the body, so an update that fell back to it
+# would silently make a second copy of the task instead of failing.
+check("update never falls back to POST",
+      not any(m == "POST" and p == TASK for m, p, _ in r.calls),
+      str([(m, p) for m, p, _ in r.calls]))
+# PUT is refused outright without this, and the error blames the list.
+check("update supplies a fresh lastModified",
+      isinstance(payload.get("lastModified"), int) and payload["lastModified"] > 0,
+      str(payload.get("lastModified")))
+# Fields Supernote maintains for itself must survive an edit rather than being
+# blanked by a body that only carries what Task Hub knows about.
+check("the server's own fields are preserved", payload.get("sort") == 7
+      and payload.get("planerSort") == 3 and payload.get("recurrence") == "FREQ=WEEKLY",
+      str({k: payload.get(k) for k in ("sort", "planerSort", "recurrence")}))
+check("and the edit is applied over them", payload.get("title") == "Write me")
+
+done_record = CanonicalRecord(uid="u", kind=CollectionKind.TASKS, title="Done",
+                              status=ItemStatus.COMPLETED,
+                              completed_at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC))
+r = Recorder()
+r.update("1", "abc123", done_record, CollectionKind.TASKS)
+_, _, payload = r.calls[-1]
+check("completing sends their word for it", payload.get("status") == "completed")
+check("with the moment it happened",
+      payload.get("completedTime") == to_epoch_ms(dt.datetime(2026, 9, 1, tzinfo=dt.UTC)))
+
+r = Recorder()
+r.delete("1", "abc123", CollectionKind.TASKS)
+method, path, payload = r.calls[-1]
+# As a body or a query parameter this answers 500; the id has to be in the path.
+check("delete puts the id in the path",
+      (method, path) == ("DELETE", f"{TASK}/abc123"), f"{method} {path}")
+check("and sends no body", payload is None, str(payload))
+
+print("\nUpdating a task that has gone refuses rather than duplicating it")
+r = Recorder(rows=[])
+try:
+    r.update("1", "vanished", fresh, CollectionKind.TASKS)
+    check("a vanished task raises", False, "no error raised")
+except ConnectorGoneError:
+    check("a vanished task raises", True)
+check("and nothing was written",
+      not any(m in ("POST", "PUT") and p == TASK for m, p, _ in r.calls),
+      str([(m, p) for m, p, _ in r.calls]))
+
+print("\nThe unfiled list is a view, so nothing can be created in it")
+outcome = Recorder().create(UNFILED_LIST_ID, fresh, CollectionKind.TASKS)
+check("creating there is refused", outcome.ok is False)
+check("with a reason that says what to do instead",
+      "Map a real Supernote list" in (outcome.error or ""), str(outcome.error))
+
+print("\nIt now declares itself writable")
+capabilities = connector().capabilities(CollectionKind.TASKS)
+check("it can create", capabilities.can_create is True)
+check("it can delete", capabilities.can_delete is True)
+check("and writes the four fields it can hold",
+      capabilities.push_fields() == frozenset({F_TITLE, F_NOTES, F_STATUS, F_DUE_DATE}),
+      str(sorted(capabilities.push_fields())))
 
 print("\nTheir status vocabulary matches Google's, which is why it maps cleanly")
 check("needsAction", STATUS_FROM_REMOTE["needsAction"] == ItemStatus.NEEDS_ACTION)
@@ -162,10 +265,6 @@ print("\nA task belonging to no list is offered rather than dropped")
 # The live account had exactly this: one task with taskListId null, sitting in
 # the app's "All" view and in none of its four lists. Filtering tasks by list --
 # the obvious implementation, and the one written first -- lost it in silence.
-from app.connectors.supernote import (  # noqa: E402
-    LIST_GROUPS, LIST_TASKS, UNFILED_LIST_ID,
-)
-
 GROUPS = {"scheduleTaskGroup": [
     {"taskListId": "1", "title": "Tasks", "isDeleted": "N"},
     {"taskListId": "9bc99c7d", "title": "Work", "isDeleted": "N"},
@@ -197,6 +296,12 @@ check("deleted lists are not offered", "Old" not in names, str(names))
 check("real lists are offered", {"Tasks", "Work"} <= set(names), str(names))
 check("and an unfiled list appears because something is in it",
       UNFILED_LIST_ID in [entry.remote_id for entry in lists], str(names))
+# Real lists accept write-back; the unfiled view cannot, because a task written
+# there would have no list to go in. Marking it read-only stops the engine
+# offering it as a target and then failing on every single pass.
+by_id = {e.remote_id: e for e in lists}
+check("real lists are writable", by_id["1"].read_only is False)
+check("the unfiled view is not", by_id[UNFILED_LIST_ID].read_only is True)
 
 filed = FakeApi().pull("1", CollectionKind.TASKS)
 check("a normal list returns only its own live tasks",
@@ -213,6 +318,14 @@ check("so is a task whose list was deleted",
       "In a deleted list" in titles, str(titles))
 check("and filed tasks are not duplicated into it",
       "Filed" not in titles, str(titles))
+# The unfiled list is a view, so a task leaving it has usually been filed rather
+# than deleted. Reporting the pull as complete would let the engine read that
+# absence as a deletion and propagate it to every other service -- deleting a
+# task because the user tidied it up.
+check("a real list reports completely, so absence means deletion",
+      FakeApi().pull("1", CollectionKind.TASKS).incremental is False)
+check("but the unfiled view never lets absence imply deletion",
+      FakeApi().pull(UNFILED_LIST_ID, CollectionKind.TASKS).incremental is True)
 
 # The whole point: nothing an account holds may be invisible to every list.
 every = set()
