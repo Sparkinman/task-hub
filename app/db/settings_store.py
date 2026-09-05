@@ -38,6 +38,10 @@ PUSH_PUBLIC_KEY: Final = "push_vapid_public"
 #: Supernote digests: which libraries, and whether to mirror them at all.
 SUPERNOTE_DIGEST_ENABLED: Final = "supernote_digest_enabled"
 SUPERNOTE_DIGEST_LIBRARIES: Final = "supernote_digest_libraries"
+#: Every library on the account, remembered from the last sync as JSON.
+#: Filing a new digest must offer all of them, not only the ones being
+#: mirrored, and a page should not make a request to Supernote to draw a menu.
+SUPERNOTE_DIGEST_LIBRARY_CACHE: Final = "supernote_digest_library_cache"
 
 PUSH_ENABLED: Final = "push_enabled"
 
@@ -105,6 +109,7 @@ DEFAULTS: Final[dict[str, str]] = {
     SUPERNOTE_BACKUP_INTERVAL_MINUTES: "360",
     SUPERNOTE_DIGEST_ENABLED: "0",
     SUPERNOTE_DIGEST_LIBRARIES: "",
+    SUPERNOTE_DIGEST_LIBRARY_CACHE: "",
     PUSH_ENABLED: "1",
     # Off by default. A notification nobody asked for is the fastest way to
     # have every notification switched off.

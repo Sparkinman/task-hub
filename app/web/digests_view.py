@@ -25,7 +25,8 @@ from app.db import settings_store
 from app.db.models import SupernoteDigestItem
 from app.db.session import get_db
 from app.services.supernote_digest import SOURCE_TYPES
-from app.services.text_pdf import Block, build
+from app.services.supernote_mark import read_png
+from app.services.text_pdf import Block, Image, build
 from app.sync import digest_sync
 from app.web import deps
 
@@ -35,6 +36,37 @@ router = APIRouter(prefix="/digests")
 #: The stand-in name for digests filed in no library. Supernote allows this and
 #: the tablet shows them in its "all" view, so they must not simply vanish.
 UNFILED = "Unfiled"
+
+
+def _handwriting(row: SupernoteDigestItem) -> bytes | None:
+    """The saved drawing for a digest, if the sync managed to decode one."""
+    name = getattr(row, "handwriting_name", None)
+    if not name:
+        return None
+    path = digest_sync.HANDWRITING_DIR / name
+    try:
+        return path.read_bytes() if path.exists() else None
+    except OSError:
+        return None
+
+
+def _handwriting_block(row: SupernoteDigestItem) -> Block | Image:
+    """The handwriting as a picture in the document, or a line saying why not.
+
+    A digest whose drawing could not be decoded still says so, because the
+    tablet holds something this copy does not and quietly omitting it would
+    make the backup look complete when it is not.
+    """
+    raw = _handwriting(row)
+    found = read_png(raw) if raw else None
+    if found is None:
+        return Block(
+            "This digest has a handwritten note that could not be read here. "
+            "It is still on the tablet.", size=8.5, grey=True, space_after=2)
+    pixels, width, height = found
+    # Written at half resolution when it was saved, so it is placed at half the
+    # screen density to come out the size it was drawn.
+    return Image(pixels, width, height, space_after=8, dpi=113.0)
 
 
 def _grouped(db: Session) -> dict[str, list[SupernoteDigestItem]]:
@@ -64,6 +96,7 @@ def index(request: Request, db: Session = Depends(get_db)):
         selected=digest_sync.selected_libraries(db),
         source_types=SOURCE_TYPES,
         has_account=digest_sync.account(db) is not None,
+        libraries=digest_sync.known_libraries(db),
     )
 
 
@@ -95,11 +128,25 @@ def _pdf_for(rows: list[SupernoteDigestItem], title: str) -> bytes:
         if row.comment:
             blocks.append(Block(f"Note: {row.comment}", size=10, space_after=2))
         if row.has_handwriting:
-            blocks.append(Block(
-                "This digest has a handwritten comment, which is on the tablet "
-                "and not included here.", size=8.5, grey=True, space_after=2))
+            blocks.append(_handwriting_block(row))
         blocks.append(Block("", size=6, space_after=10))
     return build(title, blocks)
+
+
+@router.get("/{row_id}/handwriting")
+def handwriting(row_id: int, db: Session = Depends(get_db)):
+    """The handwritten note on one digest, as a picture."""
+    row = db.get(SupernoteDigestItem, row_id)
+    raw = _handwriting(row) if row is not None else None
+    if raw is None:
+        return Response(status_code=404)
+    return Response(
+        content=raw,
+        media_type="image/png",
+        # Named by its checksum on the page, so this can be held indefinitely:
+        # a changed drawing arrives under a different address.
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
 
 
 @router.get("/library/{name}/pdf")
@@ -145,9 +192,12 @@ def all_pdf(download: str = "", db: Session = Depends(get_db)):
             if row.page_number:
                 where.append(f"page {row.page_number}")
             if where:
-                blocks.append(Block(" · ".join(where), size=8.5, grey=True, space_after=10))
-            else:
-                blocks.append(Block("", size=6, space_after=8))
+                blocks.append(Block(" · ".join(where), size=8.5, grey=True, space_after=6))
+            if row.comment:
+                blocks.append(Block(f"Note: {row.comment}", size=10, space_after=4))
+            if row.has_handwriting:
+                blocks.append(_handwriting_block(row))
+            blocks.append(Block("", size=6, space_after=6))
     disposition = "attachment" if download else "inline"
     return Response(
         content=build("Supernote digests", blocks),

@@ -114,6 +114,10 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
     ("supernote_notes", "thumb_name", "VARCHAR(128)"),
     # Nothing was excluded before this existed, so 0 is right for every row.
     ("supernote_notes", "excluded", "BOOLEAN DEFAULT 0"),
+    # Null on rows mirrored before handwriting was decoded; filled in on the
+    # next pass for any digest that has some.
+    ("supernote_digests", "handwriting_name", "VARCHAR(128)"),
+    ("supernote_digests", "handwriting_md5", "VARCHAR(64) DEFAULT ''"),
 ]
 
 

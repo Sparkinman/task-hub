@@ -48,6 +48,7 @@ ADD_LIBRARY = "file/add/summary/group"
 UPDATE_DIGEST = "file/update/summary"
 DELETE_DIGEST = "file/delete/summary"
 DELETE_LIBRARY = "file/delete/summary/group"
+DOWNLOAD = "file/download/summary"
 
 #: The page size to ask for. Generous because a digest is a paragraph at most
 #: and an account holds tens of them, not thousands.
@@ -78,6 +79,7 @@ class Digest:
     source_type: int
     comment: str
     handwriting: str
+    handwriting_md5: str
     md5: str
     created_at: int
     modified_at: int
@@ -214,12 +216,35 @@ class SupernoteDigests:
                 source_type=int(row.get("sourceType") or 0),
                 comment=(row.get("commentStr") or "").strip(),
                 handwriting=(row.get("commentHandwriteName") or "").strip(),
+                handwriting_md5=str(row.get("handwriteMD5") or ""),
                 md5=str(row.get("md5Hash") or ""),
                 created_at=int(row.get("creationTime") or 0),
                 modified_at=int(row.get("lastModifiedTime") or 0),
                 metadata=metadata,
             ))
         return [d for d in found if d.id]
+
+    def handwriting_bytes(self, digest_id: str) -> bytes | None:
+        """The ``.mark`` file holding a digest's handwritten note.
+
+        Answers with a signed address rather than the file, so this is two
+        requests: one to Supernote for the address, one to their storage for
+        the bytes.
+        """
+        body = self._call("POST", DOWNLOAD, {"id": int(digest_id)})
+        url = body.get("url")
+        if not url:
+            return None
+        try:
+            response = self._client.get(url, timeout=90)
+        except httpx.HTTPError as exc:
+            raise ConnectorError(f"Could not download the handwriting: {exc}") from exc
+        if response.status_code != 200:
+            return None
+        content = response.content
+        # Their own container format. Anything else means the address expired
+        # and this is an error document, which must not be stored as a drawing.
+        return content if b"SN_FILE" in content[:64] else None
 
     def raw_digest(self, digest_id: str) -> dict | None:
         """The server's own row for one digest, for laying an edit over."""

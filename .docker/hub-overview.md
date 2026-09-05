@@ -18,14 +18,15 @@ is ticked off everywhere.
 - **Supernote's built-in To-Do app, both ways.** Task Hub is the only thing
   outside Supernote's own apps that reads it — not a CalDAV app installed on
   the tablet, but the real one. It also reads and writes **Digest** — the
-  passages you highlight out of documents — and backs your handwritten
-  notebooks up as PDFs you can read on any device. A task written on a page of
+  passages you highlight out of documents, with the notes you add to them in
+  pen as well as typed — and backs your handwritten notebooks up as PDFs you
+  can read on any device. A task written on a page of
   a notebook links straight to that page, when the notebook is one you have
   backed up. Ratta publish no API for this, so it may
   change at any time, and Task Hub says so plainly wherever it is shown.
-- **One calendar on the Supernote, holding all of them.** Supernote's calendar
-  app subscribes to a single calendar. Task Hub merges as many as you like —
-  work, family, shared — into one collection the tablet subscribes to, so the
+- **Fixes the Supernote's one-calendar limit.** Ratta's own calendar app can
+  subscribe to exactly one calendar. **Task Hub aggregates as many as you like
+  — work, family, shared — into a single feed the tablet can use**, so the
   device shows everything instead of making you pick.
 - **Installs on your phone.** Add it to a home screen and it opens like an app:
   own icon, full screen, no browser bar. Needs an HTTPS address, which the

@@ -48,7 +48,10 @@ Google, Todoist, your iPhone or anywhere else you have connected.
 It also reads and writes **Digest** — the passages you highlight out of PDFs
 and notebooks on the tablet. They arrive with the file and page they came from,
 readable as a PDF Task Hub typesets itself, and anything you write here appears
-in the Digest app on your Supernote.
+in the Digest app on your Supernote. **Notes you add to a digest come across
+both ways they are written** — typed, and handwritten with the pen. The
+handwriting is decoded and shown as you drew it, on the page and inside the
+PDF, rather than left behind on the tablet.
 
 A task you made by circling handwriting keeps its way back to the page it came
 from — and if that notebook is one you have backed up, the task links straight
@@ -74,9 +77,12 @@ it works alongside everything above rather than instead of it.
 
 ### And it fixes the one-calendar limit
 
-Supernote's own calendar app subscribes to **one** calendar. If your life is
-spread across a work calendar, a family one and a couple of shared ones, the
-tablet can show you one of them and you choose which.
+**Ratta's own calendar app can subscribe to exactly one calendar. Task Hub
+fixes that — it aggregates as many calendars as you like into a single feed the
+tablet can use.**
+
+If your life is spread across a work calendar, a family one and a couple of
+shared ones, the tablet on its own shows you one of them and you choose which.
 
 Task Hub merges them. Every calendar you connect — Google, Outlook, iCloud,
 anything CalDAV — can feed a single collection, and that collection is what the

@@ -67,12 +67,14 @@
         </div>
         <div class="field" style="max-width: 340px;">
           <label for="library_uid">Library</label>
+          {# Every library on the account, not only the ones being mirrored:
+             filing a new note into a library you do not sync is perfectly
+             reasonable, and listing only what is already on this page made a
+             six-library account look like a two-library one. #}
           <select id="library_uid" name="library_uid">
             <option value="">No library</option>
-            {% for name, rows in grouped.items() %}
-              {% if rows and rows[0].library_uid %}
-                <option value="{{ rows[0].library_uid }}">{{ name }}</option>
-              {% endif %}
+            {% for lib in libraries %}
+              <option value="{{ lib.uid }}">{{ lib.name }}</option>
             {% endfor %}
           </select>
         </div>
@@ -129,9 +131,24 @@
               <div class="small mt-2"><span class="strong">Note:</span> {{ row.comment }}</div>
             {% endif %}
             {% if row.has_handwriting %}
-              <div class="tiny muted mt-1">
-                Has a handwritten comment, which stays on the tablet.
-              </div>
+              {% if row.handwriting_name %}
+                {# The drawing itself, on the page and in the PDF. Sized to the
+                   writing rather than the column, so a two-word note stays a
+                   two-word note instead of being blown up across the card. #}
+                <div class="mt-2">
+                  <img src="/digests/{{ row.id }}/handwriting"
+                       alt="Handwritten note on this digest" loading="lazy"
+                       style="max-width: 100%; max-height: 220px;
+                              border: 1px solid var(--border);
+                              border-radius: var(--radius-sm);
+                              padding: var(--gap-2); background: #fff;">
+                </div>
+              {% else %}
+                <div class="tiny muted mt-1">
+                  Has a handwritten note that could not be read here. It is
+                  still on the tablet.
+                </div>
+              {% endif %}
             {% endif %}
 
             <div class="row mt-2" style="gap: var(--gap-2);">

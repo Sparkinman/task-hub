@@ -188,15 +188,26 @@ app on your Supernote.
 libraries you want. Ticking none mirrors everything, including digests filed in
 no library at all, which the tablet allows.
 
-**What comes across:** the passage, the file and page it came from, any typed
-note, and which library it belongs to. A handwritten comment stays on the
-tablet — the page says so against the digest rather than quietly showing you
-half of it.
+**What comes across:** the passage, the file and page it came from, which
+library it belongs to, and **both kinds of note you can add on the tablet** —
+the typed one and the handwritten one.
+
+**Handwriting.** When you write a note on a digest with the pen, Supernote
+keeps it as a drawing rather than as text. Task Hub fetches that drawing,
+decodes it, trims the blank page away from around it, and shows it on the
+Digests page underneath the passage — at roughly the size you wrote it, not
+blown up to the width of the screen. It goes into the PDFs as well, so a
+backup has the part you wrote in your own hand rather than a line saying that
+part is somewhere else.
+
+Nothing is guessed: if a drawing cannot be read, the digest says so plainly
+instead of showing you a blank space, because the tablet is then holding
+something this copy does not have.
 
 **Reading them as a PDF.** Task Hub sets the document itself, because a digest
 is text rather than a file: there is nothing to download until it is typeset.
 Each library has a **View PDF** and a **Download**, and there is an *All as
-PDF* for the lot.
+PDF* for the lot. Typed notes and handwriting appear in both.
 
 **Adding, editing and deleting.** All three reach Supernote. Deleting really
 does delete — from the tablet as well as from Task Hub — which is the opposite

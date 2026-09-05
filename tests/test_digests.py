@@ -233,6 +233,133 @@ check("the unfiled row alone keeps only those",
 check("the sentinel cannot collide with a real library id",
       not re.fullmatch(r"[0-9a-f]{32}", UNFILED_UID), UNFILED_UID)
 
+print("\nA digest's handwriting is decoded, not just noted")
+# Both halves of a digest's note are carried: the typed one arrives in the
+# listing as commentStr, the handwritten one is a separate file that has to be
+# fetched and decoded. Task Hub showed neither picture at first and simply said
+# the writing was "on the tablet", which is the least useful thing it could say
+# about the half somebody wrote themselves.
+from app.services import supernote_mark as mark  # noqa: E402
+from app.services.text_pdf import Image  # noqa: E402
+
+check("the listing carries a typed note",
+      Recorder(rows=[dict(ROW, commentStr="Typed here")]).digests()[0].comment
+      == "Typed here")
+check("and the handwriting's checksum, to tell a changed drawing from a fetched one",
+      Recorder(rows=[dict(ROW, handwriteMD5="abc123")]).digests()[0].handwriting_md5
+      == "abc123")
+
+print("\nThe layer header is found wherever it sits in the file")
+# The regression that cost a real digest its picture: layer headers are near
+# the front of a small mark file and *after* the bitmap in a larger one. An
+# earlier version scanned only the first 64KB, so one of two real files decoded
+# and the other silently produced nothing.
+far = b"markSN_FILE_VER_20230015" + b"\x00" * 70000 + b"<LAYERBITMAP:429>"
+check("an address past 64KB is still found",
+      mark._bitmap_addresses(far) == [429], str(mark._bitmap_addresses(far)))
+check("several layers give several candidates",
+      mark._bitmap_addresses(b"<LAYERBITMAP:12><LAYERBITMAP:80>" + b"\x00" * 200)
+      == [12, 80])
+check("an address past the end of the file is refused",
+      mark._bitmap_addresses(b"<LAYERBITMAP:999999>") == [])
+check("and so is one that is not a number",
+      mark._bitmap_addresses(b"<LAYERBITMAP:none>" + b"\x00" * 100) == [])
+
+print("\nRun-length decoding expands to one grey byte per pixel")
+# Pairs of (colour, length); a length under 0x80 means that many pixels plus
+# one, and the high bit marks the low seven bits of a longer run.
+plain = mark.decode_rle(bytes([0x61, 0x02, 0x62, 0x01]), 5)
+check("a short run is that many plus one", plain == bytes([0, 0, 0, 255, 255]),
+      str(bytes(plain)))
+check("a short read is padded rather than refused",
+      len(mark.decode_rle(bytes([0x61, 0x00]), 10)) == 10)
+check("an empty payload gives nothing", mark.decode_rle(b"", 10) is None)
+
+print("\nA file that is not a mark file is refused rather than drawn")
+for rubbish in (b"", b"not a supernote file", b"%PDF-1.4 hello"):
+    check(f"{rubbish[:12]!r} is refused", mark.to_image(rubbish) is None)
+    check("  and yields no PNG", mark.to_png(rubbish) is None)
+
+print("\nThe saved picture can be read back for the PDF")
+# The PDF needs raw samples, so the drawing is read back out of the PNG rather
+# than the mark file being decoded again on every request.
+pixels = bytes(range(256)) * 4
+written = mark._png(pixels, 32, 32, scale=1)
+found = mark.read_png(written)
+check("it reads back", found is not None)
+if found:
+    back, w, h = found
+    check("at the same size", (w, h) == (32, 32), f"{w}x{h}")
+    check("with the same pixels", back == pixels)
+check("something that is not a PNG is refused", mark.read_png(b"nope") is None)
+
+print("\nHandwriting reaches the PDF as a picture, not a note about a picture")
+with_image = build("Digest", [
+    Block("The Beatitudes", size=11.5),
+    Image(bytes([0]) * (60 * 20), 60, 20),
+])
+check("the page declares the drawing", b"/XObject" in with_image)
+check("as an 8-bit greyscale image",
+      b"/ColorSpace /DeviceGray" in with_image and b"/BitsPerComponent 8" in with_image)
+drawn = [zlib.decompress(m.group(1))
+         for m in re.finditer(rb"stream\r?\n(.*?)\nendstream", with_image, re.S)
+         if b"Do" in m.group(0) or True]
+check("and paints it", any(b"/Im1 Do" in d for d in drawn if b"Do" in d),
+      str([d[:80] for d in drawn]))
+# The offsets are rebuilt around the image objects, and a reader refuses the
+# whole file if one is wrong -- so this is checked again with an image present.
+start = int(re.search(rb"startxref\s+(\d+)", with_image).group(1))
+entries = re.findall(rb"(\d{10}) (\d{5}) ([nf])", with_image[start:])
+bad = [i for i, (off, _, kind) in enumerate(entries)
+       if kind == b"n" and not with_image[int(off):].startswith(f"{i} 0 obj".encode())]
+check("every offset still resolves with images present", not bad, str(bad))
+
+print("\nA drawing is sized to the writing, not stretched to the column")
+# A two-word note blown up to the width of the page reads as shouting.
+small = Image(b"\x00" * (200 * 60), 200, 60)
+w, h = small.placed(column=483.0, page=730.0)
+check("a small drawing keeps its proportions",
+      abs(w / h - 200 / 60) < 0.01, f"{w:.1f}x{h:.1f}")
+check("and is not blown up to fill the column", w < 483.0, f"{w:.1f}")
+# One too big for the page must shrink, or it would be clipped invisibly.
+huge = Image(b"\x00" * 10, 4000, 9000)
+w, h = huge.placed(column=483.0, page=730.0)
+# Shrunk to exactly the height available, so this is compared with a hair of
+# tolerance rather than exactly.
+check("an oversized drawing is shrunk to fit", w <= 483.01 and h <= 730.01,
+      f"{w:.4f}x{h:.4f}")
+check("keeping its proportions", abs(w / h - 4000 / 9000) < 0.01)
+
+print("\nFiling a new digest offers every library, not just the mirrored ones")
+# Reported from a real account: six libraries on the tablet, two in the menu.
+# The menu was built from the digests already on the page, so a library that
+# was not being mirrored -- or simply had nothing in it yet -- could not be
+# chosen at all.
+import json as _json  # noqa: E402
+
+
+def menu(cache: str) -> list[str]:
+    """Mirror what known_libraries makes of a stored cache."""
+    if not cache:
+        return []
+    try:
+        rows = _json.loads(cache)
+    except ValueError:
+        return []
+    return [r["name"] for r in rows if isinstance(r, dict) and r.get("uid")]
+
+
+stored = _json.dumps([
+    {"uid": "a", "name": "Bible Notes"}, {"uid": "b", "name": "Work"},
+    {"uid": "", "name": "Broken"},
+])
+check("every remembered library is offered",
+      menu(stored) == ["Bible Notes", "Work"], str(menu(stored)))
+check("one with no identifier is left out", "Broken" not in menu(stored))
+for broken in ("", "not json", "[]"):
+    check(f"a {broken[:8]!r} cache gives an empty menu rather than an error",
+          menu(broken) == [])
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)

@@ -910,10 +910,15 @@ class SupernoteDigestItem(Base):
     source_path: Mapped[str] = mapped_column(String(1024), default="")
     source_type: Mapped[int] = mapped_column(Integer, default=0)
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    #: Set when the digest carries a handwritten comment. The file itself is not
-    #: fetched; the flag exists so the page can say there is more on the tablet
-    #: rather than silently showing only half of it.
+    #: Set when the digest carries a handwritten comment.
     has_handwriting: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: File name of the decoded handwriting, under the notes directory. Null
+    #: when there is none, or when the file could not be read -- the flag above
+    #: stays true in that case, so the page can still say the tablet has more.
+    handwriting_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    #: Supernote's checksum for the handwriting, so it is fetched again only
+    #: when it actually changes.
+    handwriting_md5: Mapped[str] = mapped_column(String(64), default="")
 
     remote_md5: Mapped[str] = mapped_column(String(64), default="")
     remote_created_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime, nullable=True)
