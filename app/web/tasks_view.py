@@ -165,6 +165,7 @@ def index(
         record = row["record"]
         parent = by_uid.get(getattr(record, "parent_uid", None) or "")
         row["parent_title"] = parent.title if parent is not None else None
+        row["parent_uid"] = parent.uid if parent is not None else None
         mine = kids.get(record.uid or "", [])
         row["step_count"] = len(mine)
         row["steps_done"] = sum(1 for k in mine if k.is_completed)
@@ -221,6 +222,86 @@ def index(
         query=q,
         today=today,
         errors=errors,
+    )
+
+
+@router.get("/{collection_id}/{uid}/steps")
+def steps(collection_id: str, uid: str, request: Request,
+          db: Session = Depends(get_db)):
+    """One task and everything under it, in order, on a page of its own.
+
+    The main list is grouped by when things are due, which is the right answer
+    for deciding what to do next and the wrong one for seeing how a piece of
+    work is put together -- a parent and its steps end up scattered across four
+    date groups. This is the other view: the shape rather than the schedule.
+    """
+    client = get_radicale_client(db)
+    if client is None:
+        return deps.redirect("/tasks")
+
+    info = next(
+        (c for c in _task_collections(db, client) if c.collection_id == collection_id),
+        None,
+    )
+    if info is None:
+        deps.flash(request, "That task list is no longer here.", "error")
+        return deps.redirect("/tasks")
+
+    try:
+        records = client.list_records(
+            info.collection_id, CollectionKind.TASKS, include_completed=True
+        )
+    except CalDAVError as exc:
+        deps.flash(request, str(exc), "error")
+        return deps.redirect("/tasks")
+
+    by_uid = {r.uid: r for r in records if r.uid}
+    root = by_uid.get(uid)
+    if root is None:
+        deps.flash(request, "That task is no longer here.", "error")
+        return deps.redirect("/tasks")
+
+    # Shown from the top of the tree rather than from whichever task was
+    # clicked: opening a middle step and being shown only what hangs off it
+    # hides the very context the page exists to give.
+    seen = {root.uid}
+    while root.parent_uid and root.parent_uid in by_uid:
+        if root.parent_uid in seen:
+            break  # A cycle; stop rather than loop.
+        seen.add(root.parent_uid)
+        root = by_uid[root.parent_uid]
+
+    children: dict[str, list] = {}
+    for record in records:
+        if record.parent_uid:
+            children.setdefault(record.parent_uid, []).append(record)
+    for group in children.values():
+        group.sort(key=_sort_key)
+
+    def walk(record, depth: int) -> list[dict]:
+        """The task, then everything under it, depth-first."""
+        mine = children.get(record.uid or "", [])
+        done = sum(1 for k in mine if k.is_completed)
+        rows = [{
+            "record": record, "depth": depth,
+            "step_count": len(mine), "steps_done": done,
+        }]
+        if depth < 16:  # A guard, not a limit anybody will meet.
+            for child in mine:
+                rows.extend(walk(child, depth + 1))
+        return rows
+
+    rows = walk(root, 0)
+    total = len(rows) - 1
+    return deps.render(
+        request, db, "task_steps.html",
+        collection=info,
+        rows=rows,
+        root=root,
+        focused=uid,
+        total_steps=total,
+        done_steps=sum(1 for r in rows[1:] if r["record"].is_completed),
+        today=dt.datetime.now(deps.resolve_tz(settings_store.get_timezone(db))).date(),
     )
 
 

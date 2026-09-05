@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+{% import "partials/icons.html" as ico %}
+
+{% block title %}{{ root.title }} · {{ app_name }}{% endblock %}
+{% block page_title %}{{ root.title }}{% endblock %}
+{% block page_subtitle %}
+  <div class="subtitle">
+    {% if total_steps %}
+      {{ done_steps }} of {{ total_steps }} step{{ '' if total_steps == 1 else 's' }} done
+      · in {{ collection.display_name }}
+    {% else %}
+      No subtasks · in {{ collection.display_name }}
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block page_actions %}
+  <a class="btn btn-ghost" href="/tasks?collection={{ collection.collection_id }}">
+    Back to tasks
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    {# The whole point of this page: the shape of the work, in order, rather
+       than the schedule. The main list groups by when things are due, which
+       scatters a parent and its steps across four date groups. #}
+    <ul class="steps-tree">
+      {% for row in rows %}
+        {% set t = row.record %}
+        {% set badge = badge_for(t.origin_service) %}
+        <li class="steps-row depth-{{ row.depth if row.depth < 6 else 5 }}
+                   {{ 'is-done' if t.is_completed }}
+                   {{ 'is-focused' if t.uid == focused }}">
+          <form method="post"
+                action="/tasks/{{ collection.collection_id }}/{{ t.uid|urlencode }}/toggle"
+                class="steps-check-form">
+            <button type="submit" class="steps-check {{ 'is-checked' if t.is_completed }}"
+                    aria-label="Mark {{ t.title }} {{ 'not done' if t.is_completed else 'done' }}">
+              {% if t.is_completed %}{{ ico.icon('check', 'icon') }}{% endif %}
+            </button>
+          </form>
+
+          <div class="steps-body">
+            <div class="steps-title">{{ t.title }}</div>
+
+            <div class="steps-meta">
+              {% if row.step_count %}
+                <span class="pill pill-steps">
+                  {{ row.steps_done }}/{{ row.step_count }}
+                </span>
+              {% endif %}
+
+              <span class="badge badge-{{ badge.colour }}">
+                <span class="badge-dot" aria-hidden="true"></span>{{ badge.label }}
+              </span>
+
+              {% if t.due_date %}
+                <span class="task-due {{ 'is-overdue' if not t.is_completed and t.due_date < today }}">
+                  {{ ico.icon('clock', 'icon') if t.due_time }}
+                  {{ t.due_date|fmt_date(date_format) }}{% if t.due_time %} · {{ t.due_time|fmt_time(time_format) }}{% endif %}
+                </span>
+              {% endif %}
+
+              {% if t.priority %}
+                <span class="priority-flag priority-{{ t.priority }}">P{{ t.priority }}</span>
+              {% endif %}
+
+              {% for tag in t.tags %}<span class="pill">{{ tag }}</span>{% endfor %}
+            </div>
+
+            {% if t.notes %}
+              <div class="steps-notes">{{ t.notes }}</div>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

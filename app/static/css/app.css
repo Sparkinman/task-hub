@@ -680,21 +680,134 @@ legend { font-weight: 600; font-size: 0.88rem; padding: 0 0 var(--gap-2); }
 .task-main { flex: 1 1 auto; min-width: 0; }
 .task-title { font-weight: 530; font-size: 0.94rem; word-break: break-word; }
 
-/* A subtask says which task it belongs to, above its own title. Indented a
-   little so the relationship reads at a glance without the row leaving the
-   date group it was sorted into. */
-.task.is-subtask { padding-left: 1.15rem; }
+/* --- Subtasks in the main list ------------------------------------------
+   A subtask names the task it belongs to above its own title. It stays in the
+   date group it was sorted into -- a step due today belongs under Today -- so
+   the relationship has to be carried by the row itself: a rail down the left
+   edge, an indent, and the parent's name as a link to the whole piece of work. */
+.task.is-subtask {
+  padding-left: 1.5rem;
+  position: relative;
+}
+.task.is-subtask::before {
+  content: "";
+  position: absolute;
+  left: 0.45rem;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent, #4b7bec);
+  opacity: 0.4;
+}
+.task.is-subtask.is-done::before { opacity: 0.18; }
+
 .task-parent {
-  font-size: 0.74rem;
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-subtle);
   line-height: 1.3;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.12rem;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-decoration: none;
 }
-.task-parent::before { content: "\21B3"; margin-right: 0.3rem; opacity: 0.75; }
-.pill-steps { font-variant-numeric: tabular-nums; }
+.task-parent::before { content: "\21B3"; margin-right: 0.32rem; opacity: 0.8; }
+.task-parent:hover { color: var(--accent, #4b7bec); text-decoration: underline; }
+
+/* The step counter is a way in to the whole piece of work, so it looks like
+   something to press rather than a label. */
+a.pill-steps {
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+a.pill-steps .icon { width: 0.82em; height: 0.82em; opacity: 0.75; }
+a.pill-steps:hover {
+  border-color: var(--accent, #4b7bec);
+  color: var(--accent, #4b7bec);
+}
+
+/* --- The steps page ------------------------------------------------------
+   One task and everything under it, in order. Depth is shown by indent and by
+   a rail, so a three-level breakdown reads as a shape rather than a list. */
+.steps-tree { list-style: none; margin: 0; padding: 0; }
+.steps-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.7rem 0.2rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.steps-row:last-child { border-bottom: none; }
+.steps-row.depth-1 { padding-left: 1.9rem; }
+.steps-row.depth-2 { padding-left: 3.4rem; }
+.steps-row.depth-3 { padding-left: 4.9rem; }
+.steps-row.depth-4 { padding-left: 6.4rem; }
+.steps-row.depth-5 { padding-left: 7.9rem; }
+.steps-row:not(.depth-0)::before {
+  content: "";
+  position: absolute;
+  left: 0.85rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent, #4b7bec);
+  opacity: 0.28;
+}
+/* The task that was clicked, so it is findable in a long breakdown. */
+.steps-row.is-focused { background: var(--surface-2, rgba(75,123,236,0.06)); }
+
+.steps-check-form { margin: 0; flex: none; }
+.steps-check {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.12rem;
+  border: 1.5px solid var(--border-strong, #9aa4b2);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #fff;
+}
+.steps-check:hover { border-color: var(--accent, #4b7bec); }
+.steps-check.is-checked {
+  background: var(--accent, #4b7bec);
+  border-color: var(--accent, #4b7bec);
+}
+.steps-check .icon { width: 0.8em; height: 0.8em; }
+
+.steps-body { min-width: 0; flex: 1; }
+.steps-title { font-weight: 530; font-size: 0.94rem; word-break: break-word; }
+.steps-row.is-done .steps-title {
+  text-decoration: line-through;
+  color: var(--text-subtle);
+}
+.steps-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.28rem;
+}
+.steps-notes {
+  margin-top: 0.35rem;
+  font-size: 0.84rem;
+  color: var(--text-subtle);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .task-meta {
   display: flex; align-items: center; gap: var(--gap-3);
   flex-wrap: wrap; margin-top: 3px;

@@ -155,18 +155,23 @@
 
               <div class="task-main">
                 {% if row.parent_title %}
-                  <div class="task-parent" title="Part of {{ row.parent_title }}">
+                  {# A link, not a caption: the point of naming the parent is to
+                     be able to get to it and see the whole piece of work. #}
+                  <a class="task-parent"
+                     href="/tasks/{{ c.collection_id }}/{{ row.parent_uid|urlencode }}/steps"
+                     title="See {{ row.parent_title }} and all its steps">
                     {{ row.parent_title }}
-                  </div>
+                  </a>
                 {% endif %}
                 <div class="task-title">{{ t.title }}</div>
 
                 <div class="task-meta">
                   {% if row.step_count %}
-                    <span class="pill pill-steps"
-                          title="{{ row.steps_done }} of {{ row.step_count }} steps done">
-                      {{ row.steps_done }}/{{ row.step_count }} steps
-                    </span>
+                    <a class="pill pill-steps"
+                       href="/tasks/{{ c.collection_id }}/{{ t.uid|urlencode }}/steps"
+                       title="See all {{ row.step_count }} steps in order">
+                      {{ ico.icon('check-square', 'icon') }}{{ row.steps_done }}/{{ row.step_count }} steps
+                    </a>
                   {% endif %}
                   <span class="badge badge-{{ badge.colour }}">
                     <span class="badge-dot" aria-hidden="true"></span>{{ badge.label }}
