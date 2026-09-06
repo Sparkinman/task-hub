@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import re
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import JSONResponse
@@ -472,8 +473,38 @@ def repeat_key(rrule: str | None) -> str:
     return "custom"
 
 
+STEP_DATE_RE = re.compile(r"^(.*?)\s+@(\d{4}-\d{2}-\d{2})$")
+
+
+def parse_step_line(line: str) -> tuple[str, dt.date | None]:
+    """Split one line of the steps box into a title and an optional due date.
+
+    A line may end with ``@YYYY-MM-DD``, which becomes that step's own due date.
+    ISO order rather than the viewer's display format, deliberately: this is
+    typed text, and 03/04 is a different day depending on where you learned to
+    write dates.
+
+    A trailing ``@...`` that is not a real date stays part of the title --
+    somebody writing "email @dave" meant the words. Same rule as the Supernote
+    plugin's ``parseSteps``, so a step typed on the tablet and a step typed here
+    behave identically.
+    """
+    text = line.strip().lstrip("-*").strip()
+    if not text:
+        return "", None
+    match = STEP_DATE_RE.match(text)
+    if not match or not match.group(1).strip():
+        return text, None
+    try:
+        return match.group(1).strip(), dt.date.fromisoformat(match.group(2))
+    except ValueError:
+        # Well-shaped but not a real day, e.g. @2026-02-30.
+        return text, None
+
+
 def _add_steps(client, collection_id: str, parent_uid: str, steps: str,
-               now: dt.datetime) -> tuple[int, int]:
+               now: dt.datetime, due_date: dt.date | None = None,
+               due_time: dt.time | None = None) -> tuple[int, int]:
     """Create a subtask for each non-empty line. Returns (made, failed).
 
     Only ever adds. Nothing here renames or removes an existing step, which is
@@ -481,13 +512,18 @@ def _add_steps(client, collection_id: str, parent_uid: str, steps: str,
     box is never filled in with what is already there, so saving a task without
     typing in it adds nothing at all.
 
+    Steps take ``due_date`` -- normally the parent task's own -- unless the line
+    named a date of its own. A step of something due Friday is almost always due
+    by Friday too, and having to open each one afterwards to say so was the
+    tedious part of writing a task out in steps.
+
     Each failure is counted rather than aborting the rest -- losing four steps
     because the third had a bad character would be a poor trade for somebody
     who typed all five.
     """
     made = failed = 0
     for line in (steps or "").splitlines():
-        step = line.strip().lstrip("-*").strip()
+        step, own_date = parse_step_line(line)
         if not step:
             continue
         child = CanonicalRecord(
@@ -496,6 +532,10 @@ def _add_steps(client, collection_id: str, parent_uid: str, steps: str,
             parent_uid=parent_uid,
             title=step[:500],
             status=ItemStatus.NEEDS_ACTION,
+            due_date=own_date or due_date,
+            # The batch time belongs to the batch date only: a line that named
+            # its own day did not name a time to go with it.
+            due_time=None if own_date else due_time,
             origin_service=ServiceKind.LOCAL,
             created_at=now,
             updated_at=now,
@@ -542,6 +582,8 @@ def create_task(
     notes: str = Form(""),
     parent_uid: str = Form(""),
     steps: str = Form(""),
+    steps_due_date: str = Form(""),
+    steps_due_time: str = Form(""),
     repeats: str = Form(""),
     back_collection: str = Form(""),
     back_completed: str = Form(""),
@@ -601,7 +643,13 @@ def create_task(
         deps.flash(request, str(exc), "error")
         return deps.redirect(back)
 
-    made, failed = _add_steps(client, collection_id, record.uid, steps, now)
+    # A date chosen for the steps wins over the task's own; empty means inherit.
+    steps_date = _parse_date(steps_due_date) or parsed_date
+    made, failed = _add_steps(
+        client, collection_id, record.uid, steps, now,
+        due_date=steps_date,
+        due_time=_parse_time(steps_due_time) if _parse_date(steps_due_date) else parsed_time,
+    )
     deps.flash(request, _said_about_steps(f"Added {title!r}", made, failed),
                "warning" if failed else "success")
     return deps.redirect(back)
@@ -671,6 +719,8 @@ def update_task(
     priority: str = Form("0"),
     notes: str = Form(""),
     steps: str = Form(""),
+    steps_due_date: str = Form(""),
+    steps_due_time: str = Form(""),
     repeats: str = Form("custom"),
     db: Session = Depends(get_db),
 ):
@@ -728,8 +778,12 @@ def update_task(
     # nothing, however many times it is saved -- which is what makes offering
     # this here safe. Filling it in with the current steps and trying to work
     # out the difference is the version that duplicates and deletes.
-    made, failed = _add_steps(client, collection_id, record.uid, steps,
-                              record.updated_at)
+    steps_date = _parse_date(steps_due_date) or record.due_date
+    made, failed = _add_steps(
+        client, collection_id, record.uid, steps, record.updated_at,
+        due_date=steps_date,
+        due_time=_parse_time(steps_due_time) if _parse_date(steps_due_date) else record.due_time,
+    )
     deps.flash(request, _said_about_steps("Task updated", made, failed),
                "warning" if failed else "success")
     return deps.redirect("/tasks")

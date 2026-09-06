@@ -337,6 +337,17 @@
                         Only adds. Existing sub tasks are edited on their own rows.
                       </span>
                     </div>
+                    <div class="field">
+                      <label>Sub tasks due</label>
+                      <div class="row">
+                        <input type="date" name="steps_due_date">
+                        <input type="time" name="steps_due_time">
+                      </div>
+                      <span class="field-hint">
+                        Empty means the same day as this task. Or end a line with
+                        <code>@2026-09-10</code>.
+                      </span>
+                    </div>
                     <div class="row">
                       <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
                       <button type="button" class="btn btn-ghost btn-sm"
@@ -534,6 +545,23 @@
                     placeholder="Book flights&#10;Renew passport&#10;Arrange dog sitter"></textarea>
           <span class="field-hint">
             Optional. Each line becomes a subtask of this one.
+          </span>
+        </div>
+
+        {# A date for the steps, separate from the task's own. Left empty they
+           inherit the task's due date, which is what a step of something due
+           Friday almost always wants. A line ending in @2026-09-10 overrides
+           both — the same rule the Supernote plugin follows, so the same text
+           behaves the same wherever it was typed. #}
+        <div class="field">
+          <label for="new-steps-due">Sub tasks due</label>
+          <div class="row">
+            <input type="date" id="new-steps-due" name="steps_due_date">
+            <input type="time" id="new-steps-time" name="steps_due_time">
+          </div>
+          <span class="field-hint">
+            Leave empty and each sub task takes this task's own due date. End a line with
+            <code>@2026-09-10</code> to give that one its own date instead.
           </span>
         </div>
 
