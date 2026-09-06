@@ -33,6 +33,16 @@ DIGEST_JOB_ID = "taskhub-digest"
 #: so it must never inherit the task sync's cadence, whatever that is set to.
 NOTE_BACKUP_JOB_ID = "taskhub-note-backup"
 
+#: Which accounts we have already nagged about, and when. A setting rather than
+#: a column: this is a notification detail, not something the account itself
+#: needs to carry, and it should not cost a schema migration.
+NEEDS_AUTH_NOTIFIED_KEY = "push_needs_auth_notified"
+
+#: How long to wait before reminding about the same disconnected account again.
+#: A day is often enough that it is not forgotten, rare enough that it does not
+#: become noise for somebody who is away for a week.
+NEEDS_AUTH_REMINDER_HOURS = 24
+
 _scheduler: BackgroundScheduler | None = None
 _lock = threading.Lock()
 #: Guards against a scheduled pass starting while a manual one is still running.
@@ -53,6 +63,7 @@ def _run_job() -> None:
             run.outcome.value, run.items_pulled, run.items_pushed, run.errors,
         )
         _notify_sync_outcome(run)
+        _notify_accounts_needing_auth()
     except Exception:  # noqa: BLE001 - a failure must not kill the scheduler
         logger.exception("Scheduled sync failed")
     finally:
@@ -277,6 +288,119 @@ def _notify_sync_outcome(run) -> None:
         )
     except Exception:  # noqa: BLE001 - a notification must never break a sync
         logger.debug("Could not send a sync notification", exc_info=True)
+
+
+def _notify_accounts_needing_auth() -> None:
+    """Remind about accounts whose login has expired, for as long as it has.
+
+    Separate from _notify_sync_outcome, which announces only the change from
+    working to failing. That is the right rule for a service being down, but
+    wrong for an expired login: once the engine marks an account NEEDS_AUTH the
+    next pass *skips* it rather than failing on it, so the run goes back to
+    reporting success and that single notification is the last anybody hears.
+    The account then sits disconnected indefinitely, quietly not syncing.
+
+    Google makes this easy to hit. An OAuth consent screen left on Testing
+    expires the login every seven days, so an account can lapse repeatedly
+    without the owner ever being told twice.
+    """
+    import datetime as dt
+    import json
+
+    from app.db.models import Account, AccountStatus
+
+    try:
+        with session_scope() as session:
+            if not settings_store.get_bool(session, settings_store.PUSH_ENABLED):
+                return
+
+            stale = list(
+                session.execute(
+                    _sqlselect(Account).where(
+                        Account.status == AccountStatus.NEEDS_AUTH,
+                        Account.enabled.is_(True),
+                    )
+                ).scalars()
+            )
+
+            raw = settings_store.get(session, NEEDS_AUTH_NOTIFIED_KEY) or "{}"
+            try:
+                notified = json.loads(raw)
+            except ValueError:
+                notified = {}
+            if not isinstance(notified, dict):
+                notified = {}
+
+            now = dt.datetime.now(dt.timezone.utc)
+            cutoff = now - dt.timedelta(hours=NEEDS_AUTH_REMINDER_HOURS)
+
+            due = []
+            for account in stale:
+                key = str(account.id)
+                last = notified.get(key)
+                if last:
+                    try:
+                        when = dt.datetime.fromisoformat(last)
+                    except ValueError:
+                        when = None
+                    if when is not None:
+                        if when.tzinfo is None:
+                            when = when.replace(tzinfo=dt.timezone.utc)
+                        if when > cutoff:
+                            continue
+                due.append(account)
+
+            # Forget accounts that have been reconnected, so the next lapse is
+            # announced immediately rather than waiting out an old timestamp.
+            live = {str(a.id) for a in stale}
+            notified = {k: v for k, v in notified.items() if k in live}
+
+            if not due:
+                settings_store.set_value(session, NEEDS_AUTH_NOTIFIED_KEY, json.dumps(notified))
+                session.commit()
+                return
+
+            names = sorted({a.display_name or a.service.value.title() for a in due})
+            for account in due:
+                notified[str(account.id)] = now.isoformat()
+            settings_store.set_value(session, NEEDS_AUTH_NOTIFIED_KEY, json.dumps(notified))
+            session.commit()
+
+        title, body = _needs_auth_message(names)
+
+        from app.web.push_view import broadcast
+
+        broadcast(
+            title=title,
+            body=body,
+            url="/services",
+            tag="taskhub-needs-auth",
+            category="sync",
+        )
+    except Exception:  # noqa: BLE001 - a notification must never break a sync
+        logger.debug("Could not send a reconnect notification", exc_info=True)
+
+
+def _needs_auth_message(names: list[str]) -> tuple[str, str]:
+    """Say which account needs attention, and that syncing has stopped for it.
+
+    Named rather than generic: "a sync did not complete" leaves somebody
+    opening the app to find out what, and the action here is specific enough
+    to put in the notification itself.
+    """
+    if len(names) == 1:
+        return (
+            f"{names[0]} needs signing in again",
+            f"Task Hub cannot sync {names[0]} until you reconnect it.",
+        )
+    if len(names) == 2:
+        joined = " and ".join(names)
+    else:
+        joined = ", ".join(names[:-1]) + f" and {names[-1]}"
+    return (
+        f"{len(names)} accounts need signing in again",
+        f"Task Hub cannot sync {joined} until you reconnect them.",
+    )
 
 
 def _run_note_backup() -> None:
