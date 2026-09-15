@@ -89,6 +89,10 @@ SKIP_DIRS = {".obsidian", ".trash", ".git", "node_modules"}
 #: own empty-pull guard: absence is the one signal that destroys data.
 MIN_FILES_FOR_TRUST = 1
 
+#: What a note collecting inline tasks is called, when the user has chosen the
+#: folder to put it in rather than naming a note themselves.
+DEFAULT_INBOX = "From Task Hub.md"
+
 #: The most lines one pass may change. A sync wanting to rewrite more of a
 #: vault than this is far more likely to be a fault than an intention, so it
 #: stops and says so rather than working through the list.
@@ -656,7 +660,14 @@ class ObsidianConnector(Connector):
                 ),
             )
 
+        # The setting is a folder, chosen from the vault rather than typed, so
+        # the note itself is named here. A value that already names a note is
+        # honoured as one: that is what earlier versions stored, and silently
+        # treating it as a folder would start writing somewhere else.
         relative = self.create_note
+        if not relative.lower().endswith(".md"):
+            relative = f"{relative.strip('/')}/{DEFAULT_INBOX}" if relative.strip("/") \
+                else DEFAULT_INBOX
         if not self._may_write(remote_list_id, relative):
             return PushOutcome(
                 remote_id=None,

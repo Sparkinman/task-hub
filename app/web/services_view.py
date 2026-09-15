@@ -566,12 +566,16 @@ def _mapping_context(db, accounts) -> dict:
     # remote_list id -> {"read": {collection ids}, "writeout": {list ids}}
     #
     # "read" is what the row's collection column shows. "writeout" is the third
-    # column: the lists this row's result is written back out to. Write-back is
-    # a property of the collection, so a row's targets are the lists written by
-    # whichever collections that row reads into -- resolved here so the template
-    # can ask a plain "is this box ticked" question of both columns.
+    # column: the lists this row's result is deliberately written out to.
+    #
+    # Only what somebody actually chose. This used to be derived -- every
+    # write-enabled list in any group the row read into was shown as ticked --
+    # which meant opening a page and finding boxes ticked that had never been
+    # touched there, describing an arrangement rather than recording a choice.
+    # Worse, saving the page then wrote those inferred ticks back as real ones.
+    # ``write_from_list_ids`` is where an explicit choice is stored, so it is
+    # the only thing read here, and a row nobody has configured starts empty.
     mapped: dict[int, dict] = {}
-    written_by_group: dict[int, set[int]] = {}
     for mapping in db.execute(_select(_Mapping)).scalars():
         collection_id = group_collection.get(mapping.sync_group_id)
         if collection_id is None:
@@ -584,20 +588,14 @@ def _mapping_context(db, accounts) -> dict:
             entry["read"].add(collection_id)
             if mapping.create_from_remote is False:
                 entry["updates_only"] = True
-        if mapping.write_enabled:
-            written_by_group.setdefault(mapping.sync_group_id, set()).add(
-                mapping.remote_list_id
-            )
 
-    collection_group = {
-        collection_id: group_id
-        for group_id, collection_id in group_collection.items()
-    }
-    for entry in mapped.values():
-        for collection_id in entry["read"]:
-            group_id = collection_group.get(collection_id)
-            if group_id is not None:
-                entry["writeout"] |= written_by_group.get(group_id, set())
+    for mapping in db.execute(_select(_Mapping)).scalars():
+        for source_id in mapping.write_from_list_ids or []:
+            source = mapped.setdefault(
+                source_id,
+                {"read": set(), "writeout": set(), "updates_only": False},
+            )
+            source["writeout"].add(mapping.remote_list_id)
 
     # Every list that could receive write-back, across every connected service
     # and every account of it -- a collection may push into a Todoist list just
@@ -638,9 +636,15 @@ def _mapping_context(db, accounts) -> dict:
     # the "<row>:<target>" values that are currently ticked.
     dropdowns: dict[int, dict] = {}
 
-    written_lists: set[int] = set()
-    for lists in written_by_group.values():
-        written_lists |= lists
+    # Which lists receive write-back at all, for the "One-way" pill. This is a
+    # statement of fact about the arrangement, unlike the write-out column,
+    # which records a choice -- so it is still derived, and deliberately kept
+    # separate from what the dropdown shows as ticked.
+    written_lists: set[int] = {
+        mapping.remote_list_id
+        for mapping in db.execute(_select(_Mapping)).scalars()
+        if mapping.write_enabled
+    }
 
     def _dropdown_for(remote_list) -> dict:
         entry = mapped.get(

@@ -175,6 +175,17 @@ with tempfile.TemporaryDirectory() as raw:
     check("with both set, creation is offered",
           build().capabilities(CollectionKind.TASKS).can_create)
 
+    folder_chosen = build(create_note="Sync Testing")
+    landed = folder_chosen.create("vault:", record(uid="f", title="From a folder"),
+                                  CollectionKind.TASKS)
+    check("choosing a folder puts tasks in a note Task Hub names",
+          landed.remote_id.startswith("Sync Testing/From Task Hub.md#"),
+          str(landed.remote_id))
+    check("a note path is still honoured as a note path",
+          build(create_note="Tasks/Inbox.md").create(
+              "vault:", record(uid="g", title="Legacy"), CollectionKind.TASKS
+          ).remote_id.startswith("Tasks/Inbox.md#"))
+
     outside = build(create_note="../escape.md")
     check("a note outside the vault is refused",
           outside.create("vault:", record(), CollectionKind.TASKS).error is not None)

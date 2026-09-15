@@ -26,13 +26,16 @@
     <span class="alert-icon" aria-hidden="true">▲</span>
     <div class="grow">
       <div class="alert-title">
-        Task Hub can write to
+        Two-way with
         {% for e in writable %}“{{ e.vault.name }}”{{ ', ' if not loop.last }}{% endfor %}
       </div>
-      It changes one thing only: whether a task is ticked, and its completion
-      date. Never your wording, dates or tags; it never adds a task to a note
-      and never deletes one. Every other vault below is read-only, enforced by
-      Obsidian’s own client rather than promised here.
+      Tasks in the collections these vaults are mapped to are written into them,
+      and completing a task in <span class="strong">any</span> service on the
+      same collection ticks it off here too — and the other way round. What Task
+      Hub will not do is rewrite a task you wrote yourself, or delete a line: a
+      task finished elsewhere is marked done in your notes, never removed. Every
+      other vault below is read-only, enforced by Obsidian’s own client rather
+      than promised here.
     </div>
   </div>
 {% else %}
@@ -42,8 +45,12 @@
       <div class="alert-title">Task Hub never writes to your vaults</div>
       Your notes are read, never changed. Obsidian’s own client runs in
       <span class="strong">mirror-remote</span> mode, which reverts any local
-      change, so even a fault here could not alter your vault. Ticking a task
-      off in another service therefore will not tick it off in Obsidian.
+      change, so even a fault here could not alter your vault.
+      <span class="strong">Completing a task in Obsidian still syncs out</span>
+      to every service on the same collection — that half always works. It is
+      the return journey that does not: ticking a task off in Todoist will not
+      tick it off here, and a task created in Google will not appear in your
+      notes, until you allow read and write below.
     </div>
   </div>
 {% endif %}
@@ -122,7 +129,7 @@
         </div>
         <div class="row gap-2">
           {% if entry.write_back %}
-            <span class="pill pill-warning" title="Task Hub may tick tasks off in this vault">Can tick tasks off</span>
+            <span class="pill pill-warning" title="Tasks are written into this vault, and completions sync both ways">Read &amp; write</span>
           {% else %}
             <span class="pill pill-success">Read-only</span>
           {% endif %}
@@ -314,9 +321,8 @@
                               'format': fmt2,
                               'both_formats': entry.has_tasknotes and entry.has_inline,
                               'note': entry.create_note,
-                              'location_hint': (entry.tasks_folder or 'TaskNotes/Tasks')
-                                               if fmt2 == 'tasknotes'
-                                               else 'Tasks/From Task Hub.md',
+                              'folders': entry.folders,
+                              'default_folder': entry.tasks_folder if fmt2 == 'tasknotes' else '',
                             }) }}
           </div>
         {% else %}

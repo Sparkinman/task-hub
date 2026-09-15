@@ -72,6 +72,32 @@ def account_for_slot(db: Session, slot: int) -> Account | None:
     ).scalar_one_or_none()
 
 
+def _vault_folders(vault_path) -> list[str]:
+    """Every folder in a vault, as paths relative to its root.
+
+    Offered as a choice rather than typed, because a path typed by hand is a
+    path with a typo in it, and the failure is silent: tasks are written to a
+    folder that looks right and is not where the user is looking.
+
+    Obsidian's own directories are left out -- nobody files tasks in
+    ``.obsidian`` -- and so is anything unreadable, since a vault half-way
+    through its first download will raise here otherwise.
+    """
+    skip = {".obsidian", ".trash", ".git", "node_modules"}
+    found: list[str] = []
+    try:
+        for child in vault_path.rglob("*"):
+            if not child.is_dir():
+                continue
+            relative = child.relative_to(vault_path)
+            if any(part in skip or part.startswith(".") for part in relative.parts):
+                continue
+            found.append(str(relative).replace("\\", "/"))
+    except OSError:
+        return []
+    return sorted(found, key=str.lower)[:400]
+
+
 def _tasknotes_folder(vault_path) -> str:
     """The folder TaskNotes files new tasks in, or "" if it does not say."""
     import json
@@ -147,6 +173,7 @@ def state(db: Session) -> dict:
             # Where TaskNotes itself files tasks, so the page can name it rather
             # than describing it. Read from the plugin, never assumed.
             "tasks_folder": _tasknotes_folder(path),
+            "folders": _vault_folders(path),
             # Whether this vault is being kept current, rather than being a
             # copy taken once and quietly ageing.
             "live": sync_manager.status(name),

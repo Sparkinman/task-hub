@@ -180,26 +180,43 @@
                                           <label class="field-label tiny mt-2" for="vw-note-{{ account.id }}">
                                             Where new tasks go
                                           </label>
-                                          <input class="input input-sm" id="vw-note-{{ account.id }}"
-                                                 name="vaultnote" value="{{ vault_write.note }}"
-                                                 placeholder="{{ vault_write.location_hint }}">
-                                          <span class="tiny muted" style="display:block; margin-top:4px;">
-                                            {%- if vault_write.both_formats %}
-                                              A <span class="strong">folder</span> if you chose
-                                              TaskNotes — each task gets a file of its own in it.
-                                              The <span class="strong">path of a note</span> if you
-                                              chose the Tasks plugin — lines are added to the end
-                                              of it, and it is created if it does not exist.
-                                            {%- elif vault_write.format == 'tasknotes' %}
-                                              A folder inside the vault. Each task gets a file of
-                                              its own in it.
-                                            {%- else %}
-                                              The path of a note inside the vault. Lines are added
-                                              to the end of it, and it is created if it does not
-                                              exist.
+                                          {# Chosen from the vault, not typed. A path
+                                             typed by hand is a path with a typo in it,
+                                             and the failure is silent: tasks written
+                                             to a folder that looks right and is not
+                                             where the user is looking. #}
+                                          <select class="input input-sm" id="vw-note-{{ account.id }}"
+                                                  name="vaultnote">
+                                            <option value="" {{ 'selected' if not vault_write.note }}>
+                                              {%- if vault_write.default_folder -%}
+                                                {{ vault_write.default_folder }} — where TaskNotes files its own
+                                              {%- else -%}
+                                                Choose a folder…
+                                              {%- endif -%}
+                                            </option>
+                                            {%- for folder in vault_write.folders %}
+                                              <option value="{{ folder }}"
+                                                      {{ 'selected' if vault_write.note == folder }}>
+                                                {{ folder }}
+                                              </option>
+                                            {%- endfor %}
+                                            {%- if vault_write.note and vault_write.note not in vault_write.folders %}
+                                              {# Whatever was set before, even if that folder has
+                                                 since been renamed or deleted -- shown so it can
+                                                 be seen and changed rather than silently dropped. #}
+                                              <option value="{{ vault_write.note }}" selected>
+                                                {{ vault_write.note }} (not in the vault any more)
+                                              </option>
                                             {%- endif %}
-                                            Leave empty to use
-                                            <span class="mono">{{ vault_write.location_hint }}</span>.
+                                          </select>
+                                          <span class="tiny muted" style="display:block; margin-top:4px;">
+                                            {%- if vault_write.format == 'tasknotes' %}
+                                              Each task gets a note of its own in this folder.
+                                            {%- else %}
+                                              Tasks are added to
+                                              <span class="mono">From Task Hub.md</span> in this
+                                              folder, which is created if it is not there.
+                                            {%- endif %}
                                           </span>
                                           {%- if not vault_write.on %}
                                             <label class="check mt-2">
