@@ -33,7 +33,7 @@ first time was broken in some way no test had caught.
 | **TickTick** | ✓ | — | Stress-run. The public API has no calendar and will not return tags |
 | **Microsoft** | ✓ | ✓ | To Do and Outlook Calendar. Registering the app needs an Entra ID directory — [the options](microsoft.md) |
 | **Apple iCloud** | ✓ | ✓ | 200 tasks and 200 events through a list and calendar it created and removed itself. [One caveat about upgraded Reminders](apple.md) |
-| **Obsidian** | ✓ | — | Tasks in your vault, through Obsidian Sync. Read-only unless write-back is enabled |
+| **Obsidian** | ✓ | — | Tasks in your vault, through Obsidian Sync. Reads the Tasks plugin and TaskNotes. Read-only unless write-back is turned on in advanced settings |
 | **Things 3** | ✓ | — | Import only. Its endpoint is unpublished and can change without warning — that warning never comes off |
 | **CalDAV (generic)** | ✓ | ✓ | Verified against a live Radicale server: sign-in, discovery, and a to-do created, read back and deleted with due time, priority and notes intact |
 | **Radicale (built in)** | ✓ | ✓ | The hub everything meets at |

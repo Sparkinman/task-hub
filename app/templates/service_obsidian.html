@@ -249,7 +249,8 @@
           </div>
         </details>
 
-        {# ---------- Write-back ---------- #}
+        {# ---------- Write-back (advanced only) ---------- #}
+        {% if advanced_mode %}
         <details class="disclosure mt-5" id="write-back-{{ account.slot }}"
                  {{ 'open' if entry.write_back }}>
           <summary>
@@ -298,7 +299,95 @@
             </div>
 
             <form method="post" action="/obsidian/{{ account.slot }}/write-back" class="mt-4">
-              <input type="hidden" name="enabled" value="{{ '0' if entry.write_back else '1' }}">
+
+              {# What ticking this actually does, in the terms the user will see
+                 it in. Said before the controls rather than after them. #}
+              <div class="alert alert-info">
+                <span class="alert-icon" aria-hidden="true">i</span>
+                <div class="grow">
+                  <div class="alert-title">What happens when this is on</div>
+                  <p>
+                    Every task in the collections this vault is mapped to will
+                    <span class="strong">also appear in Obsidian</span>, written
+                    in the format you choose below — including tasks that came
+                    from Google, Todoist, TickTick, your phone or your Supernote.
+                    Completing one of them anywhere ticks it off here too.
+                  </p>
+                  <p class="mt-2">
+                    Task Hub never deletes a line from your notes. A task deleted
+                    elsewhere is marked done in the vault rather than removed, and
+                    it never rewrites the wording of a task you wrote yourself.
+                  </p>
+                </div>
+              </div>
+
+              {% if entry.write_back %}
+                {% for f in entry.write_folders %}
+                  <input type="hidden" name="folders" value="{{ f }}">
+                {% endfor %}
+                <input type="hidden" name="confirm" value="1">
+              {% endif %}
+
+              {# ---- Which format new tasks are written in ---- #}
+              {% if entry.has_tasknotes and entry.has_inline %}
+                <div class="field mt-4">
+                  <label class="field-label" for="fmt-{{ account.slot }}">
+                    Format for tasks written into this vault
+                  </label>
+                  <span class="field-hint">
+                    Both the Tasks plugin and TaskNotes are installed here, so
+                    this is your choice to make.
+                  </span>
+                  <select class="input" id="fmt-{{ account.slot }}" name="create_format">
+                    <option value="auto" {{ 'selected' if entry.create_format == 'auto' }}>
+                      Let Task Hub choose (TaskNotes, because it loses less)
+                    </option>
+                    <option value="tasknotes" {{ 'selected' if entry.create_format == 'tasknotes' }}>
+                      TaskNotes — one note per task
+                    </option>
+                    <option value="inline" {{ 'selected' if entry.create_format == 'inline' }}>
+                      Tasks plugin — a checklist line in a note
+                    </option>
+                  </select>
+                  <span class="field-hint mt-2">
+                    A TaskNotes task can hold a <span class="strong">time of day</span>
+                    and a <span class="strong">description</span>; a checklist line
+                    can hold neither, so both are dropped on the way in. TaskNotes
+                    tasks are written to
+                    <span class="mono">{{ entry.tasks_folder or 'the folder TaskNotes is set to use' }}</span>,
+                    each in a file of its own, so nothing you have written is touched.
+                  </span>
+                </div>
+              {% elif entry.has_tasknotes %}
+                <input type="hidden" name="create_format" value="tasknotes">
+                <p class="small muted mt-4">
+                  TaskNotes is the only task plugin installed in this vault, so new
+                  tasks are written as task notes — one file each, in the folder
+                  TaskNotes uses. A task note can carry a time of day and a
+                  description; a checklist line cannot.
+                </p>
+              {% else %}
+                <input type="hidden" name="create_format" value="inline">
+              {% endif %}
+
+              {# ---- Where inline tasks go ---- #}
+              {% if not entry.has_tasknotes or entry.create_format == 'inline' %}
+                <div class="field mt-4">
+                  <label class="field-label" for="note-{{ account.slot }}">
+                    Note to add new tasks to
+                  </label>
+                  <span class="field-hint">
+                    A checklist line has to go somewhere, and Task Hub will not
+                    choose a note in your vault on your behalf. Give a path inside
+                    the vault — it is created if it does not exist, with a line at
+                    the top saying where its contents come from. Leave this empty
+                    and tasks are read out of the vault but none are written in.
+                  </span>
+                  <input class="input" id="note-{{ account.slot }}" name="create_note"
+                         value="{{ entry.create_note }}"
+                         placeholder="Tasks/From Task Hub.md">
+                </div>
+              {% endif %}
 
               {% if not entry.write_back %}
                 {% set folders = lists_by_account.get(account.id, [])
@@ -331,7 +420,7 @@
                 </label>
 
                 <div class="row mt-4">
-                  <button type="submit" class="btn btn-warning">
+                  <button type="submit" name="enabled" value="1" class="btn btn-warning">
                     Allow writing into “{{ entry.vault.name }}”
                   </button>
                 </div>
@@ -345,12 +434,18 @@
                   </span>
                 </p>
                 <div class="row mt-4">
-                  <button type="submit" class="btn">Make “{{ entry.vault.name }}” read-only again</button>
+                  <button type="submit" name="enabled" value="1" class="btn btn-primary">
+                    Save these settings
+                  </button>
+                  <button type="submit" name="enabled" value="0" class="btn">
+                    Make “{{ entry.vault.name }}” read-only again
+                  </button>
                 </div>
               {% endif %}
             </form>
           </div>
         </details>
+        {% endif %}
 
         {# The same mapping table every other service gets. #}
         {% set lists = lists_by_account.get(account.id, []) %}

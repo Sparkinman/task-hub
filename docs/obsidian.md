@@ -4,9 +4,13 @@ Task Hub reads tasks out of your Obsidian vault and syncs them to every other
 service you have connected. A task you write in a daily note appears in Todoist,
 Google Tasks and your calendar, carrying a link back to the note it came from.
 
-**Obsidian is read-only.** Task Hub never writes into your vault. See
-[Why read-only](#why-read-only) below — it is enforced by Obsidian's own client,
-not by Task Hub promising to behave.
+**Obsidian is read-only unless you turn writing on.** Out of the box Task Hub
+never writes into your vault, and that is enforced by Obsidian's own client
+rather than by Task Hub promising to behave — see
+[Why read-only](#why-read-only) below. Writing back is an advanced setting you
+switch on per vault, and switching it on changes the client's mode, so the
+guarantee is either really in force or really lifted, never half of each. See
+[Writing tasks into your vault](#writing-tasks-into-your-vault).
 
 ---
 
@@ -261,9 +265,64 @@ Todoist, Obsidian still shows it unticked, and a task created in Google Tasks
 never appears in your vault. Obsidian feeds the other services; nothing feeds
 Obsidian.
 
-Write-back may come later. It will be off by default, per-collection, and
-turning it on will mean changing that sync mode — a visible switch, not a
-checkbox buried in a form.
+---
+
+## Writing tasks into your vault
+
+Off by default, and per vault. It lives under **Services → Obsidian → Writing
+back into this vault**, which only appears when **Show advanced options** is
+turned on in Settings.
+
+Turning it on changes Obsidian's own client from `mirror-remote` to
+`bidirectional`, which is the real switch: while the client is in mirror-remote
+it reverts anything written locally, so nothing else would have any effect.
+Turning it off puts the client back, which restores the guarantee rather than
+merely promising it.
+
+### What it does
+
+Every task in the collections the vault is mapped to also appears in Obsidian —
+including tasks that came from Google, Todoist, TickTick, your phone or your
+Supernote. Completing one anywhere ticks it off here too.
+
+### What it will not do
+
+- **It never deletes a line from your notes.** A task deleted elsewhere is
+  marked done in the vault, not removed.
+- **It never rewrites the wording of a task you wrote.** The only thing it
+  changes on an existing line is the tick box and its completion date.
+- **It stops after 20 changes in one pass.** A sync that wants to rewrite more
+  of a vault than that is far more likely to be a fault than an intention.
+- **It can be walled into particular folders**, so the rest of the vault stays
+  untouched whatever else happens.
+
+### Which format new tasks are written in
+
+Two formats exist, and Task Hub reads both at once. Which one it *writes* is
+your choice when you have both plugins installed:
+
+| | Tasks plugin | TaskNotes |
+| --- | --- | --- |
+| Shape | a checklist line in a note | one note per task |
+| Time of day | **cannot hold one** | yes |
+| Description | **cannot hold one** | yes, as the note's body |
+| Sub-tasks | read, not written | read and written |
+| Where new tasks go | a note you nominate | the folder TaskNotes uses |
+
+TaskNotes loses less, so it is what Task Hub picks when you express no
+preference and both are installed. A task note is also the safer write: it is a
+new file of its own, so nothing you have written is touched.
+
+If you choose the Tasks plugin format, you must name a note for new tasks to be
+added to. Task Hub will not pick one in your vault on your behalf. The note is
+created if it does not exist, with a line at the top saying where its contents
+come from, and each task is added at the end.
+
+Task Hub reads each plugin's own settings rather than assuming anything: your
+global filter (`#task`, `#todo`, whatever you use), your TaskNotes task tag,
+your renamed properties, and your own status and priority names — including
+which of your statuses counts as finished. A task it writes uses your vault's
+own vocabulary, so your saved views find it like any other.
 
 ---
 

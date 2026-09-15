@@ -14,8 +14,9 @@ import sys
 
 from app.db.models import ItemStatus
 from app.services.obsidian_md import (
-    is_task, parse_line, source_reference, stable_id, strip_source_reference,
-    content_fingerprint, to_record, with_source_reference,
+    is_task, looks_like_a_date, parse_line, source_reference, stable_id,
+    strip_source_reference, content_fingerprint, to_record,
+    with_source_reference,
 )
 
 _failures: list[str] = []
@@ -239,7 +240,12 @@ check("the due date is read", str(n.due_date) == "2026-09-15", str(n.due_date))
 check("AND SO IS THE TIME", str(n.due_time) == "09:30:00", str(n.due_time))
 check("a date with no time gets no invented midnight", n.start_time is None,
       str(n.start_time))
-check("its scheduled date is the start", str(n.start_date) == "2026-09-14",
+# TaskNotes fills "scheduled" in on every task it creates -- its
+# defaultScheduledDate ships as "today" -- so it records when the task was made,
+# not when it may be begun. Carried outward as a start date it becomes a range
+# nobody set, and Todoist shows a task with a start date at its start, silently
+# reordering the list around a value the user never chose.
+check("a scheduled date is NOT read as a start date", n.start_date is None,
       str(n.start_date))
 
 print("\nTaskNotes recurrence is a real RRULE and passes straight through")
@@ -330,6 +336,50 @@ check("and it says Obsidian, not '3rd party'", badge["label"] == "Obsidian",
 check("the badge for a record read from a vault resolves the same way",
       deps.badge_for(inline.origin_service)["colour"] == "purple",
       str(deps.badge_for(inline.origin_service)))
+
+print("\nA mistyped date must not swallow the description")
+
+# Seen in a real vault: the year typed with five digits. The date scan used to
+# take the whole remainder of the line as the value, which left the task with an
+# empty title and no deadline -- and it travelled out to Google exactly so.
+line = "- [ ] #todo 📅 20206-09-18 Do some stuff after a date has been recorded"
+task = parse_line(line, 0)
+check("the line is still a task", task is not None and is_task(task, "#todo"))
+check("the description survives the bad date",
+      "Do some stuff after a date has been recorded" in task.description,
+      repr(task.description))
+check("the unreadable value is kept as written, not spread over the line",
+      task.value("due") == "20206-09-18", repr(task.value("due")))
+check("and it is reported as an unreadable date",
+      looks_like_a_date(task.value("due")), repr(task.value("due")))
+
+record = to_record(task, uid="", vault_name="V", relative_path="N.md")
+check("the task keeps a usable title",
+      record.title == "Do some stuff after a date has been recorded",
+      repr(record.title))
+check("and no deadline is invented from the typo", record.due_date is None)
+
+check("a correct date still takes only the date",
+      parse_line("- [ ] #todo 📅 2026-09-12 Item1 sub kids", 0).value("due")
+      == "2026-09-12")
+check("a date followed by a tag still takes only the date",
+      parse_line("- [ ] #todo 📅 2026-09-12 #home", 0).value("due") == "2026-09-12")
+
+print("\nNesting, as the vault expresses it")
+
+nested = [
+    "- [ ] #todo Parent 📅 2026-09-20",
+    "\t- [ ] #todo Child",
+    "\t\t- [ ] #todo Grandchild",
+]
+parsed = [parse_line(l, i) for i, l in enumerate(nested)]
+check("every level qualifies when it carries the filter",
+      all(is_task(t, "#todo") for t in parsed))
+check("indentation deepens with each level",
+      len(parsed[0].indent) < len(parsed[1].indent) < len(parsed[2].indent))
+check("an indented child WITHOUT the filter is not a task at all",
+      not is_task(parse_line("\t- [ ] Do some stuff on item 1", 0), "#todo"))
+
 
 print()
 if _failures:

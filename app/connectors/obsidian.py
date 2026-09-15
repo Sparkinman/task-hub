@@ -49,6 +49,10 @@ from app.services import obsidian_cli as cli
 from app.services.obsidian_md import (
     TaskNotesConfig,
     content_fingerprint,
+    new_block_id,
+    record_to_line,
+    record_to_tasknote,
+    tasknote_filename,
     looks_like_a_date,
     rewrite_completion,
     verify_only_completion_changed,
@@ -57,6 +61,7 @@ from app.services.obsidian_md import (
     load_tasknotes_config,
     parse_frontmatter,
     parse_line,
+    tasknote_project_links,
     stable_id,
     tasknote_to_record,
     to_record,
@@ -67,6 +72,11 @@ logger = logging.getLogger(__name__)
 #: The whole vault as one list. Anything else is "folder:<name>".
 WHOLE_VAULT = "vault:"
 FOLDER_PREFIX = "folder:"
+
+#: Marks a parent that is still a note *name* rather than a remote id, between
+#: reading one TaskNote and resolving the whole pull. Never leaves this module:
+#: anything still carrying it at the end of a pull is dropped.
+LINK_PREFIX = "link:"
 
 #: Directories never walked. ``.obsidian`` is configuration, ``.trash`` is
 #: Obsidian's own recycle bin, and syncing a deleted note back out as a live
@@ -113,6 +123,17 @@ class ObsidianConnector(Connector):
         self.write_back: bool = bool((credentials or {}).get("write_back"))
         #: Folders write-back is allowed into. Empty means the whole vault.
         self.write_folders: set[str] = set((credentials or {}).get("write_folders") or [])
+        #: The note new tasks are appended to, relative to the vault root. Empty
+        #: means creation stays off even with write-back on: a task arriving
+        #: from Google has no natural home in a vault, and picking one on the
+        #: user's behalf is how notes get written into places nobody expected.
+        self.create_note: str = str((credentials or {}).get("create_note") or "").strip()
+        #: Which format a new task is written in: "tasknotes", "inline", or
+        #: "auto" to let the vault decide. Only meaningful when both plugins are
+        #: installed, which is the case this exists for -- a vault with one of
+        #: them has no choice to make.
+        self.create_format: str = str(
+            (credentials or {}).get("create_format") or "auto").strip().lower()
         self._written = 0
         self._settings_cache: tuple[str, TaskNotesConfig] | None = None
 
@@ -136,13 +157,23 @@ class ObsidianConnector(Connector):
     # -- Capabilities ---------------------------------------------------------
 
     def capabilities(self, kind: CollectionKind) -> Capabilities:
-        # Creating and deleting stay off even with write-back enabled. Adding a
-        # line to somebody's note, or removing one, is a different order of
-        # change from ticking a box that is already there -- and nothing in the
-        # sync model needs it.
+        # Deleting stays off whatever else is enabled: removing a line from
+        # somebody's note is a different order of change from ticking a box that
+        # is already there, and a task completed elsewhere is better marked done
+        # in the vault than silently cut out of it.
+        #
+        # Creating is off unless write-back is on *and* a note has been named to
+        # put new tasks in. Both are required, because the dangerous half of
+        # creation is not the writing, it is choosing where.
+        # A task note needs no destination setting -- the plugin already says
+        # where tasks live. An inline task has nowhere to go until a note is
+        # named, so for that format the setting is still required.
+        can_create = bool(self.write_back) and (
+            self.writes_format() == "tasknotes" or bool(self.create_note)
+        )
         return Capabilities(
             fields=VAULT_FIELDS,
-            can_create=False,
+            can_create=can_create,
             can_delete=False,
             # A vault expresses nesting by indenting a line under another, which
             # is read here. Never written: this connector only ever patches a
@@ -168,17 +199,21 @@ class ObsidianConnector(Connector):
     def list_remote_lists(self) -> list[RemoteList]:
         """The whole vault, and each top-level folder that holds notes.
 
-        Every list is marked read-only, which is what stops the mapping table
-        offering a write-back tick that could never do anything.
+        A vault with write-back switched off reports every list as read-only,
+        which is what stops the mapping table offering a write tick that could
+        never do anything. With write-back on the tick becomes real, so the flag
+        follows the setting rather than being hardcoded -- and because this is
+        only refreshed on discovery, turning write-back on re-runs discovery.
         """
         root = self._require_vault()
+        read_only = not self.write_back
 
         lists = [RemoteList(
             remote_id=WHOLE_VAULT,
             name="Whole vault",
             kind=CollectionKind.TASKS,
             is_default=True,
-            read_only=True,
+            read_only=read_only,
         )]
 
         folders: set[str] = set()
@@ -192,7 +227,7 @@ class ObsidianConnector(Connector):
                 remote_id=f"{FOLDER_PREFIX}{folder}",
                 name=folder,
                 kind=CollectionKind.TASKS,
-                read_only=True,
+                read_only=read_only,
             ))
         return lists
 
@@ -275,6 +310,25 @@ class ObsidianConnector(Connector):
                 self._tasks_in(text, relative, global_filter, tasknotes, warnings)
             )
 
+        # Now that every note has been seen, a project link can be turned into
+        # the parent's actual remote id. A link pointing at something that is
+        # not a task in this pull is left unresolved and cleared: a project can
+        # perfectly well be an ordinary note, and claiming a parent that the
+        # engine cannot find would strand the child.
+        by_name: dict[str, str] = {}
+        for item in items:
+            if not item.remote_id.startswith("note:"):
+                continue
+            name = item.remote_id[len("note:"):].rsplit("/", 1)[-1].removesuffix(".md")
+            by_name.setdefault(name.lower(), item.remote_id)
+
+        for item in items:
+            parent = item.record.parent_remote_id or ""
+            if not parent.startswith(LINK_PREFIX):
+                continue
+            wanted = parent[len(LINK_PREFIX):].strip().lower()
+            item.record.parent_remote_id = by_name.get(wanted)
+
         # A pull that walked no files at all is a vault that has not finished
         # downloading, not a vault with nothing in it. Reporting it as complete
         # would let the engine read every task's absence as a deletion and
@@ -319,13 +373,22 @@ class ObsidianConnector(Connector):
         warnings: list[str] | None = None,
     ) -> list[RemoteItem]:
         """Every task one note contributes: itself, or the lines inside it."""
-        front, _body = parse_frontmatter(text)
+        front, body = parse_frontmatter(text)
 
         if front and is_tasknote(front, tasknotes):
             record = tasknote_to_record(
                 front, uid="", vault_name=self.vault_name,
-                relative_path=relative, config=tasknotes,
+                relative_path=relative, config=tasknotes, body=body,
             )
+            # TaskNotes expresses containment by pointing at another note, and
+            # a name is not a remote id. It is recorded provisionally here and
+            # resolved once the whole pull is in hand, because the note being
+            # pointed at may not have been walked yet -- and may not be a task
+            # at all, in which case it is a project label rather than a parent.
+            links = tasknote_project_links(front, tasknotes)
+            if links:
+                record.parent_remote_id = f"{LINK_PREFIX}{links[0]}"
+
             # A TaskNotes file IS the task, so the file is its identity -- no
             # hashing, and it survives the title being rewritten.
             return [RemoteItem(
@@ -340,7 +403,32 @@ class ObsidianConnector(Connector):
         #: Open ancestors while walking one file, as (indent width, remote id).
         #: Reset per file, because nesting never spans one.
         stack: list[tuple[int, str]] = []
+        #: The fence that opened the code block currently being skipped, if any.
+        #:
+        #: A checklist line inside a code block is an example of a task, not a
+        #: task. Obsidian's own Tasks plugin ignores them, so reading them makes
+        #: Task Hub's list disagree with the one the user sees -- and the notes
+        #: most likely to contain them are the ones explaining how tasks work,
+        #: which every vault that uses the plugin tends to have.
+        #:
+        #: Only fenced blocks are skipped. An indented code block cannot be told
+        #: apart from an indented subtask without tracking blank lines and list
+        #: context, and getting that wrong would silently drop real subtasks --
+        #: a worse failure than the one being fixed.
+        fence: str | None = None
         for number, line in enumerate(text.splitlines()):
+            stripped = line.lstrip()
+            if fence is not None:
+                if stripped.startswith(fence):
+                    fence = None
+                continue
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                # A fence may be longer than three characters and is closed only
+                # by one at least as long, so the opener's own length is kept.
+                run = len(stripped) - len(stripped.lstrip(stripped[0]))
+                fence = stripped[0] * max(run, 3)
+                continue
+
             task = parse_line(line, number)
             if task is None or not is_task(task, global_filter):
                 continue
@@ -365,6 +453,16 @@ class ObsidianConnector(Connector):
             # A date written the wrong way round is worse than no date: the
             # task syncs looking as though it never had a deadline, and there
             # is nothing on the page to say one was dropped.
+            if warnings is not None and not record.title.strip():
+                # A task with no words is not a task anybody can act on, and it
+                # arrives in Google and Todoist as a blank row. Said out loud
+                # rather than invented a name for: only the author knows what it
+                # was meant to say.
+                warnings.append(
+                    f"{relative}: a task on line {task.line_number + 1} has no "
+                    "description, so it will appear with no name everywhere it "
+                    "syncs."
+                )
             if warnings is not None:
                 for field in ("due", "scheduled", "start"):
                     written = task.value(field) or ""
@@ -392,8 +490,260 @@ class ObsidianConnector(Connector):
 
     # -- Writing: refused, loudly ---------------------------------------------
 
+    def writes_format(self, root: Path | None = None) -> str:
+        """Which format this vault's new tasks are written in.
+
+        A vault with TaskNotes installed can hold a time of day and a
+        description; an inline task cannot. So when the user has expressed no
+        preference and both are available, TaskNotes wins -- it loses less of
+        the task. When they have expressed one, it is obeyed even where the
+        other would carry more, because a vault is somebody's own filing system
+        and Task Hub's opinion about formats does not outrank theirs.
+        """
+        if (self.create_format or "auto") in ("inline", "tasknotes"):
+            return self.create_format
+        # Asked before a vault is linked -- from the capability check, which must
+        # never raise. Inline is the answer that needs no plugin installed.
+        try:
+            root = root or self.root
+        except ConnectorError:
+            return "inline"
+        tasknotes = root / ".obsidian" / "plugins" / "tasknotes" / "data.json"
+        return "tasknotes" if tasknotes.is_file() else "inline"
+
+    def _parent_note_name(self, record) -> str:
+        """The note a new task should name as its project, if it has a parent.
+
+        The engine fills ``parent_remote_id`` with the parent's id *at this
+        service*, which for a task note is ``note:<path>``. Only that form can
+        become a wikilink; a parent held as an inline task cannot be pointed at
+        from frontmatter, so it is dropped rather than guessed at.
+        """
+        parent = getattr(record, "parent_remote_id", "") or ""
+        if not parent.startswith("note:"):
+            return ""
+        return parent[len("note:"):].rsplit("/", 1)[-1].removesuffix(".md")
+
     def create(self, remote_list_id, record, kind) -> PushOutcome:
-        return PushOutcome(remote_id=None, error=self._read_only())
+        """Write a task from another service into the vault.
+
+        Two shapes, chosen by :meth:`writes_format`: a whole task note, or a
+        line appended to a nominated note. They fail differently and are kept
+        apart for that reason -- a new file cannot damage anything, while an
+        appended line is written into text somebody else owns.
+        """
+        if not self.write_back:
+            return PushOutcome(remote_id=None, error=self._read_only())
+        if self._written >= MAX_WRITES_PER_PASS:
+            return PushOutcome(
+                remote_id=None,
+                error=(
+                    f"Stopped after {MAX_WRITES_PER_PASS} changes in one pass. "
+                    "A sync that wants to rewrite more of your vault than that "
+                    "is more likely to be a fault than an intention."
+                ),
+            )
+        root = self._require_vault()
+        if self.writes_format(root) == "tasknotes":
+            return self._create_tasknote(root, remote_list_id, record)
+        return self._create_inline(root, remote_list_id, record)
+
+    def _create_tasknote(self, root: Path, remote_list_id: str, record) -> PushOutcome:
+        """Write one whole task note, the way the TaskNotes plugin would.
+
+        Nothing existing is touched: the task gets a file of its own, in the
+        folder the plugin itself puts tasks in, named the way it names them. If
+        anything about it is wrong the file is simply removed again.
+        """
+        _global_filter, tasknotes = self._settings(root)
+
+        folder = (self.create_note or tasknotes.tasks_folder or "").strip().strip("/")
+        stem = tasknote_filename(record.title or "")
+        relative = f"{folder}/{stem}.md" if folder else f"{stem}.md"
+
+        if not self._may_write(remote_list_id, relative):
+            return PushOutcome(
+                remote_id=None,
+                error="Write-back is not enabled for the folder new tasks go in.",
+            )
+
+        path = (root / relative).resolve()
+        if root.resolve() not in path.parents:
+            return PushOutcome(remote_id=None, error="That folder is outside the vault.")
+
+        # A name already taken belongs to somebody else's note, which must not
+        # be overwritten -- and two tasks really can share a title.
+        if path.exists():
+            for suffix in range(2, 50):
+                candidate = f"{folder}/{stem} {suffix}.md" if folder else f"{stem} {suffix}.md"
+                if not (root / candidate).exists():
+                    relative, path = candidate, (root / candidate).resolve()
+                    break
+            else:
+                return PushOutcome(
+                    remote_id=None,
+                    error=f"Could not find an unused name for {stem!r} in {folder!r}.",
+                )
+
+        text = record_to_tasknote(
+            record, config=tasknotes, parent_note=self._parent_note_name(record))
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            written_back = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return PushOutcome(remote_id=None, error=f"Could not write {relative}: {exc}")
+
+        if written_back != text:
+            self._remove(path, relative)
+            return PushOutcome(
+                remote_id=None,
+                error=f"{relative} did not save as expected and was removed.",
+            )
+
+        # The same refusal as the inline path, for the same reason: a task that
+        # cannot be read back is written again on every pass, for ever.
+        front, _body = parse_frontmatter(written_back)
+        if not front or not is_tasknote(front, tasknotes):
+            self._remove(path, relative)
+            return PushOutcome(
+                remote_id=None,
+                error=(
+                    f"The note written for {record.title!r} would not read back "
+                    "as a task, so it was removed rather than left to be written "
+                    "again on every pass."
+                ),
+            )
+
+        self._written += 1
+        logger.info("Created task note %s", relative)
+        return PushOutcome(remote_id=f"note:{relative}")
+
+    @staticmethod
+    def _remove(path, relative: str) -> None:
+        try:
+            path.unlink(missing_ok=True)
+            logger.warning("Removed %s, which had just been created", relative)
+        except OSError:
+            logger.exception("Could not remove %s after a failed write", relative)
+
+    def _create_inline(self, root: Path, remote_list_id, record) -> PushOutcome:
+        """Append a task from another service to the vault's chosen note.
+
+        Creating is the one write here that does not touch a line somebody else
+        wrote: the task is added at the end of a note nominated for exactly this
+        purpose, so the worst case is an unwanted line in a file whose whole job
+        is to collect them. That is why creation is allowed at all while
+        rewriting an existing task's text still is not.
+
+        The note is made if it does not exist, with a sentence at the top saying
+        where its contents come from, because a file appearing in somebody's
+        vault with no explanation is its own kind of damage.
+        """
+        if not self.create_note:
+            return PushOutcome(
+                remote_id=None,
+                error=(
+                    "No note has been chosen for new tasks in this vault, so "
+                    "there is nowhere to put this one."
+                ),
+            )
+
+        relative = self.create_note
+        if not self._may_write(remote_list_id, relative):
+            return PushOutcome(
+                remote_id=None,
+                error="Write-back is not enabled for the folder that note is in.",
+            )
+
+        path = (root / relative).resolve()
+        if root.resolve() not in path.parents:
+            return PushOutcome(remote_id=None, error="That note is outside the vault.")
+
+        existed = path.is_file()
+        try:
+            original = path.read_text(encoding="utf-8") if existed else ""
+        except OSError as exc:
+            return PushOutcome(remote_id=None, error=f"Could not read {relative}: {exc}")
+
+        global_filter, _ = self._settings(root)
+        block_id = new_block_id()
+        line = record_to_line(record, block_id=block_id, global_filter=global_filter)
+
+        if existed:
+            body = original
+            if body and not body.endswith("\n"):
+                body += "\n"
+            updated = body + line + "\n"
+        else:
+            updated = (
+                f"# {path.stem}\n"
+                "\n"
+                "Tasks synced into this vault by Task Hub. Edit or move them "
+                "freely; the anchor at the end of each line is how they are "
+                "recognised afterwards.\n"
+                "\n"
+                + line + "\n"
+            )
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(updated, encoding="utf-8")
+            written_back = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return PushOutcome(remote_id=None, error=f"Could not write {relative}: {exc}")
+
+        # Checked against what is on disk, not against what was intended, and
+        # checked for the two things that matter: the task can be read back, and
+        # nothing that was already in the note has moved.
+        if written_back != updated:
+            self._restore_or_remove(path, original, relative, existed)
+            return PushOutcome(
+                remote_id=None,
+                error=f"{relative} did not save as expected and was put back.",
+            )
+
+        if existed:
+            before = original.splitlines()
+            after = written_back.splitlines()
+            if after[: len(before)] != before:
+                self._restore_or_remove(path, original, relative, existed)
+                return PushOutcome(
+                    remote_id=None,
+                    error=f"Writing to {relative} would have changed another line; it was put back.",
+                )
+
+        written = parse_line(line, 0)
+        if written is None or not is_task(written, global_filter):
+            # Refusing here is the important one. A line that cannot be read
+            # back is not merely lost: the next pass would find the task absent
+            # from the vault and write it in again, once per pass, for ever.
+            self._restore_or_remove(path, original, relative, existed)
+            return PushOutcome(
+                remote_id=None,
+                error=(
+                    f"The line written for {record.title!r} could not be read "
+                    "back as a task, so it was removed rather than left to be "
+                    "written again on every pass."
+                ),
+            )
+
+        self._written += 1
+        logger.info("Added %r to %s", (record.title or "")[:40], relative)
+        return PushOutcome(remote_id=f"{relative}#{stable_id(relative, written)}")
+
+    @staticmethod
+    def _restore_or_remove(path, original: str, relative: str, existed: bool) -> None:
+        """Undo a failed creation, whether or not the note was there before."""
+        if existed:
+            ObsidianConnector._restore(path, original, relative)
+            return
+        try:
+            path.unlink(missing_ok=True)
+            logger.warning("Removed %s, which had just been created", relative)
+        except OSError:
+            logger.exception("Could not remove %s after a failed write", relative)
 
     def update(self, remote_list_id, remote_id, record, kind) -> PushOutcome:
         """Tick a task off in the vault, or un-tick it. Nothing else.

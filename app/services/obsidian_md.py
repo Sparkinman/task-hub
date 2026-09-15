@@ -32,6 +32,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import re
+import secrets
 import unicodedata
 from dataclasses import dataclass, field
 from urllib.parse import quote
@@ -150,7 +151,7 @@ _DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 #: ninth of October and the tenth of September is exactly the sort of silent
 #: month/day swap this project refuses to make, so an unreadable date is
 #: reported rather than interpreted.
-_DATEISH_RE = re.compile(r"^\s*\d{1,4}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{1,4}\s*$")
+_DATEISH_RE = re.compile(r"^\s*\d{1,5}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{1,5}\s*$")
 
 
 def looks_like_a_date(raw: str) -> bool:
@@ -314,9 +315,24 @@ def parse_line(line: str, line_number: int = 0) -> InlineTask | None:
         # give a due value of "2026-09-12 #home", which parses as no date at all
         # and loses both the deadline and the tag.
         if name in _DATE_FIELDS:
-            found = re.match(r"\s*(\d{4}-\d{2}-\d{2})", raw_value)
+            # The trailing time is matched only so that it can be *consumed*.
+            # The Tasks plugin has no way to show a time on a line, so someone
+            # writing "📅 2026-09-19T14:35" has made a mistake -- but leaving the
+            # "T14:35" behind puts it in the task's title, where it travels out
+            # to every other service as part of the name.
+            found = re.match(
+                r"\s*(\d{4}-\d{2}-\d{2})(?:T\d{1,2}:\d{2}(?::\d{2})?)?", raw_value)
             if found:
                 value, end = found[1], value_at + found.end()
+            else:
+                # Not a readable date, which is usually a typo. Take only the
+                # next word rather than the rest of the line: a mistyped year
+                # ("📅 20206-09-18 Do the thing") would otherwise swallow the
+                # description whole, and the task travels out to every other
+                # service with a blank title and no deadline -- two losses from
+                # one slip, and nothing on the page to say either happened.
+                word = re.match(r"\s*(\S+)", raw_value)
+                value, end = (word[1], value_at + word.end()) if word else ("", value_at)
 
         tokens.append(Token(name, value, index, end, "emoji"))
         spans.append((index, end))
@@ -348,6 +364,27 @@ def parse_line(line: str, line_number: int = 0) -> InlineTask | None:
 #: that other plugins have annotated.
 TASK_MARKERS = {"due", "scheduled", "start", "recurrence", "done", "cancelled"}
 
+#: Prefix on a block reference that Task Hub wrote itself.
+#:
+#: It is what makes a task Task Hub created identifiable ever afterwards.
+#: :func:`stable_id` already prefers a block reference over a hash of the text,
+#: so a task written into a vault keeps its identity when the user rewrites its
+#: wording or moves the note it sits in -- which a text hash would not survive.
+#:
+#: Chosen to be visibly ours rather than random: somebody reading their own
+#: notes should be able to tell which anchors they put there and which arrived.
+TASKHUB_BLOCK_PREFIX = "th-"
+
+
+def is_taskhub_block(block_id: str | None) -> bool:
+    """Whether a block reference is one Task Hub wrote."""
+    return bool(block_id and block_id.startswith(TASKHUB_BLOCK_PREFIX))
+
+
+def new_block_id() -> str:
+    """A fresh block reference for a task about to be written into a vault."""
+    return f"{TASKHUB_BLOCK_PREFIX}{secrets.token_hex(4)}"
+
 
 def is_task(task: InlineTask, global_filter: str = "") -> bool:
     """Whether a checklist line should be synced as a task.
@@ -361,6 +398,12 @@ def is_task(task: InlineTask, global_filter: str = "") -> bool:
     a task, which is the behaviour this whole module exists to avoid. So the
     line has to carry a real task field instead.
     """
+    if is_taskhub_block(task.block_id):
+        # A line Task Hub wrote itself, which is a task by construction. This
+        # clause is not a convenience: failing to recognise it would not merely
+        # lose the task, it would make the next pass find it missing from the
+        # vault and write it in a second time, once per pass, for ever.
+        return True
     if global_filter:
         return global_filter in task.raw
     if task.priority:
@@ -507,6 +550,223 @@ def verify_only_completion_changed(before: str, after: str) -> str | None:
             f"Was: {left!r}. Became: {right!r}."
         )
     return None
+
+
+# --- Writing a new task into a vault ------------------------------------------
+
+
+#: iCalendar priority (1 most important, 9 least, 0 unset) to the Tasks
+#: plugin's emoji. Five is deliberately absent: in iCalendar it means "normal",
+#: and in the Tasks plugin normal is the *absence* of an emoji rather than one
+#: of its own -- so writing 🔼 for a 5 would quietly promote every ordinary task
+#: to medium on its way into somebody's vault.
+def _priority_emoji(priority: int) -> str:
+    if priority <= 0:
+        return ""
+    if priority <= 2:
+        return "🔺"
+    if priority == 3:
+        return "⏫"
+    if priority == 4:
+        return "🔼"
+    if priority == 5:
+        return ""
+    if priority <= 7:
+        return "🔽"
+    return "⏬"
+
+
+def record_to_line(
+    record: CanonicalRecord,
+    *,
+    block_id: str,
+    global_filter: str = "",
+) -> str:
+    """One canonical record as a Tasks-plugin checklist line.
+
+    The rough inverse of :func:`parse_line`, and deliberately much narrower than
+    it. This builds a line from nothing, which is safe precisely because there
+    is no existing line to damage -- the rule that a line must be patched rather
+    than regenerated protects text somebody else wrote, and here nobody has
+    written any yet.
+
+    What it will not do is invent. A time of day is dropped rather than
+    approximated, because the emoji syntax has no way to say "2:30pm" and a date
+    that silently gained a time would travel back out to every other service as
+    an edit nobody made. Notes are dropped for the same reason: there is nowhere
+    on the line to put them.
+
+    The trailing block reference is what makes the task identifiable ever after.
+    :func:`stable_id` prefers it over the hash of the text, so the task survives
+    being reworded, reordered or moved to another note -- none of which a hash
+    of "path plus description" would survive.
+    """
+    done = record.status == ItemStatus.COMPLETED
+    pieces: list[str] = [f"- [{DONE_CHAR if done else OPEN_CHAR}]"]
+
+    # The vault's own global filter, where it has one, so that Obsidian's idea
+    # of the task list and Task Hub's stay the same list. Without this the task
+    # would sit in the vault invisible to every one of the user's own queries.
+    if global_filter:
+        pieces.append(global_filter)
+
+    pieces.append((record.title or "").strip() or "Untitled task")
+
+    for tag in record.tags or []:
+        cleaned = str(tag).strip().lstrip("#")
+        if cleaned:
+            pieces.append(f"#{cleaned}")
+
+    emoji = _priority_emoji(record.priority or 0)
+    if emoji:
+        pieces.append(emoji)
+
+    # Order matters: the Tasks plugin reads a line backwards from the end and
+    # stops at the first thing it does not recognise, so the metadata goes last
+    # and in the plugin's own order.
+    if record.rrule:
+        pieces.append(f"🔁 {record.rrule}")
+    if record.start_date:
+        pieces.append(f"🛫 {record.start_date.isoformat()}")
+    if record.due_date:
+        pieces.append(f"📅 {record.due_date.isoformat()}")
+    if done:
+        stamp = (record.completed_at.date() if record.completed_at
+                 else dt.date.today())
+        pieces.append(f"✅ {stamp.isoformat()}")
+
+    pieces.append(f"^{block_id}")
+    return " ".join(pieces)
+
+
+# --- Writing a new TaskNotes file ---------------------------------------------
+
+
+#: Characters no common filesystem will take in a name, plus the ones Obsidian
+#: reads as link syntax. Replaced rather than stripped, so two tasks whose names
+#: differ only there do not collide into one file.
+_UNSAFE_IN_FILENAME = re.compile(r'[\\/:*?"<>|\[\]#^]+')
+
+
+def tasknote_filename(title: str) -> str:
+    """A file name for a task, from its title.
+
+    TaskNotes names a task's file after the task, which is why a note with no
+    ``title`` property still has a name. Keeping that convention means a task
+    written by Task Hub is indistinguishable from one the user made.
+    """
+    cleaned = _UNSAFE_IN_FILENAME.sub("-", (title or "").strip())
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .-")
+    # Long titles are real -- a forwarded email subject line arrives as one --
+    # and most filesystems stop at 255 bytes for the whole name.
+    return (cleaned[:120].rstrip() or "Untitled task")
+
+
+def _yaml_scalar(value: str) -> str:
+    """One frontmatter value, quoted only when it has to be.
+
+    Hand-written rather than dumped with PyYAML because the surrounding file is
+    read by other people's plugins: block scalars, anchors and flow style are
+    all valid YAML and all unlike anything TaskNotes itself writes.
+    """
+    text = str(value)
+    if text == "":
+        return '""'
+    needs_quotes = (
+        text[0] in "-?:,[]{}#&*!|>'\"%@`"
+        or text[-1] in " :"
+        or ": " in text
+        or text.strip() != text
+        or text.lower() in ("true", "false", "null", "yes", "no", "on", "off", "~")
+    )
+    if not needs_quotes:
+        return text
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def record_to_tasknote(
+    record: CanonicalRecord,
+    *,
+    config: TaskNotesConfig | None = None,
+    parent_note: str = "",
+    now: dt.datetime | None = None,
+) -> str:
+    """One canonical record as a whole TaskNotes file.
+
+    The safest write in this module by a distance: a new file touches nothing
+    anybody else wrote, so none of the line-patching care that inline tasks
+    demand applies. It is also the only format here that can hold a time of day
+    and a description, both of which an inline task silently drops.
+
+    Every value is written in the vault's own vocabulary -- its word for "open",
+    its name for the due property -- so the result is indistinguishable from a
+    task the user created, and their own saved views find it.
+
+    ``scheduled`` is deliberately never written. Task Hub does not read it, and
+    writing a field it refuses to read would make a task change every time it
+    was looked at.
+    """
+    config = config or TaskNotesConfig()
+    stamp = (now or dt.datetime.now().astimezone()).replace(microsecond=0)
+
+    lines: list[str] = ["---"]
+
+    title = (record.title or "").strip() or "Untitled task"
+    lines.append(f"{config.key('title')}: {_yaml_scalar(title)}")
+
+    lines.append(f"{config.key('status')}: "
+                 f"{_yaml_scalar(config.value_for_status(record.status))}")
+
+    priority = config.value_for_priority(record.priority or 0)
+    if priority:
+        lines.append(f"{config.key('priority')}: {_yaml_scalar(priority)}")
+
+    if record.due_date:
+        if record.due_time:
+            value = f"{record.due_date.isoformat()}T{record.due_time.strftime('%H:%M')}"
+            # Only when the record names a zone. A floating time written with a
+            # Z would be moved by every reader's own offset -- the same fault in
+            # the opposite direction from dropping the offset when reading.
+            if (record.due_tz or "").upper() == "UTC":
+                value += "Z"
+        else:
+            value = record.due_date.isoformat()
+        lines.append(f"{config.key('due')}: {_yaml_scalar(value)}")
+
+    if record.status == ItemStatus.COMPLETED:
+        done = (record.completed_at.date() if record.completed_at else stamp.date())
+        lines.append(f"{config.key('completed')}: {_yaml_scalar(done.isoformat())}")
+
+    if record.rrule:
+        lines.append(f"{config.key('recurrence')}: {_yaml_scalar(record.rrule)}")
+
+    # Containment, in the only form TaskNotes has for it.
+    if parent_note:
+        lines.append(f"{config.key('projects')}:")
+        lines.append(f'  - "[[{parent_note}]]"')
+
+    lines.append(f"{config.key('created')}: {stamp.isoformat()}")
+    lines.append(f"{config.key('modified')}: {stamp.isoformat()}")
+
+    tags = []
+    if config.task_tag:
+        tags.append(config.task_tag)
+    for tag in record.tags or []:
+        cleaned = str(tag).strip().lstrip("#")
+        if cleaned and cleaned.lower() not in {t.lower() for t in tags}:
+            tags.append(cleaned)
+    if tags:
+        lines.append("tags:")
+        lines.extend(f"  - {_yaml_scalar(tag)}" for tag in tags)
+
+    lines.append("---")
+
+    body = strip_source_reference(record.notes) or ""
+    if body.strip():
+        lines.append("")
+        lines.append(body.strip())
+    lines.append("")
+    return "\n".join(lines)
 
 
 # --- The reference back to the note -------------------------------------------
@@ -667,6 +927,35 @@ TASKNOTES_PRIORITY = {
 
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\s*(?:\r?\n|\Z)", re.S)
 
+#: A wikilink, which is how TaskNotes writes a reference to another note --
+#: ``projects: ["[[A bUnch of blocked tasks]]"]``. The display half of
+#: ``[[Note|shown as this]]`` is dropped: the target is what identifies it.
+_WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+
+
+def wikilink_target(value) -> str:
+    """The note a value points at, or "" if it is not a link."""
+    match = _WIKILINK_RE.search(str(value or ""))
+    return match[1].strip() if match else ""
+
+
+def tasknote_project_links(front: dict, config: "TaskNotesConfig | None" = None) -> list[str]:
+    """The notes this task names as its projects, in order.
+
+    TaskNotes has no "parent" field. A subtask points at the note it belongs to
+    through ``projects``, so that is where containment is expressed -- but only
+    when the value is a link. A project written as a plain word is a label, not
+    a relationship, and treating it as one would invent a parent that does not
+    exist.
+    """
+    config = config or TaskNotesConfig()
+    targets = []
+    for value in _as_list(front.get(config.key("projects"))):
+        target = wikilink_target(value)
+        if target and target not in targets:
+            targets.append(target)
+    return targets
+
 
 @dataclass
 class TaskNotesConfig:
@@ -681,9 +970,87 @@ class TaskNotesConfig:
     fields: dict[str, str] = field(default_factory=lambda: dict(TASKNOTES_DEFAULT_FIELDS))
     #: A tag that marks a file as a task, if the vault uses one.
     task_tag: str = ""
+    #: How the vault says "this note is a task": by tag, or by a frontmatter
+    #: property having a particular value. Both are offered by the plugin, and
+    #: assuming the tag in a vault that uses the property reads every task as an
+    #: ordinary note -- the whole task list simply does not arrive.
+    identify_by: str = "tag"
+    property_name: str = ""
+    property_value: str = ""
+    #: The vault's own statuses, by stored value. The plugin records whether
+    #: each one counts as finished, so this is read rather than inferred from
+    #: the word: a vault calling its finished state "archived" or "shipped" is
+    #: perfectly legal, and guessing from the name would leave those tasks open
+    #: for ever everywhere else.
+    statuses: dict[str, ItemStatus] = field(default_factory=dict)
+    #: The vault's own priorities, by stored value, already on iCalendar's 1-9.
+    priorities: dict[str, int] = field(default_factory=dict)
+    #: Where the plugin puts new task notes, and how it names them. Used when
+    #: Task Hub creates one, so that a task arriving from Google lands where the
+    #: user's own tasks land rather than somewhere of our choosing.
+    tasks_folder: str = ""
+    filename_format: str = "title"
+    filename_template: str = "{{title}}"
+    default_status: str = ""
+    default_priority: str = ""
 
     def key(self, name: str) -> str:
         return self.fields.get(name, TASKNOTES_DEFAULT_FIELDS.get(name, name))
+
+    def status_for(self, raw: str) -> ItemStatus:
+        """The canonical status for one of this vault's status values."""
+        value = (raw or "").strip().lower()
+        if value in self.statuses:
+            return self.statuses[value]
+        return TASKNOTES_STATUS.get(value, ItemStatus.NEEDS_ACTION)
+
+    def priority_for(self, raw: str) -> int:
+        value = (raw or "").strip().lower()
+        if value in self.priorities:
+            return self.priorities[value]
+        return TASKNOTES_PRIORITY.get(value, 0)
+
+    def value_for_status(self, status: ItemStatus) -> str:
+        """This vault's own word for a status, for writing a task note.
+
+        Falls back to the plugin's shipped vocabulary, and then to the vault's
+        default, so a write never invents a status value the user's own filters
+        have never heard of.
+        """
+        # The vault's own default first. Several values can mean "not done" --
+        # this vault has both "none" and "open" -- and the default is the one
+        # the plugin itself puts on a task it creates, so it is the one that
+        # will look native in the user's own views.
+        if self.default_status:
+            default = self.default_status.strip().lower()
+            if self.statuses.get(default) == status:
+                return default
+        for value, mapped in self.statuses.items():
+            if mapped == status and value != "none":
+                return value
+        for value, mapped in self.statuses.items():
+            if mapped == status:
+                return value
+        shipped = {
+            ItemStatus.COMPLETED: "done",
+            ItemStatus.IN_PROCESS: "in-progress",
+            ItemStatus.CANCELLED: "cancelled",
+        }
+        return shipped.get(status, self.default_status or "open")
+
+    def value_for_priority(self, priority: int) -> str:
+        """This vault's own word for an iCalendar priority, or "" for unset."""
+        if not priority:
+            return ""
+        table = self.priorities or TASKNOTES_PRIORITY
+        best, distance = "", None
+        for value, mapped in table.items():
+            if not mapped:
+                continue
+            gap = abs(mapped - priority)
+            if distance is None or gap < distance:
+                best, distance = value, gap
+        return best
 
 
 def load_tasknotes_config(settings: dict | None) -> TaskNotesConfig:
@@ -711,6 +1078,63 @@ def load_tasknotes_config(settings: dict | None) -> TaskNotesConfig:
         if isinstance(tag, str) and tag.strip():
             config.task_tag = tag.strip().lstrip("#")
             break
+
+    method = settings.get("taskIdentificationMethod")
+    if isinstance(method, str) and method.strip():
+        config.identify_by = method.strip().lower()
+    for name, attribute in (("taskPropertyName", "property_name"),
+                            ("taskPropertyValue", "property_value")):
+        value = settings.get(name)
+        if isinstance(value, str) and value.strip():
+            setattr(config, attribute, value.strip())
+
+    # Statuses. ``isCompleted`` is the plugin's own answer to "is this task
+    # finished", so it is believed in preference to the word itself.
+    for entry in settings.get("customStatuses") or []:
+        if not isinstance(entry, dict):
+            continue
+        value = str(entry.get("value") or "").strip().lower()
+        if not value:
+            continue
+        if entry.get("isCompleted"):
+            config.statuses[value] = ItemStatus.COMPLETED
+        else:
+            config.statuses[value] = TASKNOTES_STATUS.get(value, ItemStatus.NEEDS_ACTION)
+            if config.statuses[value] == ItemStatus.COMPLETED:
+                # The word says done, the plugin says it is not. The plugin wins:
+                # it is what the user's own views act on.
+                config.statuses[value] = ItemStatus.NEEDS_ACTION
+
+    # Priorities. The plugin stores a weight, higher meaning more important,
+    # which is the opposite direction from iCalendar's 1-9. A known word keeps
+    # its usual meaning; anything the vault invented is placed by its weight.
+    entries = [e for e in (settings.get("customPriorities") or []) if isinstance(e, dict)]
+    ranked = sorted(
+        ((str(e.get("value") or "").strip().lower(), e.get("weight"))
+         for e in entries if str(e.get("value") or "").strip()),
+        key=lambda pair: pair[1] if isinstance(pair[1], (int, float)) else 0,
+    )
+    real = [(value, weight) for value, weight in ranked
+            if isinstance(weight, (int, float)) and weight > 0]
+    for position, (value, _weight) in enumerate(real):
+        if value in TASKNOTES_PRIORITY:
+            config.priorities[value] = TASKNOTES_PRIORITY[value]
+            continue
+        # Least important first, spread across 9 down to 1.
+        span = max(len(real) - 1, 1)
+        config.priorities[value] = round(9 - (position * 8 / span))
+    for value, weight in ranked:
+        if not isinstance(weight, (int, float)) or weight <= 0:
+            config.priorities.setdefault(value, 0)
+
+    for name, attribute in (("tasksFolder", "tasks_folder"),
+                            ("taskFilenameFormat", "filename_format"),
+                            ("customFilenameTemplate", "filename_template"),
+                            ("defaultTaskStatus", "default_status"),
+                            ("defaultTaskPriority", "default_priority")):
+        value = settings.get(name)
+        if isinstance(value, str) and value.strip():
+            setattr(config, attribute, value.strip())
 
     return config
 
@@ -758,6 +1182,17 @@ def is_tasknote(front: dict, config: TaskNotesConfig | None = None) -> bool:
         return False
     config = config or TaskNotesConfig()
 
+    # A vault can be set to mark tasks with a frontmatter property instead of a
+    # tag. Reading the tag in that vault finds nothing at all, so the setting is
+    # honoured rather than assumed.
+    if config.identify_by == "property" and config.property_name:
+        held = front.get(config.property_name)
+        wanted = config.property_value
+        if not wanted:
+            return held not in (None, "", [], {})
+        return any(str(v).strip().lower() == wanted.strip().lower()
+                   for v in _as_list(held) or [held])
+
     if config.task_tag:
         tags = {t.lstrip("#").lower() for t in _as_list(front.get("tags"))}
         return config.task_tag.lower() in tags
@@ -770,33 +1205,58 @@ def is_tasknote(front: dict, config: TaskNotesConfig | None = None) -> bool:
     )
 
 
-def _split_datetime(raw) -> tuple[dt.date | None, dt.time | None]:
-    """A TaskNotes date, which may or may not carry a time of day.
+def _split_datetime(raw) -> tuple[dt.date | None, dt.time | None, str | None]:
+    """A TaskNotes date: the day, the time of day if it has one, and its zone.
 
     Unlike the inline format, these can be "2026-09-15T09:30". Returning the
     time separately rather than defaulting it to midnight is what keeps the
     distinction between "due that day" and "due at half past nine" -- and a
     midnight invented here would be pushed into every other service as a real
     appointment.
+
+    **The offset is the part that must not be dropped.** A value like
+    "2026-09-19T14:35:00-06:00" names an instant; the same digits with no offset
+    name a wall clock, and the two are different times. Keeping the digits and
+    discarding the zone is precisely the fault that moved 103 real Google
+    Calendar events by an hour, so an offset is converted to UTC and said so,
+    while a value with no offset stays floating and is reported as such.
     """
     if isinstance(raw, dt.datetime):
-        return raw.date(), raw.time()
+        if raw.tzinfo is not None:
+            moment = raw.astimezone(dt.timezone.utc)
+            return moment.date(), moment.time(), "UTC"
+        return raw.date(), raw.time(), None
     if isinstance(raw, dt.date):
-        return raw, None
+        return raw, None, None
     text = str(raw or "").strip()
     if not text:
-        return None, None
+        return None, None, None
     date_part, _, time_part = text.partition("T")
     day = _parse_date(date_part)
     if day is None:
-        return None, None
+        return None, None, None
     if not time_part:
-        return day, None
+        return day, None, None
+
+    normalised = time_part.strip()
+    if normalised.endswith(("Z", "z")):
+        normalised = normalised[:-1] + "+00:00"
     try:
-        clock = dt.time.fromisoformat(time_part.rstrip("Z")[:8])
+        parsed = dt.time.fromisoformat(normalised)
     except ValueError:
-        return day, None
-    return day, clock
+        # Not a time we can read. The day is still good, and inventing a clock
+        # face for it would be worse than admitting the time is unknown.
+        try:
+            parsed = dt.time.fromisoformat(normalised[:8])
+        except ValueError:
+            return day, None, None
+        return day, parsed, None
+
+    if parsed.tzinfo is None:
+        return day, parsed, None
+
+    moment = dt.datetime.combine(day, parsed).astimezone(dt.timezone.utc)
+    return moment.date(), moment.time().replace(tzinfo=None), "UTC"
 
 
 def tasknote_to_record(
@@ -806,8 +1266,15 @@ def tasknote_to_record(
     vault_name: str,
     relative_path: str,
     config: TaskNotesConfig | None = None,
+    body: str = "",
 ) -> CanonicalRecord:
-    """One TaskNotes file as the shape the rest of Task Hub speaks."""
+    """One TaskNotes file as the shape the rest of Task Hub speaks.
+
+    The body is the task's description, and it is the second thing this format
+    can carry that an inline task cannot. Leaving it out meant a description
+    written in Obsidian never reached Google, and one written by Task Hub did
+    not survive being read back -- which reads as the text having been deleted.
+    """
     config = config or TaskNotesConfig()
 
     title = str(front.get(config.key("title")) or "").strip()
@@ -816,25 +1283,42 @@ def tasknote_to_record(
         # Obsidian shows in every list anyway.
         title = relative_path.rsplit("/", 1)[-1].removesuffix(".md")
 
-    status_raw = str(front.get(config.key("status")) or "").strip().lower()
-    status = TASKNOTES_STATUS.get(status_raw, ItemStatus.NEEDS_ACTION)
+    # Both go through the vault's own vocabulary first, falling back to the
+    # plugin's shipped words only for a value it does not define.
+    status = config.status_for(str(front.get(config.key("status")) or ""))
+    priority = config.priority_for(str(front.get(config.key("priority")) or ""))
 
-    priority_raw = str(front.get(config.key("priority")) or "").strip().lower()
-    priority = TASKNOTES_PRIORITY.get(priority_raw, 0)
+    due_date, due_time, due_tz = _split_datetime(front.get(config.key("due")))
+    done_date, done_time, done_tz = _split_datetime(front.get(config.key("completed")))
 
-    due_date, due_time = _split_datetime(front.get(config.key("due")))
-    start_date, start_time = _split_datetime(front.get(config.key("scheduled")))
-    done_date, _ = _split_datetime(front.get(config.key("completed")))
+    # ``scheduled`` is deliberately not read as a start date.
+    #
+    # TaskNotes fills it in on every task it creates -- its defaultScheduledDate
+    # ships as "today" -- so it records when the task was made rather than when
+    # it may be begun. Carried outward as a start date it becomes a range nobody
+    # set, and in Todoist a task with a start date is shown at its start: the
+    # whole list silently reorders itself around a value the user never chose.
+    # Same fault as TickTick's mirrored start date, and the same answer.
+    start_date, start_time = None, None
 
     tags = [t.lstrip("#") for t in _as_list(front.get("tags"))]
     if config.task_tag:
         tags = [t for t in tags if t.lower() != config.task_tag.lower()]
     # Contexts and projects are how TaskNotes says "where" and "what for", which
     # is what a tag means everywhere else Task Hub syncs to.
+    # Contexts and projects are how TaskNotes says "where" and "what for", which
+    # is what a tag means everywhere else Task Hub syncs to -- except where a
+    # project is a *link*, which is containment rather than a label and is
+    # carried as the task's parent instead. Keeping it in both places would put
+    # the parent's name on the child as a tag in every other service.
     tags += [
         str(v).strip("[]")
         for v in _as_list(front.get(config.key("contexts")))
-        + _as_list(front.get(config.key("projects")))
+    ]
+    tags += [
+        str(v).strip("[]")
+        for v in _as_list(front.get(config.key("projects")))
+        if not wikilink_target(v)
     ]
 
     recurrence = str(front.get(config.key("recurrence")) or "").strip()
@@ -843,14 +1327,20 @@ def tasknote_to_record(
         uid=uid,
         kind=CollectionKind.TASKS,
         title=title,
-        notes=source_reference(vault_name, relative_path),
+        notes=with_source_reference(
+            (body or "").strip() or None, source_reference(vault_name, relative_path)),
         status=status,
         completed_at=(
-            dt.datetime.combine(done_date, dt.time.min, tzinfo=dt.timezone.utc)
+            dt.datetime.combine(
+                done_date, done_time or dt.time.min, tzinfo=dt.timezone.utc)
             if done_date else None
         ),
         due_date=due_date,
         due_time=due_time,
+        # Only ever "UTC", and only when the file named an offset. A due time
+        # with no zone is a wall clock and must stay one: saying UTC of a
+        # floating time would move it by the reader's own offset.
+        due_tz=due_tz,
         start_date=start_date,
         start_time=start_time,
         priority=priority,

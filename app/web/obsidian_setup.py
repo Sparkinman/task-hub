@@ -72,6 +72,19 @@ def account_for_slot(db: Session, slot: int) -> Account | None:
     ).scalar_one_or_none()
 
 
+def _tasknotes_folder(vault_path) -> str:
+    """The folder TaskNotes files new tasks in, or "" if it does not say."""
+    import json
+
+    settings = vault_path / ".obsidian" / "plugins" / "tasknotes" / "data.json"
+    try:
+        data = json.loads(settings.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    folder = data.get("tasksFolder")
+    return folder.strip() if isinstance(folder, str) else ""
+
+
 def linked_vault(account: Account | None) -> dict:
     """Which vault this account is syncing, as saved when it was chosen."""
     if account is None or not account.credentials:
@@ -105,6 +118,7 @@ def state(db: Session) -> dict:
     from app.services.obsidian_sync import manager as sync_manager
 
     linked = []
+
     for account in accounts:
         vault = linked_vault(account)
         name = vault.get("name", "")
@@ -118,6 +132,21 @@ def state(db: Session) -> dict:
             "vault": vault,
             "path": str(path),
             "downloaded": path.exists() and any(path.iterdir()),
+            # Which task plugins this vault actually has, so the page offers a
+            # choice of format only where there is one to make. Read from the
+            # plugins' own data rather than from Obsidian's enabled-plugin list,
+            # which is not reliably synced -- one real vault here still listed
+            # two plugins months after six were in use.
+            "has_tasknotes": (
+                path / ".obsidian" / "plugins" / "tasknotes" / "data.json").is_file(),
+            "has_inline": (
+                path / ".obsidian" / "plugins" / "obsidian-tasks-plugin"
+                / "data.json").is_file(),
+            "create_format": (vault.get("create_format") or "auto"),
+            "create_note": (vault.get("create_note") or ""),
+            # Where TaskNotes itself files tasks, so the page can name it rather
+            # than describing it. Read from the plugin, never assumed.
+            "tasks_folder": _tasknotes_folder(path),
             # Whether this vault is being kept current, rather than being a
             # copy taken once and quietly ageing.
             "live": sync_manager.status(name),
@@ -372,6 +401,8 @@ def set_write_back(
     enabled: str = Form(""),
     confirm: str = Form(""),
     folders: list[str] = Form(default=[]),
+    create_format: str = Form("auto"),
+    create_note: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """Turn write-back on or off for one vault, and choose which folders.
@@ -383,6 +414,17 @@ def set_write_back(
     this way round also means turning write-back *off* restores the guarantee
     rather than merely promising it.
     """
+    # Gated here as well as in the template. Hiding a control that still works
+    # is not a safeguard, and this one writes into somebody's notes.
+    if not settings_store.is_advanced(db):
+        deps.flash(
+            request,
+            "Writing back into a vault is an advanced setting. Turn on "
+            "“Show advanced options” in Settings first.",
+            "error",
+        )
+        return deps.redirect(BACK)
+
     account = account_for_slot(db, slot)
     if account is None:
         return deps.redirect(BACK)
@@ -396,7 +438,24 @@ def set_write_back(
         return deps.redirect(BACK)
 
     mode = "bidirectional" if want else "mirror-remote"
-    result = cli.set_sync_mode(cli.vault_path(name), mode)
+
+    # The child holds the vault's lock and, more to the point, the mode it was
+    # started with. Writing a new mode into the client's configuration while it
+    # runs changes nothing it does: it carries on reverting local changes, so
+    # write-back appears to be on and every write silently disappears. Stopping
+    # it first and starting it again afterwards is what makes the setting real.
+    from app.services.obsidian_sync import apply_obsidian_sync_settings
+    from app.services.obsidian_sync import manager as sync_manager
+
+    was_running = sync_manager.status(name).running
+    if was_running:
+        sync_manager.apply([v for v in sync_manager.statuses() if v != name])
+    try:
+        result = cli.set_sync_mode(cli.vault_path(name), mode)
+    finally:
+        if was_running:
+            apply_obsidian_sync_settings()
+
     if not result.ok:
         deps.flash(
             request,
@@ -408,6 +467,10 @@ def set_write_back(
 
     vault["write_back"] = want
     vault["write_folders"] = sorted(f for f in folders if f) if want else []
+    vault["create_format"] = (
+        create_format if create_format in ("auto", "inline", "tasknotes") else "auto")
+    # Only meaningful for the inline format, and only inside the vault.
+    vault["create_note"] = create_note.strip().lstrip("/") if want else ""
     account.credentials = encrypt_json(vault)
     db.commit()
 

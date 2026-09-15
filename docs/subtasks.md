@@ -18,7 +18,8 @@ the documentation, and the documentation was wrong about three of them.
 | **Google Tasks** | Yes | Accepts more than one level, though its own apps show one |
 | **Todoist** | Yes | Several levels deep |
 | **TickTick** | Yes | Real subtasks, plus its own checklist items |
-| **Obsidian** | Reading only | An indented line under another is a subtask |
+| **Obsidian** (Tasks plugin) | Reading only | An indented line under another is a subtask |
+| **Obsidian** (TaskNotes) | Yes | A linked `projects:` entry is the parent, and Task Hub can write one |
 | **Microsoft To&nbsp;Do** | As steps | Its checklist items: a name and a tick, nothing more |
 | **Things 3** | No | Has checklist items, but this connector only reads tasks |
 | **Supernote To-Do** | Labels | Its tasks have no parent field, so the title carries it |
@@ -158,11 +159,27 @@ is why the button asks first.
 
 ## Known limits
 
-- **Obsidian is read-only for nesting.** Indentation in your notes is read as
-  hierarchy, but Task Hub will never re-indent your files.
+- **Nesting in the Tasks plugin format is read, never written.** Indentation in
+  your notes is read as hierarchy, but Task Hub will not re-indent your files,
+  and a task it adds is written at the top level. Writing a subtask there would
+  mean inserting a line into the middle of a note somebody else wrote, which is
+  a different order of change from adding one at the end.
+- **TaskNotes nesting works in both directions.** That format expresses
+  containment as a link in `projects:`, which is a field rather than a position
+  in a file, so Task Hub both reads it and writes it. A subtask arriving from
+  Google becomes a task note naming its parent. Only a *linked* project counts —
+  a project written as a plain word is a label, and is carried as a tag.
 - **Plain checklist lines in Obsidian are not subtasks.** A line only counts as
-  a task if it carries task metadata, so shopping lists and packing lists are
-  not swept in — and cannot become anybody's parent.
+  a task if it carries task metadata or your vault's global filter, so shopping
+  lists and packing lists are not swept in — and cannot become anybody's parent.
+  The same rule catches the indented children of a real task: if your vault uses
+  a global filter such as `#todo`, an indented child without that tag is not a
+  task at all, and will not sync. Obsidian's own task views hide it for exactly
+  the same reason.
+- **Blocking is not containment, and does not travel.** TaskNotes can record
+  that one task is blocked by another. Nothing Task Hub syncs to has a place to
+  put that — a task has a parent, not a dependency — so it is read past rather
+  than mistranslated into a parent it is not.
 - **Depth beyond one level is stored but not promised.** Radicale and Todoist
   hold arbitrary depth and Google's API accepted it, but Google's own apps
   appear to show only one level, so what a given app displays may be flatter
