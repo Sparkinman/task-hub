@@ -394,56 +394,36 @@ def pause_vault(slot: int, request: Request, db: Session = Depends(get_db)):
     return deps.redirect(BACK)
 
 
-@router.post("/{slot}/write-back")
-def set_write_back(
-    slot: int,
-    request: Request,
-    enabled: str = Form(""),
-    confirm: str = Form(""),
-    folders: list[str] = Form(default=[]),
-    create_format: str = Form("auto"),
-    create_note: str = Form(""),
-    db: Session = Depends(get_db),
-):
-    """Turn write-back on or off for one vault, and choose which folders.
+def apply_write_back(
+    db: Session,
+    account: Account,
+    *,
+    want: bool,
+    folders: list[str] | None = None,
+    create_format: str = "auto",
+    create_note: str = "",
+) -> tuple[bool, str]:
+    """Turn writing on or off for one vault. Returns (ok, what to tell the user).
 
     Enabling means changing Obsidian's own sync mode from ``mirror-remote`` to
     ``bidirectional``. That is the real switch: while the client is in
     mirror-remote it reverts anything written locally, so leaving it there and
     flipping a flag here would produce writes that silently vanish. Doing it
-    this way round also means turning write-back *off* restores the guarantee
+    this way round also means turning writing *off* restores the guarantee
     rather than merely promising it.
+
+    Shared by the mapping table, which is where this is turned on, so that the
+    tick in the table and the stored setting can never disagree.
     """
-    # Gated here as well as in the template. Hiding a control that still works
-    # is not a safeguard, and this one writes into somebody's notes.
-    if not settings_store.is_advanced(db):
-        deps.flash(
-            request,
-            "Writing back into a vault is an advanced setting. Turn on "
-            "“Show advanced options” in Settings first.",
-            "error",
-        )
-        return deps.redirect(BACK)
-
-    account = account_for_slot(db, slot)
-    if account is None:
-        return deps.redirect(BACK)
-
     vault = linked_vault(account)
     name = vault.get("name") or ""
-    want = enabled == "1"
-
-    if want and confirm != "1":
-        deps.flash(request, "Tick the box confirming you understand, first.", "error")
-        return deps.redirect(BACK)
-
     mode = "bidirectional" if want else "mirror-remote"
 
     # The child holds the vault's lock and, more to the point, the mode it was
     # started with. Writing a new mode into the client's configuration while it
     # runs changes nothing it does: it carries on reverting local changes, so
-    # write-back appears to be on and every write silently disappears. Stopping
-    # it first and starting it again afterwards is what makes the setting real.
+    # writing appears to be on and every write silently disappears. Stopping it
+    # first and starting it again afterwards is what makes the setting real.
     from app.services.obsidian_sync import apply_obsidian_sync_settings
     from app.services.obsidian_sync import manager as sync_manager
 
@@ -457,43 +437,82 @@ def set_write_back(
             apply_obsidian_sync_settings()
 
     if not result.ok:
-        deps.flash(
-            request,
-            f"Could not change Obsidian's sync mode for “{name}”: {result.message}. "
-            "Nothing was changed.",
-            "error",
+        return False, (
+            f"Could not change Obsidian's sync mode for \u201c{name}\u201d: "
+            f"{result.message}. Nothing was changed."
         )
-        return deps.redirect(BACK)
 
     vault["write_back"] = want
-    vault["write_folders"] = sorted(f for f in folders if f) if want else []
+    vault["write_folders"] = sorted(f for f in (folders or []) if f) if want else []
     vault["create_format"] = (
         create_format if create_format in ("auto", "inline", "tasknotes") else "auto")
-    # Only meaningful for the inline format, and only inside the vault.
     vault["create_note"] = create_note.strip().lstrip("/") if want else ""
     account.credentials = encrypt_json(vault)
     db.commit()
 
-    if want:
-        where = (
-            "the whole vault" if not vault["write_folders"]
-            else ", ".join(f.replace("folder:", "") or "the vault root"
-                           for f in vault["write_folders"])
+    if not want:
+        return True, (
+            f"\u201c{name}\u201d is read-only again. Obsidian's client is back in "
+            "mirror-remote mode, so it would revert any local change."
         )
+    where = (
+        "the whole vault" if not vault["write_folders"]
+        else ", ".join(f.replace("folder:", "") or "the vault root"
+                       for f in vault["write_folders"])
+    )
+    shape = ("task notes" if vault["create_format"] == "tasknotes"
+             else "checklist lines" if vault["create_format"] == "inline"
+             else "the format this vault is set up for")
+    return True, (
+        f"Task Hub can now write into \u201c{name}\u201d ({where}), as {shape}. "
+        f"It stops after 20 changes in one pass and never deletes a line."
+    )
+
+
+@router.post("/{slot}/write-back")
+def set_write_back(
+    slot: int,
+    request: Request,
+    enabled: str = Form(""),
+    confirm: str = Form(""),
+    folders: list[str] = Form(default=[]),
+    create_format: str = Form("auto"),
+    create_note: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Turn writing on or off for one vault.
+
+    The mapping table is where this is normally done -- one tick beside the
+    collection it applies to. This endpoint remains because the setting is a
+    real thing that can be addressed on its own, and because turning writing
+    *off* should not require finding the row it was turned on from.
+    """
+    # Gated here as well as in the template. Hiding a control that still works
+    # is not a safeguard, and this one writes into somebody's notes.
+    if not settings_store.is_advanced(db):
         deps.flash(
             request,
-            f"Task Hub can now tick tasks off in “{name}” ({where}). It changes "
-            "nothing else in your notes, and stops after "
-            "20 changes in one pass.",
-            "warning",
+            "Writing into a vault is an advanced setting. Turn on "
+            "\u201cAdvanced mode\u201d in Settings first.",
+            "error",
         )
-    else:
-        deps.flash(
-            request,
-            f"“{name}” is read-only again. Obsidian's client is back in "
-            "mirror-remote mode, so it would revert any local change.",
-            "success",
-        )
+        return deps.redirect(BACK)
+
+    account = account_for_slot(db, slot)
+    if account is None:
+        return deps.redirect(BACK)
+
+    want = enabled == "1"
+    if want and confirm != "1":
+        deps.flash(request, "Tick the box confirming you understand, first.", "error")
+        return deps.redirect(BACK)
+
+    ok, message = apply_write_back(
+        db, account, want=want, folders=folders,
+        create_format=create_format, create_note=create_note,
+    )
+    deps.flash(request, message, "warning" if ok and want else
+               "success" if ok else "error")
     return deps.redirect(BACK)
 
 

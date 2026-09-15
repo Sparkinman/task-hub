@@ -385,6 +385,10 @@ def save_account_mapping(
     writeout: list[str] = Form(default=[]),
     updatesonly: list[int] = Form(default=[]),
     kind_enabled: list[str] = Form(default=[]),
+    vaultwrite: str = Form(""),
+    vaultformat: str = Form("auto"),
+    vaultnote: str = Form(""),
+    vaultconfirm: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """Save one account's sync configuration.
@@ -424,8 +428,47 @@ def save_account_mapping(
         deps.flash(request, "That account no longer exists.", "error")
         return deps.redirect("/services")
 
+    problems: list[str] = []
+
     for kind in (CollectionKind.TASKS, CollectionKind.CALENDAR):
         set_account_kind_enabled(account, kind, kind.value in kind_enabled)
+
+    # An Obsidian vault is read-only until somebody deliberately says otherwise,
+    # and "deliberately" is three separate acts: turning on Advanced mode,
+    # ticking the box on the row, and confirming it. Any one of them missing and
+    # the vault stays as it was -- which is not merely a stored flag, but
+    # Obsidian's own client left in mirror-remote, where it reverts anything
+    # written locally.
+    #
+    # Checked here and not only in the template, because a form can be posted
+    # without one.
+    if account.service == ServiceKind.OBSIDIAN:
+        from app.web.obsidian_setup import apply_write_back, linked_vault
+
+        want = vaultwrite == "1"
+        already = bool(linked_vault(account).get("write_back"))
+        if want and not settings_store.is_advanced(db):
+            problems.append(
+                "Writing into a vault needs Advanced mode, which is off, so "
+                "that vault is still read-only."
+            )
+        elif want and not already and vaultconfirm != "1":
+            problems.append(
+                "Tick the box confirming you understand before Task Hub writes "
+                "into your notes. The vault is still read-only."
+            )
+        elif want != already:
+            ok, message = apply_write_back(
+                db, account, want=want, folders=[],
+                create_format=vaultformat, create_note=vaultnote,
+            )
+            problems.append(message)
+        elif want:
+            # Already on: the format or the note may still have changed.
+            apply_write_back(
+                db, account, want=True, folders=[],
+                create_format=vaultformat, create_note=vaultnote,
+            )
 
     def _pairs(entries: list[str]) -> dict[int, set[int]]:
         out: dict[int, set[int]] = {}
@@ -448,7 +491,6 @@ def save_account_mapping(
         if remote_list is not None and remote_list.account_id == account.id
     ]
     row_ids = {remote_list.id for remote_list in rows}
-    problems: list[str] = []
 
     if not settings_store.is_advanced(db) and not writeout:
         # The "Also write out to" column is not on the page in simple mode, so

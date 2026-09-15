@@ -123,10 +123,16 @@ class ObsidianConnector(Connector):
         self.write_back: bool = bool((credentials or {}).get("write_back"))
         #: Folders write-back is allowed into. Empty means the whole vault.
         self.write_folders: set[str] = set((credentials or {}).get("write_folders") or [])
-        #: The note new tasks are appended to, relative to the vault root. Empty
-        #: means creation stays off even with write-back on: a task arriving
-        #: from Google has no natural home in a vault, and picking one on the
-        #: user's behalf is how notes get written into places nobody expected.
+        #: Where new tasks are stored, relative to the vault root. Its meaning
+        #: follows the format: a *note* for checklist lines, which are appended
+        #: to it, and a *folder* for task notes, which each get a file in it.
+        #:
+        #: Empty means different things for the same reason. TaskNotes already
+        #: says where tasks live, so an empty value falls back to that. A
+        #: checklist line has nowhere to go, so an empty value leaves creation
+        #: off -- a task arriving from Google has no natural home in somebody's
+        #: prose, and picking a note on their behalf is how writing ends up in
+        #: places nobody expected.
         self.create_note: str = str((credentials or {}).get("create_note") or "").strip()
         #: Which format a new task is written in: "tasknotes", "inline", or
         #: "auto" to let the vault decide. Only meaningful when both plugins are

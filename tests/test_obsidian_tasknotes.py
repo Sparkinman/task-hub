@@ -263,6 +263,16 @@ try:
     check("and the first is still there",
           (vault / "TaskNotes/Tasks/Master task.md").is_file())
 
+    chosen = Bound(account_id=1, credentials={
+        "name": "V", "write_back": True, "create_note": "Work/Inbox"})
+    picked = chosen.create("vault:", CanonicalRecord(
+        uid="w", kind=CollectionKind.TASKS, title="Somewhere else"),
+        CollectionKind.TASKS)
+    check("a folder the user chose is used instead of the plugin's",
+          picked.remote_id == "note:Work/Inbox/Somewhere else.md", str(picked.remote_id))
+    check("and the folder is created if it did not exist",
+          (vault / "Work/Inbox/Somewhere else.md").is_file())
+
     off = Bound(account_id=1, credentials={"name": "V", "write_back": False})
     check("nothing is written with write-back off",
           off.create("vault:", CanonicalRecord(uid="x", kind=CollectionKind.TASKS,

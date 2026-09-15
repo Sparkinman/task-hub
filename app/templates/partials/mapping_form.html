@@ -16,7 +16,7 @@
 {% macro mapping_form(account, service_name, task_lists, cal_lists, collections,
                       dropdowns, kind_enabled, supports_tasks=True,
                       supports_calendar=True, advanced_mode=False,
-                      empty_notes={}) -%}
+                      empty_notes={}, vault_write=none) -%}
               <form method="post" action="/sync/account/{{ account.id }}/save">
                 <div class="tabbox">
                   <input type="radio" class="tabctl" name="tab-{{ account.id }}"
@@ -135,6 +135,84 @@
                                       {% set dd = dropdowns[r.id] %}
                                       {{ checkdrop('read', dd.read, dd.read_selected,
                                                    'Not synced', 'collection') }}
+                                      {%- if vault_write and advanced_mode and kind == 'tasks' %}
+                                        {# Obsidian is the one service whose write
+                                           half can be refused by the service
+                                           itself, so it gets a tick of its own
+                                           rather than the "changes only" switch.
+                                           Ticking it is the whole act: it turns
+                                           the vault's client to bidirectional and
+                                           starts mirroring the collections above
+                                           into the notes. #}
+                                        <label class="check mt-2">
+                                          <input type="checkbox" name="vaultwrite" value="1"
+                                                 {{ 'checked' if vault_write.on }}
+                                                 data-vault-write>
+                                          <span class="check-label">
+                                            <span class="strong">Allow read &amp; write</span>
+                                            — mirror these collections into the vault
+                                          </span>
+                                        </label>
+                                        <div class="vault-write-detail"
+                                             style="margin-left: 26px; margin-top: 6px;">
+                                          {%- if vault_write.both_formats %}
+                                            <label class="field-label tiny" for="vw-fmt-{{ account.id }}">
+                                              Written as
+                                            </label>
+                                            <select class="input input-sm" id="vw-fmt-{{ account.id }}"
+                                                    name="vaultformat">
+                                              <option value="tasknotes" {{ 'selected' if vault_write.format == 'tasknotes' }}>
+                                                TaskNotes — one note per task, keeps times and descriptions
+                                              </option>
+                                              <option value="inline" {{ 'selected' if vault_write.format == 'inline' }}>
+                                                Tasks plugin — a checklist line, no time or description
+                                              </option>
+                                            </select>
+                                          {%- else %}
+                                            <input type="hidden" name="vaultformat"
+                                                   value="{{ vault_write.format }}">
+                                            <span class="tiny muted">
+                                              Written as
+                                              {{ 'task notes, one file each' if vault_write.format == 'tasknotes'
+                                                 else 'checklist lines' }}.
+                                            </span>
+                                          {%- endif %}
+                                          <label class="field-label tiny mt-2" for="vw-note-{{ account.id }}">
+                                            Where new tasks go
+                                          </label>
+                                          <input class="input input-sm" id="vw-note-{{ account.id }}"
+                                                 name="vaultnote" value="{{ vault_write.note }}"
+                                                 placeholder="{{ vault_write.location_hint }}">
+                                          <span class="tiny muted" style="display:block; margin-top:4px;">
+                                            {%- if vault_write.both_formats %}
+                                              A <span class="strong">folder</span> if you chose
+                                              TaskNotes — each task gets a file of its own in it.
+                                              The <span class="strong">path of a note</span> if you
+                                              chose the Tasks plugin — lines are added to the end
+                                              of it, and it is created if it does not exist.
+                                            {%- elif vault_write.format == 'tasknotes' %}
+                                              A folder inside the vault. Each task gets a file of
+                                              its own in it.
+                                            {%- else %}
+                                              The path of a note inside the vault. Lines are added
+                                              to the end of it, and it is created if it does not
+                                              exist.
+                                            {%- endif %}
+                                            Leave empty to use
+                                            <span class="mono">{{ vault_write.location_hint }}</span>.
+                                          </span>
+                                          {%- if not vault_write.on %}
+                                            <label class="check mt-2">
+                                              <input type="checkbox" name="vaultconfirm" value="1">
+                                              <span class="check-label tiny">
+                                                I understand this writes files into
+                                                “{{ vault_write.name }}”, and that Obsidian
+                                                Sync’s version history is how I would undo it.
+                                              </span>
+                                            </label>
+                                          {%- endif %}
+                                        </div>
+                                      {%- else %}
                                       <label class="tiny muted updates-only
                                                     {{ 'is-locked' if not advanced_mode }}"
                                              {% if not advanced_mode %}
@@ -155,6 +233,7 @@
                                         Changes only — don’t add new tasks
                                         from this list
                                       </label>
+                                      {%- endif %}
                                     </td>
                                     {% if advanced_mode %}
                                       <td>
