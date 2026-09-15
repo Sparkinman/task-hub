@@ -269,9 +269,17 @@ Obsidian.
 
 ## Writing tasks into your vault
 
-Off by default, and per vault. It lives under **Services → Obsidian → Writing
-back into this vault**, which only appears when **Show advanced options** is
-turned on in Settings.
+Off by default. Turning it on takes three deliberate acts, and short of all
+three the vault stays read-only:
+
+1. Turn on **Advanced mode** in Settings.
+2. On **Services → Obsidian**, tick **“Allow read & write”** on the row for the
+   collections you want mirrored.
+3. Tick the confirmation beside it.
+
+The tick sits next to the collections it applies to, because that is the
+question being asked: should *this collection* mirror into my notes. Beside it
+are the format tasks are written in and where they are stored.
 
 Turning it on changes Obsidian's own client from `mirror-remote` to
 `bidirectional`, which is the real switch: while the client is in mirror-remote
@@ -313,10 +321,13 @@ TaskNotes loses less, so it is what Task Hub picks when you express no
 preference and both are installed. A task note is also the safer write: it is a
 new file of its own, so nothing you have written is touched.
 
-If you choose the Tasks plugin format, you must name a note for new tasks to be
-added to. Task Hub will not pick one in your vault on your behalf. The note is
-created if it does not exist, with a line at the top saying where its contents
-come from, and each task is added at the end.
+**Where tasks are stored is yours to choose**, and what the box beside the tick
+means follows the format. For TaskNotes it is a *folder*, and each task gets a
+file of its own inside it; left empty, TaskNotes' own tasks folder is used. For
+the Tasks plugin it is the *path of a note*, and lines are added to the end of
+it; the note is created if it does not exist, with a line at the top saying
+where its contents come from. Left empty, nothing is written at all — Task Hub
+will not pick a note in your prose on your behalf.
 
 Task Hub reads each plugin's own settings rather than assuming anything: your
 global filter (`#task`, `#todo`, whatever you use), your TaskNotes task tag,
