@@ -157,7 +157,7 @@ That one line does the whole job:
 
 - checks the Pi has enough memory and disk, and that its clock is right
 - installs Docker if Docker is not already there
-- moves Task Hub to a free port if something else is already using 8080
+- moves Task Hub to a free port if something else is already using 9091
 - downloads Task Hub and starts it
 - waits until it reports itself healthy
 - prints the address to open
@@ -181,9 +181,9 @@ touches.
 ```
 Done. Open Task Hub in a browser
 
-  On another device:   http://192.168.1.50:8080
-  Or by name:          http://taskhub.local:8080
-  On this machine:     http://localhost:8080
+  On another device:   http://192.168.1.50:9091
+  Or by name:          http://taskhub.local:9091
+  On this machine:     http://localhost:9091
 ```
 
 Write down the address it prints. That is your Task Hub.
@@ -211,10 +211,10 @@ The installer printed the address at the end. On your normal computer, open a
 browser and go to it — something like:
 
 ```
-http://192.168.1.50:8080
+http://192.168.1.50:9091
 ```
 
-`http://taskhub.local:8080` usually works too and is easier to remember.
+`http://taskhub.local:9091` usually works too and is easier to remember.
 
 Task Hub greets you with its setup wizard. It walks through seven short steps: a
 welcome, a login for this web page, your region and timezone, a CalDAV password
@@ -254,8 +254,8 @@ about what they accept, and each is fussy in a different way.
 
 | How you reach it | Address | Google | Microsoft | Todoist, TickTick | Works away from home |
 | --- | --- | --- | --- | --- | --- |
-| Your home network | `http://192.168.1.50:8080` | ✗ | ✗ | ✓ | ✗ |
-| A tunnel to your own computer | `http://localhost:8080` | ✓ | ✓ | ✓ | ✗ |
+| Your home network | `http://192.168.1.50:9091` | ✗ | ✗ | ✓ | ✗ |
+| A tunnel to your own computer | `http://localhost:9091` | ✓ | ✓ | ✓ | ✗ |
 | Tailscale | `https://taskhub.tailnet.ts.net` | ✓ | ✓ | ✓ | ✓ |
 | Cloudflare tunnel | `https://tasks.example.com` | ✓ | ✓ | ✓ | ✓ |
 | Your own reverse proxy | `https://tasks.example.com` | ✓ | ✓ | ✓ | depends |
@@ -275,7 +275,7 @@ is neither.
 
 Some services reject an address that is a bare number but accept a name.
 `sslip.io` turns any address into a name at no cost and with no sign-up:
-`http://192-168-1-50.sslip.io:8080` sends you to `192.168.1.50`.
+`http://192-168-1-50.sslip.io:9091` sends you to `192.168.1.50`.
 
 That is enough for TickTick. It is **not** enough for Google, which also
 requires HTTPS — and `sslip.io` cannot provide that on a private network,
@@ -289,10 +289,10 @@ you can borrow your own computer's `localhost` for as long as it takes to
 connect. On your normal computer, in a terminal:
 
 ```
-ssh -L 8080:localhost:8080 pi@taskhub.local
+ssh -L 9091:localhost:9091 pi@taskhub.local
 ```
 
-Leave that window open, and in your browser go to **`http://localhost:8080`**.
+Leave that window open, and in your browser go to **`http://localhost:9091`**.
 This is the same Task Hub — the connection is being carried over to the Pi —
 but Google now sees an address it is happy with. Connect Google, then close the
 terminal window.
@@ -317,7 +317,7 @@ It prints a link. Open it on any computer and sign in — that is what joins the
 Pi to your network. Then:
 
 ```
-sudo tailscale serve --bg 8080
+sudo tailscale serve --bg 9091
 ```
 
 It prints your address, something like `https://taskhub.tailnet-name.ts.net`.
@@ -336,7 +336,7 @@ and your tasks — use a long password.
 ### Your own reverse proxy
 
 If you already run nginx, Caddy or Nginx Proxy Manager, point it at the Pi on
-port 8080. There is a ready-made nginx configuration at
+port 9091. There is a ready-made nginx configuration at
 [`deploy/nginx-taskhub.conf`](https://github.com/Sparkinman/task-hub/blob/main/deploy/nginx-taskhub.conf).
 
 Two rules:
@@ -433,7 +433,7 @@ Task Hub starts by itself when the Pi reboots. Nothing to set up for that.
 Check it is running: `docker compose ps`. If STATUS is not `healthy`, read
 `docker compose logs --tail=50`. If it is healthy, the Pi is fine and the
 problem is between you and it — check the address, and that you included
-`:8080`.
+`:9091`.
 
 **`docker compose ps` says `unhealthy` or it keeps restarting.**
 `docker compose logs --tail=50` gives the reason. The usual cause on a first
@@ -444,7 +444,7 @@ The log out and back in after `usermod` did not happen. `exit`, connect again,
 and retry.
 
 **"port is already allocated".**
-Something else on the Pi uses 8080. See the note in Step 5 about
+Something else on the Pi uses 9091. See the note in Step 5 about
 `TASKHUB_HTTP_PORT`.
 
 **Google says `redirect_uri_mismatch`.**

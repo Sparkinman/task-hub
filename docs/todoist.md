@@ -247,7 +247,7 @@ Compare them character by character:
 |---|---|
 | `http://` vs `https://` | Different |
 | `localhost` vs `127.0.0.1` | Different |
-| `:8080` vs no port | Different |
+| `:9091` vs no port | Different |
 | trailing `/` vs none | Different |
 
 The value shown in Task Hub's **Redirect URI** box is always the correct one for
@@ -349,8 +349,8 @@ At the top of the page is a box labelled **Redirect URI** with a **Copy** button
 Click Copy. It will look like one of these:
 
 ```
-http://localhost:8080/oauth/todoist/callback
-http://192.168.1.42:8080/oauth/todoist/callback
+http://localhost:9091/oauth/todoist/callback
+http://192.168.1.42:9091/oauth/todoist/callback
 https://tasks.example.com/oauth/todoist/callback
 ```
 

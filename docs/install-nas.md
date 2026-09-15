@@ -87,7 +87,7 @@ services:
     container_name: taskhub
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "9091:8080"
     volumes:
       - /volume1/docker/taskhub:/data     # <-- your folder from Step 3
     environment:
@@ -117,8 +117,10 @@ If your NAS only offers the point-and-click route:
 3. **Enable auto-restart** — called "Enable auto-restart" on Synology, "restart
    policy: unless-stopped" elsewhere. Without it, Task Hub does not come back
    after a reboot.
-4. **Port settings:** local port `8080`, container port `8080`. If 8080 is taken
-   — and on QNAP it is, by QNAP itself — use `9090` on the left and remember it.
+4. **Port settings:** local port `9091`, container port `8080`. The container
+   always listens on 8080 inside itself; 9091 is the number you type into your
+   browser. If something already has 9091, use `9095` on the left and remember
+   it.
 5. **Volume settings:** mount your folder from Step 3 to the path `/data`.
    Read-write, not read-only.
 6. **Environment:** add `TZ` set to your timezone, e.g. `Europe/London`.
@@ -131,10 +133,10 @@ If your NAS only offers the point-and-click route:
 Your NAS's address, plus the port:
 
 ```
-http://192.168.1.10:8080
+http://192.168.1.10:9091
 ```
 
-Same address you use for the NAS's own interface, with `:8080` instead of
+Same address you use for the NAS's own interface, with `:9091` instead of
 whatever port that uses. The setup wizard takes it from there: a login, a
 timezone, and a CalDAV password for the phones you connect later. **Write the
 CalDAV password down** — it is shown once.
@@ -150,13 +152,13 @@ Google, Microsoft and TickTick will not, because they insist on HTTPS or on a
 name rather than a number. Three ways round it, in increasing order of effort:
 
 - **Borrow `localhost` for two minutes.** From your own computer:
-  `ssh -L 8080:localhost:8080 admin@192.168.1.10`, then browse to
-  `http://localhost:8080` and connect Google there. Once connected it stays
+  `ssh -L 9091:localhost:9091 admin@192.168.1.10`, then browse to
+  `http://localhost:9091` and connect Google there. Once connected it stays
   connected from any address.
 - **Use your NAS's own certificate.** Synology and QNAP can both get a free
   Let's Encrypt certificate and put their reverse proxy in front of Task Hub.
   Synology: Control Panel → Login Portal → Advanced → Reverse Proxy. Point a
-  hostname at `localhost:8080`. This is the tidiest permanent answer if you own
+  hostname at `localhost:9091`. This is the tidiest permanent answer if you own
   a domain name.
 - **Tailscale**, which most NAS makers offer as a package. It gives your NAS a
   real HTTPS address that every service accepts, with no domain name and no
@@ -201,10 +203,13 @@ and not something else.
 
 **The page will not load.** Check the container is running in your NAS's Docker
 interface, and that you used the right port — the left-hand number from Step 4,
-not necessarily 8080.
+not necessarily 9091.
 
-**"port is already allocated" on QNAP.** QNAP's own interface uses 8080. Use
-9090 on the left instead, and open `http://your-nas:9090`.
+**"port is already allocated".** Something else already answers on the
+left-hand number. Use `9095` on the left instead, and open
+`http://your-nas:9095`. This used to catch QNAP owners every time, because
+QNAP's own interface sits on 8080 — which is exactly why Task Hub no longer
+asks for that port.
 
 **Your phone cannot reach it.** Some NAS firewalls only allow their own ports
 out of the box. Allow the port you chose, or check the NAS's firewall rules.

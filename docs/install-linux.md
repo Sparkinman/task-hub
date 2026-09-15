@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh
 ```
 
 It checks the machine, installs Docker if Docker is missing, picks a free port
-if something already uses 8080, downloads Task Hub, starts it, waits for it to
+if something already uses 9091, downloads Task Hub, starts it, waits for it to
 report itself healthy, and prints the address to open. About five minutes on a
 clean machine, most of it downloading.
 
@@ -44,8 +44,8 @@ When it finishes it prints something like:
 ```
 Done. Open Task Hub in a browser
 
-  On another device:   http://192.168.1.50:8080
-  On this machine:     http://localhost:8080
+  On another device:   http://192.168.1.50:9091
+  On this machine:     http://localhost:9091
 ```
 
 Open that address and the setup wizard takes over. **Everything after this point
@@ -97,7 +97,7 @@ Then read the Docker section of the output:
 Two of its other checks are worth understanding, because both cause failures
 that look like something else entirely:
 
-- **Port 8080 already in use.** Something else answers there. Fixed at
+- **Port 9091 already in use.** Something else answers there. Fixed at
   [step 3](#step-3--choose-a-different-port-only-if-you-need-to).
 - **Clock not synchronised.** Google and Microsoft reject sign-ins from a
   machine whose clock is wrong, blaming your credentials rather than the time.
@@ -202,12 +202,12 @@ sudo dnf install -y docker-compose-plugin      # Fedora, Rocky, Alma
 
 Or re-run `curl -fsSL https://get.docker.com | sh`, which adds it.
 
-### B3. Is port 8080 free?
+### B3. Is port 9091 free?
 
 The check told you. To see what holds it:
 
 ```
-sudo ss -tlnp | grep :8080
+sudo ss -tlnp | grep :9091
 ```
 
 If something does, note it for
@@ -240,13 +240,13 @@ Optional — the setup wizard asks anyway.
 
 ### Step 3 — Choose a different port, only if you need to
 
-Skip unless 8080 was taken.
+Skip unless 9091 was taken.
 
 ```
-echo "TASKHUB_HTTP_PORT=9090" >> .env
+echo "TASKHUB_HTTP_PORT=9095" >> .env
 ```
 
-Then use `9090` instead of `8080` everywhere below.
+Then use `9095` instead of `9091` everywhere below.
 
 ### Step 4 — Start it
 
@@ -275,10 +275,10 @@ That prints this machine's address. In a browser on any device on the same
 network:
 
 ```
-http://192.168.1.50:8080
+http://192.168.1.50:9091
 ```
 
-Or `http://localhost:8080` if you are sitting at the machine itself.
+Or `http://localhost:9091` if you are sitting at the machine itself.
 
 The wizard asks for a login, a timezone and a CalDAV password. **Write the
 CalDAV password down** — it is shown once and every phone needs it.
@@ -290,22 +290,22 @@ CalDAV password down** — it is shown once and every phone needs it.
 On a plain address, Google and Microsoft will refuse to connect: both insist on
 HTTPS for anything that is not `localhost`.
 
-If you are sitting at the machine, `http://localhost:8080` is enough and they
+If you are sitting at the machine, `http://localhost:9091` is enough and they
 will connect happily. If you are on SSH, borrow your own computer's localhost
 for two minutes — from your laptop:
 
 ```
-ssh -L 8080:localhost:8080 you@your-server
+ssh -L 9091:localhost:9091 you@your-server
 ```
 
-Then browse to `http://localhost:8080` and connect Google there. It keeps
+Then browse to `http://localhost:9091` and connect Google there. It keeps
 working from any address afterwards.
 
 For a permanent answer, [How Task Hub finds its own address](addresses.md)
 covers Tailscale, Cloudflare tunnels and reverse proxies. There is a ready-made
 nginx configuration in the project at `deploy/nginx-taskhub.conf`.
 
-> Do not simply forward port 8080 on your router without HTTPS. CalDAV clients
+> Do not simply forward port 9091 on your router without HTTPS. CalDAV clients
 > authenticate with HTTP Basic, which is not encryption: your password would
 > cross the internet readable, from every device, on every sync.
 

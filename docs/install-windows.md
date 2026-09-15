@@ -57,7 +57,7 @@ things:
 | Field | What to put |
 |---|---|
 | **Container name** | `taskhub` |
-| **Host port** | `8080` |
+| **Host port** | `9091` |
 | **Volumes → Host path** | `C:\\TaskHub\\data` — click the field, then **Browse**, make a new folder called `TaskHub` on your C: drive with a `data` folder inside it, and choose that |
 | **Volumes → Container path** | `/data` |
 
@@ -76,7 +76,7 @@ Go to the **Containers** tab. `taskhub` should be listed as **Running**. Give it
 half a minute to finish starting, then open a browser at:
 
 ```
-http://localhost:8080
+http://localhost:9091
 ```
 
 Task Hub greets you with its setup wizard: create a login, pick a timezone, and
@@ -121,11 +121,11 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
   try { Write-Host "Compose:" (docker compose version --short) } catch { Write-Host "Compose: MISSING" }
   try { docker info *> $null; Write-Host "Docker is running: yes" } catch { Write-Host "Docker is running: NO - start Docker Desktop" }
 } else { Write-Host "Docker: NOT INSTALLED" }
-if (Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue) {
-  Write-Host "Port 8080: IN USE - you will need a different port"
-} else { Write-Host "Port 8080: free" }
+if (Get-NetTCPConnection -LocalPort 9091 -State Listen -ErrorAction SilentlyContinue) {
+  Write-Host "Port 9091: IN USE - you will need a different port"
+} else { Write-Host "Port 9091: free" }
 Write-Host "`nThis computer's address on your network:"
-Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } | ForEach-Object { Write-Host "  http://$($_.IPAddress):8080" }
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } | ForEach-Object { Write-Host "  http://$($_.IPAddress):9091" }
 ```
 
 It changes nothing. Read the Docker line:
@@ -216,9 +216,9 @@ standalone version. Update Docker Desktop and the modern one arrives with it:
 winget upgrade -e --id Docker.DockerDesktop
 ```
 
-### B3. Is port 8080 free?
+### B3. Is port 9091 free?
 
-If the check said **`Port 8080: IN USE`**, something else on this machine
+If the check said **`Port 9091: IN USE`**, something else on this machine
 answers on that number. That is fine — Task Hub can use another. Note it now
 and use it at [step 3](#step-3--choose-a-different-port-only-if-you-need-to)
 below.
@@ -226,7 +226,7 @@ below.
 To see what is using it:
 
 ```powershell
-Get-Process -Id (Get-NetTCPConnection -LocalPort 8080 -State Listen).OwningProcess
+Get-Process -Id (Get-NetTCPConnection -LocalPort 9091 -State Listen).OwningProcess
 ```
 
 Now continue.
@@ -261,13 +261,13 @@ from the very first minute.
 
 ### Step 3 — Choose a different port, only if you need to
 
-Skip this unless the check said port 8080 was in use.
+Skip this unless the check said port 9091 was in use.
 
 ```powershell
-"TASKHUB_HTTP_PORT=9090" | Out-File -Encoding ascii -Append .env
+"TASKHUB_HTTP_PORT=9095" | Out-File -Encoding ascii -Append .env
 ```
 
-Then use `9090` instead of `8080` everywhere below.
+Then use `9095` instead of `9091` everywhere below.
 
 ### Step 4 — Start it
 
@@ -290,7 +290,7 @@ it by clicking if you prefer that to typing.
 
 ### Step 6 — Open it
 
-Go to **http://localhost:8080** in your browser.
+Go to **http://localhost:9091** in your browser.
 
 The setup wizard asks you to create a login, choose a timezone, and pick a
 CalDAV password for the phones you connect later. **Write the CalDAV password
@@ -321,7 +321,7 @@ top printed it, or:
 Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" } | Select-Object IPAddress
 ```
 
-Then your phone uses `http://<that number>:8080`, and Task Hub's Radicale page
+Then your phone uses `http://<that number>:9091`, and Task Hub's Radicale page
 gives the exact steps for each kind of phone.
 
 **Windows Firewall will ask the first time.** When a prompt appears about
@@ -329,7 +329,7 @@ Docker Desktop, allow it on **Private networks**. If you dismissed it and your
 phone times out, this re-allows it:
 
 ```powershell
-New-NetFirewallRule -DisplayName "Task Hub" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow -Profile Private
+New-NetFirewallRule -DisplayName "Task Hub" -Direction Inbound -LocalPort 9091 -Protocol TCP -Action Allow -Profile Private
 ```
 
 Run PowerShell as Administrator for that one: right-click the Start button and
@@ -385,7 +385,7 @@ Is Docker Desktop running? It must be. Then `docker compose ps` — if STATUS is
 not `healthy`, run `docker compose logs --tail=50` and read the reason.
 
 **"port is already allocated".**
-Something else uses 8080. See [step 3](#step-3--choose-a-different-port-only-if-you-need-to).
+Something else uses 9091. See [step 3](#step-3--choose-a-different-port-only-if-you-need-to).
 
 **"WSL 2 installation is incomplete."**
 Run `wsl --install` in an Administrator PowerShell, restart, and start Docker

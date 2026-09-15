@@ -282,7 +282,7 @@ them, and on a home network it needs none.
 One container. No configuration file, no environment variables to guess at, no
 terminal after the first line. It works out its own address from however you
 reach it, so the same image is correct on a Raspberry Pi at
-`192.168.1.50:8080`, behind a Cloudflare tunnel, over Tailscale, or behind your
+`192.168.1.50:9091`, behind a Cloudflare tunnel, over Tailscale, or behind your
 own nginx — and it hands each service the redirect address that actually works,
 because it is the one that just delivered the page.
 
@@ -325,12 +325,12 @@ curl -fsSL https://raw.githubusercontent.com/Sparkinman/task-hub/main/install.sh
 ```
 
 It checks the machine, installs Docker if it is missing, finds a free port if
-8080 is taken, downloads and starts Task Hub, waits for it to come up, and
+9091 is taken, downloads and starts Task Hub, waits for it to come up, and
 prints the address to open. Run it again later and it updates Task Hub without
 touching your data.
 
-Then open **http://localhost:8080** — or, from another device, this machine's
-address on your network with `:8080` after it — and follow the setup wizard.
+Then open **http://localhost:9091** — or, from another device, this machine's
+address on your network with `:9091` after it — and follow the setup wizard.
 
 **After the install, there is no terminal at all.** Connecting Google, Todoist,
 TickTick and Obsidian, choosing what syncs, backups, restores and even

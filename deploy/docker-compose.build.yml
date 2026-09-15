@@ -16,7 +16,7 @@ services:
     container_name: taskhub
     restart: unless-stopped
     ports:
-      - "${TASKHUB_HTTP_PORT:-8080}:8080"
+      - "${TASKHUB_HTTP_PORT:-9091}:8080"
     volumes:
       - taskhub-data:/data
     environment:

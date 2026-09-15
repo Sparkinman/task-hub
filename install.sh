@@ -5,7 +5,7 @@
 #
 # It does every part of the setup that a terminal is needed for, so that nothing
 # else has to be typed: it checks the machine, installs Docker if Docker is
-# missing, writes the one configuration file, picks a free port if 8080 is
+# missing, writes the one configuration file, picks a free port if 9091 is
 # taken, starts Task Hub, waits for it to report itself healthy, and prints the
 # address to open. Everything after that happens in the browser.
 #
@@ -21,7 +21,7 @@ set -eu
 
 REPO="https://raw.githubusercontent.com/Sparkinman/task-hub/main"
 DIR="${TASKHUB_DIR:-$HOME/taskhub}"
-PORT="${TASKHUB_HTTP_PORT:-8080}"
+PORT="${TASKHUB_HTTP_PORT:-9091}"
 
 say()  { printf '%s\n' "$*"; }
 step() { printf '\n\033[1m%s\033[0m\n' "$*"; }

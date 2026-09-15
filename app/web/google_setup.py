@@ -92,7 +92,7 @@ def redirect_uri_problem(uri: str) -> str | None:
         return (
             f"Google will reject this address because it is not HTTPS. Only "
             f"localhost and 127.0.0.1 may use plain http. Open Task Hub at "
-            f"http://localhost:8080 to connect Google, or put it behind HTTPS."
+            f"http://localhost:9091 to connect Google, or put it behind HTTPS."
         )
 
     # A bare IP address is refused even over HTTPS. Tested properly rather

@@ -39,17 +39,17 @@ Look at your browser's address bar on the Task Hub tab.
 
 - If it says **`localhost`** or **`127.0.0.1`** — good, carry on.
 - If it says an address like **`192.168.1.42`** — **stop.** Google refuses to
-  accept private IP addresses. Open Task Hub at `http://localhost:8080` instead,
+  accept private IP addresses. Open Task Hub at `http://localhost:9091` instead,
   on the machine running Docker, just for this setup.
 
 Google's rules, which cannot be worked around:
 
 | Address you use | Google accepts it? |
 |---|---|
-| `http://localhost:8080` | Yes |
-| `http://127.0.0.1:8080` | Yes |
-| `http://192.168.1.42:8080` | **No** — raw IP address |
-| `http://taskhub.local:8080` | **No** — not HTTPS, not localhost |
+| `http://localhost:9091` | Yes |
+| `http://127.0.0.1:9091` | Yes |
+| `http://192.168.1.42:9091` | **No** — raw IP address |
+| `http://taskhub.local:9091` | **No** — not HTTPS, not localhost |
 | `https://tasks.yourdomain.com` | Yes — needs a real certificate |
 
 Once connected, Task Hub keeps the login on the server and syncs on its own
@@ -191,12 +191,12 @@ through once. That is covered in Step 34.
     The value looks like this:
 
     ```
-    http://localhost:8080/oauth/google/callback
+    http://localhost:9091/oauth/google/callback
     ```
 
     > If a **red warning** appears above this box, Google will reject the
     > address. Re-read "Before you start" above — you almost certainly need to
-    > open Task Hub at `http://localhost:8080` instead.
+    > open Task Hub at `http://localhost:9091` instead.
 
 Keep this on your clipboard. You paste it in Step 36.
 
@@ -223,7 +223,7 @@ Keep this on your clipboard. You paste it in Step 36.
     - It must end in `/oauth/google/callback`
     - There must be **no trailing slash** after `callback`
     - `http` (not `https`) is correct **only** for `localhost` or `127.0.0.1`
-    - The port number must match (`8080` unless you changed it)
+    - The port number must match (`9091` unless you changed it)
 
     Google compares this **character for character**. One wrong character
     produces `Error 400: redirect_uri_mismatch` at the very end.

@@ -36,7 +36,7 @@ Look at your browser's address bar on the Task Hub tab.
 - **`localhost`** or **`127.0.0.1`** — fine, carry on.
 - **`https://` and a real domain** — also fine.
 - **`http://192.168.x.x`** — stop. Microsoft rejects plain `http` for anything
-  that is not localhost. Open Task Hub at `http://localhost:8080` for the setup,
+  that is not localhost. Open Task Hub at `http://localhost:9091` for the setup,
   or use your HTTPS address.
 
 Once connected, Task Hub keeps the sign-in on the server. It never needs your
@@ -120,7 +120,7 @@ browser again, so you can go back to whatever address you normally use.
     It looks like:
 
     ```
-    http://localhost:8080/oauth/microsoft/callback
+    http://localhost:9091/oauth/microsoft/callback
     ```
 
     If a red warning appears above it, Microsoft will reject that address —

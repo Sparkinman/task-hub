@@ -32,7 +32,7 @@ Open **Radicale** in Task Hub's sidebar. It shows all three.
 
 | | |
 |---|---|
-| **Server address** | `http://192.168.1.42:8080/radicale/yourname/` |
+| **Server address** | `http://192.168.1.42:9091/radicale/yourname/` |
 | **Username** | your **CalDAV** username |
 | **Password** | your **CalDAV** password |
 
@@ -118,7 +118,7 @@ Nothing to install. Apple's own apps speak CalDAV.
 
 3. Fill in:
    - **Server**: your address without the `http://`, e.g.
-     `192.168.1.42:8080/radicale/yourname/`
+     `192.168.1.42:9091/radicale/yourname/`
    - **User Name**: your CalDAV username
    - **Password**: your CalDAV password
    - **Description**: `Task Hub`
@@ -183,7 +183,7 @@ Also install a task app, because Android has no built-in one:
    > email domain, which only works for hosted providers.
 
 3. **Base URL**: your full address, e.g.
-   `http://192.168.1.42:8080/radicale/yourname/`
+   `http://192.168.1.42:9091/radicale/yourname/`
 4. **User name** and **Password**: your CalDAV credentials.
 5. **Login**, then **Create account**.
 6. Choose **Groups are per-contact categories** if asked — it makes no
@@ -295,7 +295,7 @@ that changes when the bins go out.
 
 1. **Settings** → **Devices & Services** → **Add Integration** → **CalDAV**.
 2. **Calendar URL**: your Task Hub address, e.g.
-   `http://192.168.1.42:8080/radicale/yourname/`
+   `http://192.168.1.42:9091/radicale/yourname/`
 3. **Username** and **Password**: your CalDAV credentials.
 4. **Submit**. Home Assistant creates a `calendar.*` entity for each calendar
    and a `todo.*` entity for each task list.

@@ -13,7 +13,7 @@ because it changes what you have to set up.
 ## The short version
 
 **Task Hub's address is whatever address you are using.** Open it at
-`http://192.168.1.50:8080` and that is its address. Open the same install at
+`http://192.168.1.50:9091` and that is its address. Open the same install at
 `https://taskhub.tailnet.ts.net` a minute later and that is its address now.
 
 There is nothing to configure, and the same downloaded image is correct on a
@@ -45,9 +45,9 @@ Every service is fussy in its own way, and none of them tells you clearly.
 
 | How you reach Task Hub | Google | Microsoft | Todoist | TickTick | Android, Thunderbird | iPhone, iPad, Mac |
 | --- | --- | --- | --- | --- | --- | --- |
-| `http://192.168.1.50:8080` | ✗ | ✗ | ✓ | ✓ | ✓ | **✗** |
-| `http://192-168-1-50.sslip.io:8080` | ✗ | ✗ | ✓ | ✓ | ✓ | **✗** |
-| `http://localhost:8080` | ✓ | ✓ | ✓ | ✓ | only on that machine | only on that machine |
+| `http://192.168.1.50:9091` | ✗ | ✗ | ✓ | ✓ | ✓ | **✗** |
+| `http://192-168-1-50.sslip.io:9091` | ✗ | ✗ | ✓ | ✓ | ✓ | **✗** |
+| `http://localhost:9091` | ✓ | ✓ | ✓ | ✓ | only on that machine | only on that machine |
 | `https://name.tailnet.ts.net` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `https://tasks.example.com` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
@@ -112,11 +112,11 @@ Borrow your own computer's `localhost` for two minutes. On the computer you
 browse from, in a terminal:
 
 ```
-ssh -L 8080:localhost:8080 pi@taskhub.local
+ssh -L 9091:localhost:9091 pi@taskhub.local
 ```
 
 Replace `pi@taskhub.local` with the machine Task Hub runs on. Leave that window
-open and browse to **`http://localhost:8080`**.
+open and browse to **`http://localhost:9091`**.
 
 That is the same Task Hub — the connection is being carried across — but the
 address is now one Google and Microsoft accept without argument. Connect them,

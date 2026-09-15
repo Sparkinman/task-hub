@@ -56,7 +56,7 @@ things:
 | Field | What to put |
 |---|---|
 | **Container name** | `taskhub` |
-| **Host port** | `8080` |
+| **Host port** | `9091` |
 | **Volumes → Host path** | a new folder called `TaskHub` in your Home folder — click **Browse**, press Cmd+Shift+N to make it, and choose it |
 | **Volumes → Container path** | `/data` |
 
@@ -75,7 +75,7 @@ Go to the **Containers** tab. `taskhub` should be listed as **Running**. Give it
 half a minute to finish starting, then open a browser at:
 
 ```
-http://localhost:8080
+http://localhost:9091
 ```
 
 Task Hub greets you with its setup wizard: create a login, pick a timezone, and
@@ -122,10 +122,10 @@ if command -v docker >/dev/null 2>&1; then
 else
   echo "Docker:     NOT INSTALLED"
 fi
-lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1 && echo "Port 8080:  IN USE" || echo "Port 8080:  free"
+lsof -nP -iTCP:9091 -sTCP:LISTEN >/dev/null 2>&1 && echo "Port 9091:  IN USE" || echo "Port 9091:  free"
 echo; echo "This Mac's address on your network:"
-ipconfig getifaddr en0 2>/dev/null | sed 's|^|  http://|;s|$|:8080|'
-ipconfig getifaddr en1 2>/dev/null | sed 's|^|  http://|;s|$|:8080|'
+ipconfig getifaddr en0 2>/dev/null | sed 's|^|  http://|;s|$|:9091|'
+ipconfig getifaddr en1 2>/dev/null | sed 's|^|  http://|;s|$|:9091|'
 ```
 
 It changes nothing. Read the Docker line:
@@ -209,14 +209,14 @@ brew upgrade --cask docker
 
 or use **Check for Updates** in Docker Desktop's menu.
 
-### B3. Is port 8080 free?
+### B3. Is port 9091 free?
 
-If the check said **`Port 8080: IN USE`**, note it and use
+If the check said **`Port 9091: IN USE`**, note it and use
 [step 3](#step-3--choose-a-different-port-only-if-you-need-to) below. To see
 what is holding it:
 
 ```
-lsof -nP -iTCP:8080 -sTCP:LISTEN
+lsof -nP -iTCP:9091 -sTCP:LISTEN
 ```
 
 ---
@@ -244,13 +244,13 @@ Optional — the wizard asks anyway.
 
 ### Step 3 — Choose a different port, only if you need to
 
-Skip unless the check said 8080 was in use.
+Skip unless the check said 9091 was in use.
 
 ```
-echo "TASKHUB_HTTP_PORT=9090" >> .env
+echo "TASKHUB_HTTP_PORT=9095" >> .env
 ```
 
-Then use `9090` instead of `8080` everywhere below.
+Then use `9095` instead of `9091` everywhere below.
 
 ### Step 4 — Start it
 
@@ -271,7 +271,7 @@ Wait for STATUS to say **healthy** — up to half a minute.
 
 ### Step 6 — Open it
 
-Go to **http://localhost:8080**.
+Go to **http://localhost:9091**.
 
 The wizard asks for a login, a timezone, and a CalDAV password for the devices
 you connect later. **Write the CalDAV password down** — it is shown once.
@@ -348,7 +348,7 @@ Is Docker Desktop running? Then `docker compose ps`; if STATUS is not
 `healthy`, `docker compose logs --tail=50` says why.
 
 **"port is already allocated".**
-Something else uses 8080 — see [step 3](#step-3--choose-a-different-port-only-if-you-need-to).
+Something else uses 9091 — see [step 3](#step-3--choose-a-different-port-only-if-you-need-to).
 
 **It is slow the first time.**
 Docker Desktop runs a small Linux system underneath and is slow to wake. Later

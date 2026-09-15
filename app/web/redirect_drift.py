@@ -3,7 +3,7 @@
 Moving Task Hub -- from a LAN address to a Tailscale name, from localhost to a
 Cloudflare tunnel -- breaks nothing that is already connected. Refreshing a
 token never sends a redirect address, so a connection made months ago at
-``http://localhost:8080`` keeps syncing happily from anywhere.
+``http://localhost:9091`` keeps syncing happily from anywhere.
 
 What it breaks is the *next* connection. Reconnecting a revoked account, adding
 a second one, or renewing TickTick -- which has no refresh at all and must be

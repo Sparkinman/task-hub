@@ -67,7 +67,7 @@ The first run takes a few minutes. Subsequent starts take a couple of seconds.
 
 ### Step 3 — Open it
 
-Go to **http://localhost:8080** in your browser.
+Go to **http://localhost:9091** in your browser.
 
 The setup wizard appears. Work through it: it asks for a username and password
 for the web page, your timezone, a separate username and password for the CalDAV
@@ -107,11 +107,11 @@ your phone or another computer, you need the server's address on your network.
 - **Linux**: run `hostname -I` and take the first address.
 
 It will look like `192.168.1.42`. Other devices on the same network can then
-reach Task Hub at `http://192.168.1.42:8080`.
+reach Task Hub at `http://192.168.1.42:9091`.
 
 **If you will set Task Hub up from the machine it runs on**, but use it from a
 phone, go to **Settings → Public address** and enter that same address, for
-example `http://192.168.1.42:8080`. That is the address Task Hub then shows you
+example `http://192.168.1.42:9091`. That is the address Task Hub then shows you
 for CalDAV clients, so your phone gets an address it can actually reach instead
 of `localhost`. Otherwise leave it empty — Task Hub works its address out from
 however you reach it.
@@ -195,7 +195,7 @@ machine Task Hub runs on, not inside it:
 1. On that machine, run the installer from `tailscale.com/download`, then
    `sudo tailscale up` and sign in through the link it prints.
 2. Install Tailscale on your laptop or phone and sign in with the same account.
-3. Task Hub is now reachable at `http://<machine-name>:8080` from any of your
+3. Task Hub is now reachable at `http://<machine-name>:9091` from any of your
    devices, wherever they are.
 4. Put that address into **Settings → Public address**.
 
@@ -225,7 +225,7 @@ The tunnel above is the recommended route. Two alternatives work as well:
 Whichever you choose, put the resulting address into **Settings → Public
 address**.
 
-> Do not simply forward port 8080 on your router without HTTPS. CalDAV clients
+> Do not simply forward port 9091 on your router without HTTPS. CalDAV clients
 > authenticate with HTTP Basic, which is not encryption: your password would
 > cross the internet readable, from every device, on every sync. So would your
 > Task Hub login and every task you own.
@@ -388,8 +388,9 @@ On Windows, run these in PowerShell and replace `$(pwd)` with `${PWD}`.
 will say why.
 
 **"Port is already allocated".** Something else on the machine is using port
-8080. Edit `docker-compose.yml`, change `"8080:8080"` to `"9090:8080"`, and use
-`http://localhost:9090` instead.
+9091. Put `TASKHUB_HTTP_PORT=9095` in a file called `.env` beside
+`docker-compose.yml`, run `docker compose up -d` again, and open
+`http://localhost:9095` instead.
 
 **You forgot the web password.** There is no reset — Task Hub has no email
 server to send one from. The only way back in is to delete the data volume and

@@ -66,7 +66,7 @@ services:
     container_name: taskhub
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "9091:8080"
     volumes:
       - taskhub-data:/data
 
@@ -78,7 +78,7 @@ volumes:
 docker compose up -d
 ```
 
-Then open **http://localhost:8080** and follow the setup wizard, which creates
+Then open **http://localhost:9091** and follow the setup wizard, which creates
 your sign-in, your CalDAV credentials and your first collections.
 
 On a Raspberry Pi or any Linux box, one line does the whole thing including
@@ -105,7 +105,7 @@ push — so a Raspberry Pi never has to compile anything.
 
 | | |
 | --- | --- |
-| **Port** | `8080` inside the container. Map it wherever you like. |
+| **Port** | `8080` inside the container, published on `9091` above. Map it wherever you like. |
 | **Data** | `/data` — the database, the CalDAV collections and the encryption key. Back this volume up; everything else is replaceable. |
 | **Timezone** | Set in the web interface, not in the environment. |
 

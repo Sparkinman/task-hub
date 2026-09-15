@@ -1,7 +1,7 @@
 # Task Hub
 #
 #   Start it:     docker compose up -d
-#   Open it:      http://<this machine's address>:8080
+#   Open it:      http://<this machine's address>:9091
 #   Watch it:     docker compose logs -f
 #   Update it:    docker compose pull && docker compose up -d
 #   Stop it:      docker compose down
@@ -27,10 +27,12 @@ services:
 
     ports:
       # Left side is the port on this machine, right side is inside the
-      # container and never changes. If something already uses 8080 -- a QNAP
-      # NAS does, for instance -- put TASKHUB_HTTP_PORT=9090 in a file named
-      # .env beside this one rather than editing here.
-      - "${TASKHUB_HTTP_PORT:-8080}:8080"
+      # container and never changes. 9091 was chosen because it is quiet: 8080
+      # is claimed by a QNAP NAS, by Tomcat, by countless dev servers, and a
+      # clash there stops the container starting before you ever see a page.
+      # If 9091 is taken too, put TASKHUB_HTTP_PORT=9095 in a file named .env
+      # beside this one rather than editing here.
+      - "${TASKHUB_HTTP_PORT:-9091}:8080"
 
     volumes:
       - taskhub-data:/data

@@ -70,8 +70,8 @@ watching it save without complaint.
 
 | Address you use | TickTick accepts it? |
 |---|---|
-| `http://localhost:8080` | Yes |
-| `http://192.168.1.42:8080` | Yes |
+| `http://localhost:9091` | Yes |
+| `http://192.168.1.42:9091` | Yes |
 | `https://tasks.example.com` | Yes |
 
 That makes TickTick the easy one: no HTTPS to arrange, no name to obtain, no
@@ -120,7 +120,7 @@ Switch to the Task Hub tab, on **Services → TickTick**.
 Find the box labelled **Redirect URI** and click **Copy**. It will look like:
 
 ```
-http://192.168.1.42:8080/oauth/ticktick/callback
+http://192.168.1.42:9091/oauth/ticktick/callback
 ```
 
 ## Step 4 — Paste it into TickTick
@@ -184,8 +184,8 @@ This is common with TickTick, and it is not a fault.
 
 TickTick will only ever redirect to **the one address registered in the
 Developer Center**. If that is not the address you are browsing with — you
-registered `http://localhost:8080/...` but you are using
-`http://192.168.1.42:8080/...`, or you are on a phone — the redirect lands
+registered `http://localhost:9091/...` but you are using
+`http://192.168.1.42:9091/...`, or you are on a phone — the redirect lands
 somewhere that cannot receive it. You end up on an error page, a blank page, or
 a "site cannot be reached".
 
@@ -196,7 +196,7 @@ lost.
    looks like:
 
    ```
-   http://localhost:8080/oauth/ticktick/callback?code=abc123def456&state=xyz
+   http://localhost:9091/oauth/ticktick/callback?code=abc123def456&state=xyz
    ```
 
 2. Return to Task Hub, **Services → TickTick**.

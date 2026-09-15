@@ -1,7 +1,7 @@
 """CalDAV and CardDAV service discovery, as RFC 6764 defines it.
 
 A CalDAV client is not given a full URL. It is given a server -- somebody types
-``192.168.1.232:8080`` into their iPhone -- and is expected to find the rest by
+``192.168.1.232:9091`` into their iPhone -- and is expected to find the rest by
 asking for ``/.well-known/caldav`` and following the redirect to wherever the
 service actually lives. Task Hub mounts Radicale at ``/radicale``, which no
 client could guess, so without this the discovery step fails.

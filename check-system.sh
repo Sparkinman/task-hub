@@ -138,21 +138,21 @@ fi
 
 # --- The port -----------------------------------------------------------------
 
-head_ "Port 8080"
+head_ "Port 9091"
 
 port_user=""
 if command -v ss >/dev/null 2>&1; then
-  port_user=$(ss -tlnH 2>/dev/null | awk '{print $4}' | grep -E '(:|\])8080$' | head -1)
+  port_user=$(ss -tlnH 2>/dev/null | awk '{print $4}' | grep -E '(:|\])9091$' | head -1)
 elif command -v netstat >/dev/null 2>&1; then
-  port_user=$(netstat -an 2>/dev/null | grep -E '[.:]8080 .*LISTEN' | head -1)
+  port_user=$(netstat -an 2>/dev/null | grep -E '[.:]9091 .*LISTEN' | head -1)
 fi
 
 if [ -n "$port_user" ]; then
-  if docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -q '8080->'; then
+  if docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -q '9091->'; then
     warn "In use by a Docker container — quite possibly Task Hub already:
-        $(docker ps --format '{{.Names}}' --filter publish=8080 | tr '\n' ' ')"
+        $(docker ps --format '{{.Names}}' --filter publish=9091 | tr '\n' ' ')"
   else
-    warn "Already in use by something else. Put TASKHUB_HTTP_PORT=9090 in a
+    warn "Already in use by something else. Put TASKHUB_HTTP_PORT=9095 in a
         file called .env beside docker-compose.yml and use that number instead."
   fi
 else
@@ -191,9 +191,9 @@ if [ -z "$addresses" ] && command -v hostname >/dev/null 2>&1; then
   addresses=$(hostname -I 2>/dev/null)
 fi
 
-port=8080
+port=9091
 [ -f .env ] && port=$(awk -F= '/^TASKHUB_HTTP_PORT=/ {print $2}' .env | tr -d ' ' | tail -1)
-[ -z "$port" ] && port=8080
+[ -z "$port" ] && port=9091
 
 if [ -n "$addresses" ]; then
   for a in $addresses; do
