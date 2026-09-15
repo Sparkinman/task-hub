@@ -273,6 +273,34 @@ try:
     check("and the folder is created if it did not exist",
           (vault / "Work/Inbox/Somewhere else.md").is_file())
 
+    print("\nCompleting a task note from another service")
+
+    from app.db.models import ItemStatus
+
+    done = CanonicalRecord(uid="p", kind=CollectionKind.TASKS, title="Master task",
+                           status=ItemStatus.COMPLETED,
+                           completed_at=dt.datetime(2026, 9, 16, tzinfo=dt.timezone.utc))
+    ticked = conn.update("vault:", parent.remote_id, done, CollectionKind.TASKS)
+    check("a task note can be completed from elsewhere",
+          ticked.error is None, str(ticked.error))
+    note_path = vault / parent.remote_id[len("note:"):]
+    text = note_path.read_text(encoding="utf-8")
+    check("its status becomes the vault's own finished word",
+          "status: done" in text, text)
+    check("and the completion date is recorded", "2026-09-16" in text, text)
+
+    state = {i.remote_id: i.record.status for i in
+             conn.pull("vault:", CollectionKind.TASKS, None).items}
+    check("it reads back as completed",
+          state.get(parent.remote_id) == ItemStatus.COMPLETED,
+          str(state.get(parent.remote_id)))
+
+    reopened = CanonicalRecord(uid="p", kind=CollectionKind.TASKS, title="Master task")
+    conn.update("vault:", parent.remote_id, reopened, CollectionKind.TASKS)
+    text = note_path.read_text(encoding="utf-8")
+    check("un-completing it takes the completion date away too",
+          "status: open" in text and "2026-09-16" not in text, text)
+
     off = Bound(account_id=1, credentials={"name": "V", "write_back": False})
     check("nothing is written with write-back off",
           off.create("vault:", CanonicalRecord(uid="x", kind=CollectionKind.TASKS,

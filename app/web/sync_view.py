@@ -447,7 +447,17 @@ def save_account_mapping(
 
         want = vaultwrite == "1"
         already = bool(linked_vault(account).get("write_back"))
-        if want and not settings_store.is_advanced(db):
+        # Nothing to mirror means nothing to allow. Checked here as well as in
+        # the template so that a form posted without a collection cannot turn
+        # writing on for a vault that syncs with nothing.
+        has_collection = any(entry.partition(":")[2].isdigit() for entry in read)
+        if want and not has_collection:
+            problems.append(
+                "Choose a collection for that vault before allowing read and "
+                "write — there is nothing to mirror into it yet, so it is still "
+                "read-only."
+            )
+        elif want and not settings_store.is_advanced(db):
             problems.append(
                 "Writing into a vault needs Advanced mode, which is off, so "
                 "that vault is still read-only."

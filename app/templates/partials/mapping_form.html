@@ -135,7 +135,8 @@
                                       {% set dd = dropdowns[r.id] %}
                                       {{ checkdrop('read', dd.read, dd.read_selected,
                                                    'Not synced', 'collection') }}
-                                      {%- if vault_write and advanced_mode and kind == 'tasks' %}
+                                      {%- if vault_write and advanced_mode and kind == 'tasks'
+                                             and dd.read_selected %}
                                         {# Obsidian is the one service whose write
                                            half can be refused by the service
                                            itself, so it gets a tick of its own
@@ -229,6 +230,17 @@
                                             </label>
                                           {%- endif %}
                                         </div>
+                                      {%- elif vault_write and advanced_mode and kind == 'tasks' %}
+                                        {# No collection on this row, so there is
+                                           nothing to mirror and the tick would be
+                                           a choice about nothing. Said rather than
+                                           left blank, because a control that is
+                                           simply absent reads as a missing feature. #}
+                                        <span class="tiny muted" style="display:block; margin-top:6px;">
+                                          Choose a collection first — read and write is
+                                          a choice about a collection, so there is nothing
+                                          to allow until this row syncs with one.
+                                        </span>
                                       {%- else %}
                                       <label class="tiny muted updates-only
                                                     {{ 'is-locked' if not advanced_mode }}"

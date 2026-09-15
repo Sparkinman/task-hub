@@ -52,6 +52,7 @@ from app.services.obsidian_md import (
     new_block_id,
     record_to_line,
     record_to_tasknote,
+    rewrite_tasknote_status,
     tasknote_filename,
     looks_like_a_date,
     rewrite_completion,
@@ -763,6 +764,88 @@ class ObsidianConnector(Connector):
             logger.exception("Could not remove %s after a failed write", relative)
 
     def update(self, remote_list_id, remote_id, record, kind) -> PushOutcome:
+        """Tick a task off in the vault, or un-tick it, in whichever shape it has.
+
+        A task note and a checklist line are different files in different
+        formats, and the id says which: a task note IS its file, so its id
+        carries no line anchor. Routing on that rather than on the vault's
+        current format setting matters -- a vault whose format was changed after
+        a task was written still has to be able to complete that task.
+        """
+        if remote_id.startswith("note:"):
+            return self._update_tasknote(remote_list_id, remote_id, record)
+        return self._update_inline(remote_list_id, remote_id, record)
+
+    def _update_tasknote(self, remote_list_id, remote_id, record) -> PushOutcome:
+        """Set a task note's status, leaving the rest of its frontmatter alone."""
+        if not self.write_back:
+            return PushOutcome(remote_id=remote_id, error=self._read_only())
+        relative = remote_id[len("note:"):]
+        if not self._may_write(remote_list_id, relative):
+            return PushOutcome(
+                remote_id=remote_id,
+                error="Write-back is not enabled for the folder that note is in.",
+            )
+        if self._written >= MAX_WRITES_PER_PASS:
+            return PushOutcome(
+                remote_id=remote_id,
+                error=(
+                    f"Stopped after {MAX_WRITES_PER_PASS} changes in one pass. "
+                    "A sync that wants to rewrite more of your vault than that "
+                    "is more likely to be a fault than an intention."
+                ),
+            )
+
+        root = self._require_vault()
+        path = (root / relative).resolve()
+        if root.resolve() not in path.parents:
+            return PushOutcome(remote_id=remote_id, error="That note is outside the vault.")
+        if not path.is_file():
+            return PushOutcome(
+                remote_id=remote_id,
+                error=f"{relative} is no longer in the vault.",
+            )
+
+        try:
+            original = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return PushOutcome(remote_id=remote_id, error=f"Could not read {relative}: {exc}")
+
+        _global_filter, tasknotes = self._settings(root)
+        completed = record.status == ItemStatus.COMPLETED
+        updated = rewrite_tasknote_status(
+            original, config=tasknotes, completed=completed,
+            done_on=(record.completed_at.date() if record.completed_at else None),
+        )
+        if updated == original:
+            return PushOutcome(remote_id=remote_id)      # already as it should be
+
+        # The body is the user's own writing, so it is checked rather than
+        # trusted: a patch that touched it would be a bug worth refusing over.
+        if parse_frontmatter(updated)[1] != parse_frontmatter(original)[1]:
+            return PushOutcome(
+                remote_id=remote_id,
+                error=f"Refused to write {relative}: it would have changed the note's text.",
+            )
+
+        try:
+            path.write_text(updated, encoding="utf-8")
+            written_back = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return PushOutcome(remote_id=remote_id, error=f"Could not write {relative}: {exc}")
+
+        if written_back != updated:
+            self._restore(path, original, relative)
+            return PushOutcome(
+                remote_id=remote_id,
+                error=f"{relative} did not save as expected and was put back.",
+            )
+
+        self._written += 1
+        logger.info("Marked %s %s", relative, "complete" if completed else "not complete")
+        return PushOutcome(remote_id=remote_id)
+
+    def _update_inline(self, remote_list_id, remote_id, record) -> PushOutcome:
         """Tick a task off in the vault, or un-tick it. Nothing else.
 
         Every step here exists because the alternative is damaging somebody's

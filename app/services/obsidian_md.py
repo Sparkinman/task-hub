@@ -769,6 +769,61 @@ def record_to_tasknote(
     return "\n".join(lines)
 
 
+def rewrite_tasknote_status(
+    text: str,
+    *,
+    config: TaskNotesConfig | None = None,
+    completed: bool,
+    done_on: dt.date | None = None,
+) -> str:
+    """Set a task note's status, patching its frontmatter line by line.
+
+    Not rebuilt from parsed fields, for the same reason an inline task's line is
+    patched rather than regenerated: the frontmatter belongs to the user and to
+    whatever other plugins write into it. Re-dumping it would reorder the keys,
+    drop the ones this module does not model, and turn their quoting into ours.
+
+    Only two lines are touched -- the status, and the completion date that goes
+    with it. Everything else is copied through unchanged.
+    """
+    config = config or TaskNotesConfig()
+    match = _FRONTMATTER_RE.match(text)
+    if not match:
+        return text
+
+    status_key = config.key("status")
+    done_key = config.key("completed")
+    wanted = config.value_for_status(
+        ItemStatus.COMPLETED if completed else ItemStatus.NEEDS_ACTION)
+    stamp = (done_on or dt.date.today()).isoformat()
+
+    lines = match[1].splitlines()
+    out: list[str] = []
+    seen_status = False
+    for line in lines:
+        key = line.split(":", 1)[0].strip()
+        if key == status_key:
+            out.append(f"{status_key}: {_yaml_scalar(wanted)}")
+            seen_status = True
+            continue
+        if key == done_key:
+            # Dropped here and re-added below when it belongs, so that
+            # un-completing a task takes its completion date with it.
+            continue
+        out.append(line)
+
+    if not seen_status:
+        out.insert(0, f"{status_key}: {_yaml_scalar(wanted)}")
+    if completed:
+        out.append(f"{done_key}: {_yaml_scalar(stamp)}")
+
+    # Everything from the end of the YAML onwards is copied byte for byte --
+    # the closing delimiter and whatever blank lines followed it. Rebuilding
+    # that would quietly reformat a file the user wrote, which is exactly what
+    # patching rather than regenerating exists to avoid.
+    return "---\n" + "\n".join(out) + text[match.end(1):]
+
+
 # --- The reference back to the note -------------------------------------------
 
 #: Marks the trailer Task Hub appends to a task's notes. Everything from this
