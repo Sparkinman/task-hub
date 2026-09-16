@@ -61,13 +61,26 @@ def request_at(base: str) -> Request:
 init_db()
 
 
-def account_connected_at(session, kind: ServiceKind, slot: int, uri: str | None):
+def account_connected_at(
+    session,
+    kind: ServiceKind,
+    slot: int,
+    uri: str | None,
+    status: AccountStatus = AccountStatus.NEEDS_AUTH,
+    identity: str = "someone@example.com",
+):
+    """An account for these tests, needing reconnection unless told otherwise.
+
+    NEEDS_AUTH is the default because it is the only state this warning speaks
+    in: a working account refreshes without a redirect address, so the console
+    entry cannot affect it.
+    """
     account = Account(
         service=kind,
         slot=slot,
         label=f"{kind.value} drift test",
-        status=AccountStatus.CONNECTED,
-        remote_identity="someone@example.com",
+        status=status,
+        remote_identity=identity,
         connected_redirect_uri=uri,
     )
     session.add(account)
@@ -98,6 +111,91 @@ with session_scope() as session:
         "an empty recorded address is silent",
         drift_in(request_at("https://tasks.example.com"), [blank]) == [],
     )
+    session.rollback()
+
+print("\nA working account is never reported, whatever address it is reached on")
+# The rule this warning lives by. A connected account refreshes its tokens
+# without ever sending a redirect address, so the console entry cannot affect
+# it, and saying otherwise turns an ordinary second address -- a tunnel
+# alongside a port forward -- into a standing alarm that doing what it asks
+# never clears.
+with session_scope() as session:
+    working = account_connected_at(
+        session, ServiceKind.GOOGLE, 80,
+        "https://tasks.example.com/oauth/google/callback",
+        status=AccountStatus.CONNECTED,
+    )
+    check(
+        "a connected account on another address is silent",
+        drift_in(request_at("http://localhost:8080"), [working]) == [],
+        repr(drift_in(request_at("http://localhost:8080"), [working])),
+    )
+    session.rollback()
+
+with session_scope() as session:
+    # ERROR is a transient failure the engine retries on its own. It does not
+    # involve signing in again, so the address is as irrelevant as it is for a
+    # healthy account.
+    for status in (AccountStatus.ERROR, AccountStatus.DISABLED, AccountStatus.NEW):
+        account = account_connected_at(
+            session, ServiceKind.GOOGLE, 81,
+            "https://tasks.example.com/oauth/google/callback",
+            status=status,
+        )
+        check(
+            f"{status.value} is silent too",
+            drift_in(request_at("http://localhost:8080"), [account]) == [],
+        )
+        session.rollback()
+
+with session_scope() as session:
+    expired = account_connected_at(
+        session, ServiceKind.GOOGLE, 82,
+        "https://tasks.example.com/oauth/google/callback",
+        status=AccountStatus.NEEDS_AUTH,
+    )
+    check(
+        "but an account that must reconnect is reported",
+        len(drift_in(request_at("http://localhost:8080"), [expired])) == 1,
+    )
+    session.rollback()
+
+print("\nSlots sharing one OAuth client are one instruction, not several")
+# Paul's two Google accounts, both connected through the tunnel, both expired.
+# One paste into one console fixes both, so saying it twice is wrong.
+with session_scope() as session:
+    first = account_connected_at(
+        session, ServiceKind.GOOGLE, 83,
+        "https://tasks.example.com/oauth/google/callback",
+        identity="one@example.com",
+    )
+    second = account_connected_at(
+        session, ServiceKind.GOOGLE, 84,
+        "https://tasks.example.com/oauth/google/callback",
+        identity="two@example.com",
+    )
+    found = drift_in(request_at("http://localhost:8080"), [first, second])
+    check("two accounts produce one warning", len(found) == 1, repr(found))
+    if found:
+        check("which names both slots", found[0].slots == (83, 84), str(found[0].slots))
+        check("and both identities",
+              found[0].identities == ("one@example.com", "two@example.com"),
+              str(found[0].identities))
+    session.rollback()
+
+with session_scope() as session:
+    # Different connected addresses are genuinely different fixes, so these do
+    # not collapse into one.
+    a = account_connected_at(
+        session, ServiceKind.GOOGLE, 85,
+        "https://tasks.example.com/oauth/google/callback",
+    )
+    b = account_connected_at(
+        session, ServiceKind.GOOGLE, 86,
+        "https://other.example.com/oauth/google/callback",
+    )
+    found = drift_in(request_at("http://localhost:8080"), [a, b])
+    check("but two different origins stay separate", len(found) == 2, repr(found))
     session.rollback()
 
 print("\nSpelling differences a console ignores are not drift either")
@@ -253,8 +351,8 @@ check(
 )
 
 _addable = RedirectDrift(
-    account_id=1, service_key="google", service_name="Google", slot=1,
-    identity="someone@example.com",
+    account_ids=(1,), service_key="google", service_name="Google", slots=(1,),
+    identities=("someone@example.com",),
     connected_uri="http://localhost:8080/oauth/google/callback",
     current_uri="https://tasks.example.com/oauth/google/callback",
     console_name="Google Cloud Console",
@@ -267,8 +365,8 @@ check("the console is linked", _addable.console_url in _rendered)
 check("it says to keep both", "alongside the one already there" in _rendered)
 
 _refused = RedirectDrift(
-    account_id=2, service_key="google", service_name="Google", slot=2,
-    identity="",
+    account_ids=(2,), service_key="google", service_name="Google", slots=(2,),
+    identities=("",),
     connected_uri="http://localhost:8080/oauth/google/callback",
     current_uri="http://192.168.1.50:8080/oauth/google/callback",
     console_name="Google Cloud Console",
@@ -281,6 +379,29 @@ check(
     "and the reason is given instead",
     "would not help" in _rendered and "raw IP address" in _rendered,
 )
+
+# Several slots behind one console entry. The old partial emitted this block
+# once per account, so two accounts meant the same instruction and the same URL
+# printed twice -- a one-paste job that looked like several.
+_shared = RedirectDrift(
+    account_ids=(1, 2), service_key="google", service_name="Google",
+    slots=(1, 2), identities=("one@example.com", "two@example.com"),
+    connected_uri="https://tasks.example.com/oauth/google/callback",
+    current_uri="http://localhost:8080/oauth/google/callback",
+    console_name="Google Cloud Console",
+    console_url="https://console.cloud.google.com/apis/credentials",
+)
+_rendered = _template.render(drift=[_shared])
+check("both slots are named", "slots 1, 2" in _rendered, _rendered[:0])
+check("both identities are named",
+      "one@example.com" in _rendered and "two@example.com" in _rendered)
+check("the address to paste appears exactly once",
+      _rendered.count(_shared.current_uri) == 1,
+      str(_rendered.count(_shared.current_uri)))
+check("there is one Copy button, not one per account",
+      _rendered.count(">Copy<") == 1, str(_rendered.count(">Copy<")))
+check("and it says one entry covers them all",
+      "One entry covers all 2" in _rendered)
 
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")

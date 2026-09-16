@@ -1,7 +1,12 @@
-{# Accounts connected at an address Task Hub is no longer reached on.
-   Nothing is broken -- refreshing a token never sends an address -- so this
-   warns rather than alarms, and says plainly that the cost of ignoring it is
-   paid later, at the next reconnection, in a form that will not look like this.
+{# Accounts that must reconnect, and cannot from the address in use now.
+
+   This is deliberately rare. A *working* account is never reported: its tokens
+   refresh without a redirect address, so the console entry does not matter
+   until it has to sign in again. Reaching Task Hub over a tunnel and over a
+   port forward is normal, and being on the second one is not a fault.
+
+   One block per console entry, not per account: every slot of a service shares
+   one OAuth client, so one paste fixes all of them.
 
    Expects `drift`: a list of RedirectDrift. Renders nothing when it is empty. #}
 {% if drift %}
@@ -9,22 +14,27 @@
     <span class="alert-icon" aria-hidden="true">!</span>
     <div class="grow">
       <div class="strong">
-        Task Hub's address has changed since
-        {% if drift | length == 1 %}an account was{% else %}some accounts were{% endif %}
-        connected.
+        {% if drift | length == 1 and drift[0].slots | length == 1 %}
+          An account needs reconnecting, and this address would stop that working.
+        {% else %}
+          Some accounts need reconnecting, and this address would stop that working.
+        {% endif %}
       </div>
       <p class="small">
-        Everything still syncs, and will keep syncing — renewing a connection
-        never involves the address. But reconnecting one of these, or adding
-        another account, would send the new address, and the sign-in fails at
-        its very last step if the console has not been told about it.
+        Task Hub is being reached on a different address from the one these were
+        connected at. That is fine in itself — but a reconnection sends the
+        address in use, and the sign-in fails at its very last step if the
+        console has not been told about it.
       </p>
       {% for d in drift %}
         <div class="stack-sm mt-3">
           <div class="small">
             <span class="strong">{{ d.service_name }}</span>
-            slot {{ d.slot }}{% if d.identity %} ({{ d.identity }}){% endif %}
-            was connected at <span class="mono">{{ d.connected_uri }}</span>.
+            {% if d.slots | length == 1 %}slot {{ d.slots[0] }}{% else %}slots {{ d.slots | join(', ') }}{% endif %}
+            {%- set named = d.identities | select | list %}
+            {%- if named %} ({{ named | join(', ') }}){% endif %}
+            {% if d.slots | length == 1 %}was{% else %}were{% endif %}
+            connected at <span class="mono">{{ d.connected_uri }}</span>.
           </div>
           {% if d.current_uri_problem %}
             <div class="small">
@@ -32,22 +42,29 @@
               <span class="mono">{{ d.current_uri }}</span>, and putting that
               into {{ d.console_name }} would not help:
               {{ d.current_uri_problem }}
-              So reach Task Hub on an address it does accept before reconnecting
-              this one — the existing connection is unaffected either way.
+              So reach Task Hub on an address it does accept before reconnecting.
             </div>
           {% else %}
             <div class="small">
-              Add this to
+              Either reconnect from
+              <span class="mono">{{ d.connected_uri | replace('/oauth/' ~ d.service_key ~ '/callback', '') }}</span>,
+              where this already works, or add this to
               {% if d.console_url %}
                 <a href="{{ d.console_url }}" target="_blank" rel="noopener">{{ d.console_name }}</a>
               {% else %}{{ d.console_name }}{% endif %}
               as a second redirect URI, alongside the one already there:
             </div>
             <div class="copy-field">
-              <input type="text" id="drift-uri-{{ d.account_id }}" readonly
+              <input type="text" id="drift-uri-{{ d.account_ids[0] }}" readonly
                      value="{{ d.current_uri }}">
-              <button type="button" class="btn" data-copy="#drift-uri-{{ d.account_id }}">Copy</button>
+              <button type="button" class="btn" data-copy="#drift-uri-{{ d.account_ids[0] }}">Copy</button>
             </div>
+            {% if d.slots | length > 1 %}
+              <div class="small muted">
+                One entry covers all {{ d.slots | length }} — they share the same
+                {{ d.console_name }} client.
+              </div>
+            {% endif %}
           {% endif %}
         </div>
       {% endfor %}
