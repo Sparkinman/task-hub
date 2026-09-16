@@ -41,6 +41,33 @@
   </div>
 </div>
 
+{# The one step people skip, and the only one that breaks a working sync a week
+   later. It is not in the caveats list because this page does not show one, and
+   burying it in the guide is what made it the most common support question. The
+   cost and the greyed-out button are named here deliberately: both are why
+   people stop rather than push through. #}
+<div class="alert alert-warning mb-5">
+  <span class="alert-icon" aria-hidden="true">!</span>
+  <div class="grow">
+    <div class="alert-title">Publish your Google app, or the login dies after 7 days</div>
+    While your Google Cloud app is in <span class="strong">Testing</span>, Google
+    expires the saved login after exactly seven days — syncing works perfectly
+    for a week and then stops, every week. Switch it off once:
+    <span class="strong">Google Auth Platform → Audience → PUBLISH APP</span>.
+    <div class="mt-2">
+      This is <span class="strong">free, instant, and reviewed by nobody</span>.
+      It does not make your app public or searchable, and no verification is
+      needed. If <span class="strong">PUBLISH APP</span> is greyed out, fill in
+      the <span class="strong">Branding</span> page first — add
+      <code>google.com</code> under Authorised domains and
+      <code>https://www.google.com</code> as the application home page, then
+      save. You do not need a website of your own.
+      <a href="/docs/google#step-6--publish-the-app--the-most-important-step"
+         target="_blank" rel="noopener">Step 6 of the guide walks through it →</a>
+    </div>
+  </div>
+</div>
+
 {# --- Step 1: the Google Cloud project ---------------------------------- #}
 <div class="card mb-5">
   <div class="card-header">

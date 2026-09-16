@@ -515,7 +515,9 @@ are hard are on the record — not as a suggestion to try them.
 
 - **Google Tasks** cannot store a time of day, has no priorities, no tags and no
   location. Its OAuth app must be published to *Production* — in *Testing* mode
-  Google expires the login every seven days.
+  Google expires the login every seven days. Publishing is free, instant and
+  self-served, and it is the one step worth not skipping: see
+  [docs/google.md](docs/google.md), Step 6.
 - **TickTick** exposes only tasks and projects to third parties. Its calendar is
   not available at all, it has no webhooks, and its Inbox is unreachable. Its
   listings omit completed tasks entirely, so Task Hub asks about each task that

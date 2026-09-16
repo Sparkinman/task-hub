@@ -118,7 +118,11 @@ SERVICE_CATALOGUE: tuple[ServiceDefinition, ...] = (
             "Your Google Cloud OAuth app must be published to Production "
             "(Google Auth Platform -> Audience -> PUBLISH APP). While it is in "
             "Testing mode Google expires the login every 7 days, and syncing "
-            "stops until you reconnect.",
+            "stops until you reconnect. Publishing is free, instant and needs "
+            "no review by anyone -- if the button is greyed out, fill in the "
+            "Branding page first: add google.com under Authorised domains and "
+            "https://www.google.com as the application home page. The guide "
+            "walks through it at Step 6.",
         ],
     ),
     ServiceDefinition(

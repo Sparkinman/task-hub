@@ -10,6 +10,13 @@ about 30 seconds each.
 **Cost:** nothing. The APIs used here are free, and Google will not ask for a
 credit card.
 
+**About the "login expires every 7 days" you may have read about:** it is real,
+it is the single most common reason self-hosted Google syncs break, and it is
+switched off in one free minute at **Step 6**. It only applies to apps left in
+Google's **Testing** mode. Publish the app — a button you press yourself, with
+no review, no fee and no waiting — and the login lasts indefinitely. Do not let
+this put you off; just do not skip Step 6.
+
 ---
 
 ## The three values you will move
@@ -152,11 +159,53 @@ This is the screen you will see when you grant access.
 
 Skipping this is the number one reason self-hosted Google syncs break.
 
+**This step is free, takes about a minute, and nothing is reviewed by anybody.**
+If you have read elsewhere that you must re-authorise Google every 7 days, that
+is only true of apps left in **Testing**. You are about to turn that off
+permanently. Nobody is charged for this and nobody at Google has to approve it.
+
+### First, fill in the Branding page
+
+Google will not let you publish an app until it has a home page address, and it
+only accepts one whose domain is on the **Authorised domains** list. That is the
+part that stops most people, because the button simply refuses to work and does
+not always say why.
+
+You do not need a website, and you do not need to buy a domain. Any valid
+address will do, because nothing ever visits it — the field exists for apps that
+are distributed to strangers, and yours is not.
+
+1. In the left-hand menu, click **Branding**.
+2. In **Authorised domains**, click **ADD DOMAIN** and enter:
+
+   ```
+   google.com
+   ```
+
+3. In **Application home page**, enter:
+
+   ```
+   https://www.google.com
+   ```
+
+4. Leave the privacy policy and terms of service links empty. They are not
+   required for an app that is never submitted for verification.
+5. Click **SAVE** at the bottom of the page.
+
+> **If you own a domain**, use it here instead — your own site as the home page
+> and your own domain in the list. It makes no practical difference to how Task
+> Hub works; use whichever you find less objectionable.
+
+### Then publish
+
 23. In the left-hand menu of the Google Auth Platform, click **Audience**.
 24. Near the top of the page, find **Publishing status**.
 25. **If it says "Testing"**, click the **PUBLISH APP** button.
 26. A dialog appears asking you to confirm. Click **CONFIRM**.
 27. Check that **Publishing status** now reads **In production**.
+
+If the button is greyed out or the dialog complains about missing information,
+go back and do the Branding page above — that is almost always what it wants.
 
 ### Why this matters so much
 
@@ -164,7 +213,16 @@ While the status is **Testing**, Google deliberately expires your saved login
 after exactly **7 days**. Task Hub would sync perfectly for a week, then stop
 with an authorisation error. Every week. Forever.
 
-Setting it to **In production** makes the login last indefinitely.
+Setting it to **In production** makes the login last indefinitely. There is no
+renewal, no reminder to action, and no expiry date to diarise. Connect once and
+it keeps working.
+
+### Is this really free?
+
+Yes, completely. Publishing an OAuth app costs nothing. The Google Tasks and
+Calendar APIs you are using have generous free quotas that a single household
+cannot get near, and no billing account is attached to any of this. There is no
+paid tier you are being steered towards and no trial that runs out.
 
 ### Does "publish" make my app public?
 
@@ -176,6 +234,11 @@ your Client Secret. "Published" here only means "not in test mode".
 No. Verification is for apps distributed to other people. Because yours is
 unverified, Google shows one warning screen when you connect, which you click
 through once. That is covered in Step 34.
+
+Publishing and verification are separate things, and it is easy to confuse them
+because both sound like Google is being asked for permission. Publishing is a
+switch you flip yourself, instantly and for free. Verification is a review
+process you never have to enter.
 
 ---
 
@@ -417,8 +480,28 @@ The address registered with Google does not exactly match the one Task Hub sent.
 
 ### Sync works for a week, then stops
 
-Your app is still in **Testing**. Go to **Google Auth Platform → Audience** and
-click **PUBLISH APP** (Steps 23–27), then click **Reconnect** in Task Hub.
+Your app is still in **Testing**, where Google expires the login after exactly
+7 days. Go to **Google Auth Platform → Audience** and click **PUBLISH APP**
+(Steps 23–27), then click **Reconnect** in Task Hub.
+
+This is permanent once done. You are not signing up for anything, and it costs
+nothing — see Step 6.
+
+### PUBLISH APP is greyed out, or asks for information I do not have
+
+Google wants the **Branding** page filled in first, and it is not good at
+saying so. It needs a home page address whose domain is on the **Authorised
+domains** list.
+
+You do not need a website. Go to **Branding**, add `google.com` under
+**Authorised domains**, put `https://www.google.com` in **Application home
+page**, leave the privacy policy and terms links empty, and click **SAVE**.
+Then try **PUBLISH APP** again. Full walkthrough in Step 6.
+
+### Do I have to pay Google for any of this?
+
+No. Publishing the app is free, the APIs Task Hub uses are free at the volumes
+one household generates, and no billing account is involved at any point.
 
 ### "Google did not return a refresh token"
 
@@ -447,7 +530,7 @@ Click **Advanced** at the bottom-left, then **Go to Task Hub (unsafe)**.
 
 If there is no **Advanced** link, your app is set to **External** *and*
 **Testing**, and your account is not in the test-user list. The fix is to
-publish the app (Steps 23–27).
+publish the app (Steps 23–27), which is free and takes about a minute.
 
 ### Tasks appear in Task Hub but never reach Google
 
