@@ -470,6 +470,81 @@ for text, expected in [
     check(f"{str(text)[:30]!r} parses to {expected}",
           reference_in(text) == expected, str(reference_in(text)))
 
+
+print("\nA capped read is a sample, and is never allowed to delete anything")
+# The fault this guards against had already happened once: these endpoints
+# default to twenty rows, oldest first, and say nothing about it, so the to-dos
+# they silently omit are the newest ones. maxResults is the fix; this is what
+# happens if a ceiling is ever imposed below it anyway.
+from app.connectors.supernote import (  # noqa: E402
+    MAX_RESULTS,
+    ConnectorError,
+    ConnectorGoneError,
+    truncated,
+)
+
+check("a whole answer is not truncated", truncated({"scheduleTask": []}) is False)
+check("nor is one with a null token", truncated({"nextPageToken": None}) is False)
+# A JSON null can reach here as text, and the token is a page number, so "0"
+# is not a page two either.
+for empty in ["", "null", "undefined", "0", "   "]:
+    check(f"nor is one whose token is {empty!r}",
+          truncated({"nextPageToken": empty}) is False)
+check("a token of '2' is", truncated({"nextPageToken": "2"}) is True)
+check("and so is a numeric one", truncated({"nextPageToken": 2}) is True)
+check("the cap is far above any plausible account", MAX_RESULTS >= 8000, str(MAX_RESULTS))
+
+
+class CappedApi(FakeApi):
+    """An account that reports one task and admits there are more."""
+
+    def _get(self, path, payload=None):
+        self.calls.append(path)
+        if path == LIST_TASKS:
+            return {
+                "scheduleTask": [dict(live_row, taskId="t1", taskListId="1")],
+                "nextPageToken": "2",
+            }
+        return GROUPS
+
+
+capped = CappedApi().pull("1", CollectionKind.TASKS)
+check("a capped pull still returns what it did see",
+      [i.record.title for i in capped.items] != [], str(capped.items))
+# The whole point. incremental=False means the engine reads a missing task as
+# deleted and carries that deletion to every other connected service -- so on a
+# capped read it would delete every task past the ceiling, everywhere.
+check("but it never lets absence imply deletion",
+      capped.incremental is True)
+check("while an uncapped read of the same list still does",
+      FakeApi().pull("1", CollectionKind.TASKS).incremental is False)
+
+# The write half, which is worse: ConnectorGoneError is read by the engine as a
+# deletion made at Supernote. Raised off a capped read it would delete a task
+# that is alive and merely unreported.
+capped_write = CappedApi()
+try:
+    capped_write.update("1", "past-the-cap", fresh, CollectionKind.TASKS)
+    outcome = "no error"
+except ConnectorGoneError:
+    outcome = "gone"
+except ConnectorError:
+    outcome = "error"
+check("a task missing from a capped read is not reported as gone",
+      outcome == "error", outcome)
+
+# And the ordinary case must keep working, or this guard has broken deletion.
+whole_write = FakeApi()
+try:
+    whole_write.update("1", "never-existed", fresh, CollectionKind.TASKS)
+    outcome = "no error"
+except ConnectorGoneError:
+    outcome = "gone"
+except ConnectorError:
+    outcome = "error"
+check("but one missing from a complete read still is", outcome == "gone", outcome)
+
+
 if _failures:
     print(f"\n{len(_failures)} check(s) failed.")
     sys.exit(1)

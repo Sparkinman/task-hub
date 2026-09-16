@@ -107,11 +107,37 @@ LIST_TASKS = "/file/schedule/task/all"
 #: why no page token ever worked for tasks -- that endpoint has none.
 #:
 #: Verified against a live account: ``maxResults: 3`` returns three rows with
-#: ``nextPageToken`` set, twenty or more returns the whole account with the
-#: token null, and 5000 is accepted without complaint.
+#: ``nextPageToken`` set to "2", the whole account comes back with the token
+#: null, and 8000 is accepted without complaint on both endpoints.
+#:
+#: The number is deliberately far above any plausible account rather than
+#: tuned. Nothing is paid for asking high -- the server sends what it has, not
+#: what was asked for -- while asking too low silently loses the newest to-dos,
+#: which is the failure this constant exists to prevent. :func:`truncated` is
+#: the backstop if a ceiling is ever imposed below it.
 #:
 #: The name is Google Tasks', like the rest of this API's vocabulary.
-MAX_RESULTS = 1000
+MAX_RESULTS = 8000
+
+
+def truncated(body: dict) -> bool:
+    """Whether the account holds more rows than this answer contains.
+
+    ``nextPageToken`` set is the server saying there is a page two -- and for
+    ``/file/schedule/task/all`` there is no way to ask for it, because that
+    endpoint has no ``pageToken``. So this is not a cursor to follow but a
+    warning to heed: the answer is a sample, not the set.
+
+    It matters because absence drives deletion. A truncated read that was
+    treated as complete would have the engine delete every task past the
+    ceiling from every other connected service, and the rows come back oldest
+    first, so those are the newest tasks on the account.
+
+    The token is a page *number* rather than an opaque string, and a JSON null
+    can reach here as the text "null", so the check is deliberately loose.
+    """
+    token = str((body or {}).get("nextPageToken") or "").strip()
+    return token not in {"", "null", "undefined", "0"}
 #: One task. The verb decides the operation, and each has a trap of its own.
 #:
 #: ``POST`` inserts, and inserts *even when the body carries a taskId* -- it
@@ -407,6 +433,9 @@ class SupernoteConnector(Connector):
         #: Supernote already holds rather than blanking fields by omission.
         #: Lives for one sync pass, which is the lifetime of this object.
         self._cache: dict[str, dict] = {}
+        #: Whether the read that filled the cache was capped. See update():
+        #: a task missing from a truncated read has not been shown to be gone.
+        self._cache_truncated = False
 
     # -- Capabilities ---------------------------------------------------------
 
@@ -497,9 +526,12 @@ class SupernoteConnector(Connector):
         """
         if remote_id in self._cache:
             return self._cache[remote_id]
-        for row in self._get(LIST_TASKS, {"maxResults": MAX_RESULTS}).get(
-            "scheduleTask"
-        ) or []:
+        body = self._get(LIST_TASKS, {"maxResults": MAX_RESULTS})
+        # Remembered rather than returned: update() needs to tell "the task is
+        # not there" from "the task was not reported", and they arrive here as
+        # the same empty result.
+        self._cache_truncated = truncated(body)
+        for row in body.get("scheduleTask") or []:
             task_id = str(row.get("taskId") or "").strip()
             if task_id:
                 self._cache[task_id] = row
@@ -595,6 +627,10 @@ class SupernoteConnector(Connector):
         list -- but only when asked for them all. See ``MAX_RESULTS``: without
         it the answer is the oldest twenty rows and nothing says so.
 
+        A capped answer is reported as incremental, so that tasks the server
+        did not mention are left alone instead of being deleted from every
+        other connected service. See :func:`truncated`.
+
         ``nextSyncToken`` is a real delta cursor, and sending a stale one is
         refused with "NextSyncToken timeout" rather than quietly returning
         nothing. It is deliberately not used: a delta read that silently fell
@@ -607,6 +643,14 @@ class SupernoteConnector(Connector):
             return PullResult(items=[], incremental=False)
 
         body = self._get(LIST_TASKS, {"maxResults": MAX_RESULTS})
+        capped = truncated(body)
+        if capped:
+            logger.warning(
+                "Supernote returned only part of the account even though %s rows "
+                "were asked for. Tasks it did not report are being left alone "
+                "rather than treated as deleted.",
+                MAX_RESULTS,
+            )
         items: list[RemoteItem] = []
         present = self.capabilities(kind).fields
 
@@ -644,7 +688,8 @@ class SupernoteConnector(Connector):
 
 
         # A real list reports completely, so a task that has gone really has
-        # gone and the engine may act on its absence.
+        # gone and the engine may act on its absence -- unless the read was
+        # capped, in which case it reported a sample and absence means nothing.
         #
         # The unfiled view must never be read that way. It holds tasks that
         # belong to no list, so filing one on the tablet -- an ordinary thing to
@@ -654,7 +699,10 @@ class SupernoteConnector(Connector):
         # that deletion to every other connected service. Claiming the pull is
         # incremental is what stops it: the engine then treats a missing item as
         # unreported rather than as gone.
-        return PullResult(items=items, incremental=remote_list_id == UNFILED_LIST_ID)
+        return PullResult(
+            items=items,
+            incremental=capped or remote_list_id == UNFILED_LIST_ID,
+        )
 
     def _record_from(self, row: dict, remote_id: str) -> CanonicalRecord:
         status = STATUS_FROM_REMOTE.get(
@@ -820,6 +868,16 @@ class SupernoteConnector(Connector):
             # Never fall back to POST here. POST inserts even when the body
             # carries a taskId, so "update the task that is not there" would
             # quietly become "make a second one".
+            if self._cache_truncated:
+                # Absent from a capped read is not absent from the account, and
+                # ConnectorGoneError is read by the engine as a deletion made
+                # here -- which it would then carry out everywhere else. An
+                # ordinary error fails this one task and leaves it alone.
+                raise ConnectorError(
+                    "Supernote returned only part of the account, so it cannot "
+                    f"be said whether task {remote_id} is still there. "
+                    "Nothing was changed."
+                )
             raise ConnectorGoneError(
                 f"Supernote no longer has a task with id {remote_id}."
             )
