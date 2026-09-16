@@ -180,6 +180,17 @@ Two settings to change afterwards:
 - Add `https://tasks.yourdomain.com/oauth/google/callback` to your Google Cloud
   OAuth client, alongside the localhost one.
 
+> **Keep both addresses registered.** A Google client may hold as many redirect
+> URIs as you like, and having both means you can connect an account from
+> whichever address you happen to be using — the tunnel from your phone, or
+> `localhost` from the machine itself.
+>
+> Accounts already connected are not affected by any of this. Renewing a login
+> never sends a redirect address, so an account connected through the tunnel
+> keeps syncing when you open Task Hub on `localhost`, and the other way round.
+> The address only matters at the moment you connect or reconnect an account,
+> which is the only time Task Hub mentions it.
+
 > The token in `.env` is enough for anyone to route traffic through your tunnel.
 > It is excluded from version control, and it should not be shared.
 

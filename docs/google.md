@@ -503,6 +503,26 @@ Then try **PUBLISH APP** again. Full walkthrough in Step 6.
 No. Publishing the app is free, the APIs Task Hub uses are free at the volumes
 one household generates, and no billing account is involved at any point.
 
+### Task Hub says an account needs reconnecting and this address will not work
+
+You connected that account at one address — say a Cloudflare tunnel — and are
+now using Task Hub at another, such as `http://localhost:8080`. Nothing is
+broken by that on its own, and Task Hub says nothing about it while the account
+is working: renewing a login never sends a redirect address.
+
+It only matters when an account actually has to sign in again, because that
+does send one. Two ways out, and either is fine:
+
+- **Reconnect from the address it was connected at**, which needs no changes in
+  the console at all.
+- **Add the address you are using now** to the Google client as a second
+  redirect URI (**Clients →** your client **→ Authorised redirect URIs**),
+  alongside the one already there.
+
+Keeping several registered is normal and costs nothing. It is what lets one
+client serve a tunnel, a port forward and `localhost` at the same time. One
+entry covers every account slot, because they all share the one client.
+
 ### "Google did not return a refresh token"
 
 Google only issues a long-term token the first time an account authorises an
