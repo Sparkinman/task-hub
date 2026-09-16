@@ -90,6 +90,32 @@ SKIP_DIRS = {".obsidian", ".trash", ".git", "node_modules"}
 #: own empty-pull guard: absence is the one signal that destroys data.
 MIN_FILES_FOR_TRUST = 1
 
+#: The three things a vault can be set to. Not a boolean, because the middle
+#: one is the answer to "a task I tick off in Todoist should be ticked off in my
+#: notes, but I do not want Todoist's tasks appearing in them" -- which is what
+#: most people want and what a single on/off switch could not express.
+LEVEL_READ = "read"
+LEVEL_COMPLETIONS = "completions"
+LEVEL_FULL = "full"
+LEVELS = (LEVEL_READ, LEVEL_COMPLETIONS, LEVEL_FULL)
+
+
+def normalise_level(value, legacy_write_back=None) -> str:
+    """One of the three levels, from a stored value of any vintage.
+
+    Vaults set up before the levels existed stored a boolean, where True meant
+    "may tick tasks off" -- which is exactly the middle level, not the top one.
+    Reading it as ``full`` would start writing tasks into notes that nobody had
+    agreed to receive them.
+    """
+    text = str(value or "").strip().lower()
+    if text in LEVELS:
+        return text
+    if legacy_write_back:
+        return LEVEL_COMPLETIONS
+    return LEVEL_READ
+
+
 #: What a note collecting inline tasks is called, when the user has chosen the
 #: folder to put it in rather than naming a note themselves.
 DEFAULT_INBOX = "From Task Hub.md"
@@ -122,10 +148,24 @@ class ObsidianConnector(Connector):
     def __init__(self, account_id: int, credentials: dict, sync_state: dict | None = None):
         super().__init__(account_id, credentials, sync_state)
         self.vault_name: str = (credentials or {}).get("name") or ""
-        #: Off unless deliberately turned on for this vault, and read fresh from
-        #: the account every time a connector is built, so switching it off
-        #: takes effect on the very next pass.
-        self.write_back: bool = bool((credentials or {}).get("write_back"))
+        #: How much of this vault Task Hub may change, as one of three levels.
+        #: Read fresh from the account every time a connector is built, so a
+        #: change takes effect on the very next pass.
+        #:
+        #:   read        Nothing is written. Tasks and completions travel out of
+        #:               the vault only. The client stays in mirror-remote,
+        #:               which reverts local changes, so this is enforced rather
+        #:               than promised.
+        #:   completions A task ticked off anywhere is ticked off here too, and
+        #:               the other way round. Nothing else is written: no new
+        #:               tasks, no changes to wording or dates.
+        #:   full        Tasks from the collections this vault is mapped to are
+        #:               also written in. The advanced level.
+        self.sync_level: str = normalise_level((credentials or {}).get("sync_level"),
+                                               (credentials or {}).get("write_back"))
+        #: True for either writing level. Kept because most of the code only
+        #: needs to know whether this vault may be touched at all.
+        self.write_back: bool = self.sync_level in (LEVEL_COMPLETIONS, LEVEL_FULL)
         #: Folders write-back is allowed into. Empty means the whole vault.
         self.write_folders: set[str] = set((credentials or {}).get("write_folders") or [])
         #: Where new tasks are stored, relative to the vault root. Its meaning
@@ -179,7 +219,7 @@ class ObsidianConnector(Connector):
         # A task note needs no destination setting -- the plugin already says
         # where tasks live. An inline task has nowhere to go until a note is
         # named, so for that format the setting is still required.
-        can_create = bool(self.write_back) and (
+        can_create = self.sync_level == LEVEL_FULL and (
             self.writes_format() == "tasknotes" or bool(self.create_note)
         )
         return Capabilities(

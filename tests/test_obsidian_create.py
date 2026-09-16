@@ -129,7 +129,7 @@ with tempfile.TemporaryDirectory() as raw:
             return vault
 
     def build(**credentials):
-        creds = {"name": "Test Vault", "write_back": True, "create_note": "Inbox.md"}
+        creds = {"name": "Test Vault", "sync_level": "full", "create_note": "Inbox.md"}
         creds.update(credentials)
         return Bound(account_id=1, credentials=creds)
 
@@ -160,8 +160,8 @@ with tempfile.TemporaryDirectory() as raw:
 
     print("\nRefusals")
 
-    off = build(write_back=False)
-    check("creation is refused with write-back off",
+    off = build(sync_level="read")
+    check("creation is refused when the vault is read-only",
           off.create("vault:", record(), CollectionKind.TASKS).error is not None)
     check("and the capability says so too",
           not off.capabilities(CollectionKind.TASKS).can_create)

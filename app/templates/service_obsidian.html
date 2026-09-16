@@ -20,22 +20,39 @@
 
 {# Read-only is the single most important thing to say on this page, so it is
    said first and not buried among the caveats further down. #}
-{% set writable = obsidian.linked|selectattr('write_back')|list %}
+{% set full = obsidian.linked|selectattr('sync_level', 'equalto', 'full')|list %}
+{% set ticking = obsidian.linked|selectattr('sync_level', 'equalto', 'completions')|list %}
+{% set writable = full + ticking %}
 {% if writable %}
   <div class="alert alert-warning mb-5">
     <span class="alert-icon" aria-hidden="true">▲</span>
     <div class="grow">
       <div class="alert-title">
-        Two-way with
+        Task Hub may change
         {% for e in writable %}“{{ e.vault.name }}”{{ ', ' if not loop.last }}{% endfor %}
       </div>
-      Tasks in the collections these vaults are mapped to are written into them,
-      and completing a task in <span class="strong">any</span> service on the
-      same collection ticks it off here too — and the other way round. What Task
-      Hub will not do is rewrite a task you wrote yourself, or delete a line: a
-      task finished elsewhere is marked done in your notes, never removed. Every
-      other vault below is read-only, enforced by Obsidian’s own client rather
-      than promised here.
+      {% if ticking %}
+        <p>
+          <span class="strong">Completions both ways</span> in
+          {% for e in ticking %}“{{ e.vault.name }}”{{ ', ' if not loop.last }}{% endfor %}:
+          ticking a task off in any service ticks it off there too, and the other
+          way round. A tick and its date is the only thing written.
+        </p>
+      {% endif %}
+      {% if full %}
+        <p{{ ' class="mt-2"' if ticking }}>
+          <span class="strong">Tasks written in</span> to
+          {% for e in full %}“{{ e.vault.name }}”{{ ', ' if not loop.last }}{% endfor %}:
+          everything in the collections they are mapped to appears in those
+          notes, completions included.
+        </p>
+      {% endif %}
+      <p class="mt-2">
+        Task Hub never rewrites a task you wrote yourself and never deletes a
+        line — a task finished elsewhere is marked done, not removed. Every other
+        vault below is read-only, enforced by Obsidian’s own client rather than
+        promised here.
+      </p>
     </div>
   </div>
 {% else %}
@@ -49,8 +66,9 @@
       <span class="strong">Completing a task in Obsidian still syncs out</span>
       to every service on the same collection — that half always works. It is
       the return journey that does not: ticking a task off in Todoist will not
-      tick it off here, and a task created in Google will not appear in your
-      notes, until you allow read and write below.
+      tick it off here until you choose
+      <span class="strong">“sync completions both ways”</span> on the vault
+      below, which needs no advanced mode.
     </div>
   </div>
 {% endif %}
@@ -129,7 +147,11 @@
         </div>
         <div class="row gap-2">
           {% if entry.write_back %}
-            <span class="pill pill-warning" title="Tasks are written into this vault, and completions sync both ways">Read &amp; write</span>
+            {% if entry.sync_level == 'full' %}
+              <span class="pill pill-warning" title="Tasks are written into this vault, and completions sync both ways">Read &amp; write</span>
+            {% else %}
+              <span class="pill" title="Completions sync both ways; nothing else is written">Read + completions</span>
+            {% endif %}
           {% else %}
             <span class="pill pill-success">Read-only</span>
           {% endif %}
@@ -261,69 +283,141 @@
         {% set lists = lists_by_account.get(account.id, []) %}
         {% set task_lists = lists | selectattr('kind.value', 'equalto', 'tasks') | list %}
         {% if task_lists %}
-          {# Which way tasks are actually flowing, said at the table rather than
-             left to be worked out from it. Ticking a collection means two-way
-             everywhere else in Task Hub, but a vault is the one service that
-             can refuse the second half -- so the same ticked box means one
-             thing here and another thing on the Todoist page, and nothing on
-             the table itself said so. #}
-          {% set fmt = entry.create_format if entry.create_format != 'auto'
-                       else ('tasknotes' if entry.has_tasknotes else 'inline') %}
-          <div class="alert {{ 'alert-success' if entry.write_back else 'alert-info' }} mt-5">
-            <span class="alert-icon" aria-hidden="true">{{ '⇄' if entry.write_back else '→' }}</span>
-            <div class="grow">
-              {% if entry.write_back %}
-                <div class="alert-title">Two-way: this vault and the collections you tick mirror each other</div>
-                <p>
-                  Tasks in this vault go out to every collection ticked below, and
-                  <span class="strong">every task in those collections is written back
-                  into this vault</span> — including ones that came from Google,
-                  Todoist, your phone or your Supernote. New tasks arrive as
-                  {% if fmt == 'tasknotes' %}
-                    <span class="strong">task notes</span>, one file each, in
-                    <span class="mono">{{ entry.tasks_folder or 'the folder TaskNotes uses' }}</span>.
-                  {% else %}
-                    <span class="strong">checklist lines</span> in
-                    <span class="mono">{{ entry.create_note or '— no note chosen yet, so nothing can be written in' }}</span>.
-                  {% endif %}
-                  Change the format beside the tick in the table below.
-                </p>
-              {% else %}
-                <div class="alert-title">One-way: tasks leave this vault, nothing comes back</div>
-                <p>
-                  Ticking a collection below sends this vault's tasks to it, and on
-                  to every other service that collection feeds. Nothing is written
-                  into your notes — not tasks from Google, not completions from
-                  Todoist.
-                </p>
-                <p class="mt-2">
-                  To mirror a collection <span class="strong">both ways</span>, tick
-                  <span class="strong">“Allow read &amp; write”</span> on the row
-                  below and choose the format you want tasks written in. Until you
-                  do, Obsidian's own client stays in mirror-remote mode, which
-                  reverts anything written locally — so this is not a promise Task
-                  Hub is making, it is one the client enforces.
-                </p>
+          {# How much of this vault Task Hub may change. Three levels rather
+             than a switch, because "a task I tick off in Todoist should be
+             ticked off in my notes, but I do not want Todoist's tasks appearing
+             in them" is an ordinary thing to want, and a single on/off could
+             not express it. The third is advanced; the first two are not. #}
+          {% set level = entry.sync_level %}
+          <form method="post" action="/obsidian/{{ account.slot }}/sync-level"
+                class="card card-inset mt-5">
+            <div class="card-body">
+              <div class="field-label">What Task Hub may do with “{{ entry.vault.name }}”</div>
+
+              <label class="check mt-2" style="align-items: flex-start;">
+                <input type="radio" name="level" value="read" {{ 'checked' if level == 'read' }}>
+                <span class="check-label">
+                  <span class="strong">Read tasks only</span> — tasks in this vault
+                  appear in the services you sync it with. Nothing is ever written
+                  into your notes.
+                  <span class="tiny muted" style="display:block;">
+                    Obsidian’s own client stays in mirror-remote mode, which reverts
+                    local changes, so this is enforced rather than promised.
+                  </span>
+                </span>
+              </label>
+
+              <label class="check mt-3" style="align-items: flex-start;">
+                <input type="radio" name="level" value="completions"
+                       {{ 'checked' if level == 'completions' }}>
+                <span class="check-label">
+                  <span class="strong">Read tasks, and sync completions both ways</span>
+                  — ticking a task off in any service ticks it off here too, and the
+                  other way round.
+                  <span class="tiny muted" style="display:block;">
+                    The only thing written is a tick and its date. Never your wording,
+                    never your dates, and no task is ever added or removed.
+                  </span>
+                </span>
+              </label>
+
+              {% if not advanced_mode and level == 'full' %}
+                {# Set to the advanced level, being looked at without advanced
+                   mode. Showing two radios with neither selected would read as
+                   a broken form, and silently offering to drop the vault back a
+                   level is worse: the user came here to change something else. #}
+                <div class="alert alert-warning mt-3">
+                  <span class="alert-icon" aria-hidden="true">▲</span>
+                  <div class="grow">
+                    This vault is set to <span class="strong">also receive tasks
+                    from your collections</span>, which is an advanced setting.
+                    Turn on <span class="strong">Advanced mode</span> in Settings
+                    to see or change it. Saving here would leave it as it is.
+                    <input type="hidden" name="level" value="full">
+                  </div>
+                </div>
               {% endif %}
+
+              {% if advanced_mode %}
+                <label class="check mt-3" style="align-items: flex-start;">
+                  <input type="radio" name="level" value="full" {{ 'checked' if level == 'full' }}>
+                  <span class="check-label">
+                    <span class="strong">Also write tasks from your collections into this vault</span>
+                    — every task in the collections below appears in your notes,
+                    including ones from Google, Todoist, your phone or your Supernote.
+                    <span class="tiny muted" style="display:block;">
+                      New tasks only. Task Hub still never rewrites a task you wrote,
+                      and never deletes a line: a task finished elsewhere is marked
+                      done here, not removed.
+                    </span>
+                  </span>
+                </label>
+
+                <div style="margin-left: 26px; margin-top: 8px;">
+                  {% if entry.has_tasknotes and entry.has_inline %}
+                    <label class="field-label tiny" for="fmt-{{ account.slot }}">Written as</label>
+                    <select class="input input-sm" id="fmt-{{ account.slot }}" name="create_format">
+                      <option value="tasknotes" {{ 'selected' if entry.create_format != 'inline' }}>
+                        TaskNotes — one note per task, keeps times and descriptions
+                      </option>
+                      <option value="inline" {{ 'selected' if entry.create_format == 'inline' }}>
+                        Tasks plugin — a checklist line, no time or description
+                      </option>
+                    </select>
+                  {% else %}
+                    <input type="hidden" name="create_format"
+                           value="{{ 'tasknotes' if entry.has_tasknotes else 'inline' }}">
+                  {% endif %}
+
+                  <label class="field-label tiny mt-2" for="loc-{{ account.slot }}">
+                    Where new tasks go
+                  </label>
+                  <select class="input input-sm" id="loc-{{ account.slot }}" name="create_note">
+                    <option value="" {{ 'selected' if not entry.create_note }}>
+                      {%- if entry.tasks_folder -%}
+                        {{ entry.tasks_folder }} — where TaskNotes files its own
+                      {%- else -%}
+                        Choose a folder…
+                      {%- endif -%}
+                    </option>
+                    {% for folder in entry.folders %}
+                      <option value="{{ folder }}" {{ 'selected' if entry.create_note == folder }}>
+                        {{ folder }}
+                      </option>
+                    {% endfor %}
+                    {% if entry.create_note and entry.create_note not in entry.folders %}
+                      <option value="{{ entry.create_note }}" selected>
+                        {{ entry.create_note }} (not in the vault any more)
+                      </option>
+                    {% endif %}
+                  </select>
+                </div>
+              {% endif %}
+
+              {% if level == 'read' %}
+                <label class="check mt-3" style="align-items: flex-start;">
+                  <input type="checkbox" name="confirm" value="1">
+                  <span class="check-label tiny">
+                    I understand Task Hub will change files in
+                    “{{ entry.vault.name }}”, and that Obsidian Sync’s version
+                    history is how I would undo it.
+                  </span>
+                </label>
+              {% endif %}
+
+              <div class="row mt-4">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              </div>
             </div>
-          </div>
+          </form>
+
           <div class="mt-5">
-            {% set fmt2 = entry.create_format if entry.create_format != 'auto'
-                          else ('tasknotes' if entry.has_tasknotes else 'inline') %}
             {{ mapping_form(account, definition.name, task_lists, [],
                             collections, dropdowns, kind_enabled,
                             definition.supports_tasks,
                             definition.supports_calendar,
-                            advanced_mode=advanced_mode|default(false),
-                            vault_write={
-                              'on': entry.write_back,
-                              'name': entry.vault.name,
-                              'format': fmt2,
-                              'both_formats': entry.has_tasknotes and entry.has_inline,
-                              'note': entry.create_note,
-                              'folders': entry.folders,
-                              'default_folder': entry.tasks_folder if fmt2 == 'tasknotes' else '',
-                            }) }}
+                            advanced_mode=advanced_mode|default(false)) }}
+
           </div>
         {% else %}
           <p class="muted mt-4">

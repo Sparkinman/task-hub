@@ -98,6 +98,13 @@ def _vault_folders(vault_path) -> list[str]:
     return sorted(found, key=str.lower)[:400]
 
 
+def _level(vault: dict) -> str:
+    """This vault's sync level, understanding the older boolean too."""
+    from app.connectors.obsidian import normalise_level
+
+    return normalise_level(vault.get("sync_level"), vault.get("write_back"))
+
+
 def _tasknotes_folder(vault_path) -> str:
     """The folder TaskNotes files new tasks in, or "" if it does not say."""
     import json
@@ -168,6 +175,7 @@ def state(db: Session) -> dict:
             "has_inline": (
                 path / ".obsidian" / "plugins" / "obsidian-tasks-plugin"
                 / "data.json").is_file(),
+            "sync_level": _level(vault),
             "create_format": (vault.get("create_format") or "auto"),
             "create_note": (vault.get("create_note") or ""),
             # Where TaskNotes itself files tasks, so the page can name it rather
@@ -421,30 +429,30 @@ def pause_vault(slot: int, request: Request, db: Session = Depends(get_db)):
     return deps.redirect(BACK)
 
 
-def apply_write_back(
+def apply_sync_level(
     db: Session,
     account: Account,
     *,
-    want: bool,
-    folders: list[str] | None = None,
+    level: str,
     create_format: str = "auto",
     create_note: str = "",
 ) -> tuple[bool, str]:
-    """Turn writing on or off for one vault. Returns (ok, what to tell the user).
+    """Set how much of one vault Task Hub may change. Returns (ok, what to say).
 
-    Enabling means changing Obsidian's own sync mode from ``mirror-remote`` to
-    ``bidirectional``. That is the real switch: while the client is in
-    mirror-remote it reverts anything written locally, so leaving it there and
-    flipping a flag here would produce writes that silently vanish. Doing it
-    this way round also means turning writing *off* restores the guarantee
-    rather than merely promising it.
-
-    Shared by the mapping table, which is where this is turned on, so that the
-    tick in the table and the stored setting can never disagree.
+    Any level above ``read`` means changing Obsidian's own sync mode from
+    ``mirror-remote`` to ``bidirectional``. That is the real switch: while the
+    client is in mirror-remote it reverts anything written locally, so leaving
+    it there and flipping a flag here would produce writes that silently
+    vanish. Doing it this way round also means dropping back to ``read``
+    restores the guarantee rather than merely promising it.
     """
+    from app.connectors.obsidian import LEVEL_COMPLETIONS, LEVEL_FULL, LEVEL_READ
+    from app.connectors.obsidian import normalise_level
+
+    level = normalise_level(level)
     vault = linked_vault(account)
     name = vault.get("name") or ""
-    mode = "bidirectional" if want else "mirror-remote"
+    mode = "mirror-remote" if level == LEVEL_READ else "bidirectional"
 
     # The child holds the vault's lock and, more to the point, the mode it was
     # started with. Writing a new mode into the client's configuration while it
@@ -469,77 +477,91 @@ def apply_write_back(
             f"{result.message}. Nothing was changed."
         )
 
-    vault["write_back"] = want
-    vault["write_folders"] = sorted(f for f in (folders or []) if f) if want else []
+    vault["sync_level"] = level
+    # Kept in step for anything still reading the old flag.
+    vault["write_back"] = level in (LEVEL_COMPLETIONS, LEVEL_FULL)
     vault["create_format"] = (
         create_format if create_format in ("auto", "inline", "tasknotes") else "auto")
-    vault["create_note"] = create_note.strip().lstrip("/") if want else ""
+    vault["create_note"] = create_note.strip().lstrip("/") if level == LEVEL_FULL else ""
     account.credentials = encrypt_json(vault)
     db.commit()
 
-    if not want:
+    if level == LEVEL_READ:
         return True, (
-            f"\u201c{name}\u201d is read-only again. Obsidian's client is back in "
-            "mirror-remote mode, so it would revert any local change."
+            f"\u201c{name}\u201d is read-only. Obsidian's client is back in "
+            "mirror-remote mode, so it would revert any local change. Tasks still "
+            "sync out of the vault; nothing comes back into it."
         )
-    where = (
-        "the whole vault" if not vault["write_folders"]
-        else ", ".join(f.replace("folder:", "") or "the vault root"
-                       for f in vault["write_folders"])
-    )
+    if level == LEVEL_COMPLETIONS:
+        return True, (
+            f"Completed tasks now sync both ways with \u201c{name}\u201d. Ticking "
+            "a task off in any service ticks it off in your notes, and the other "
+            "way round. Nothing else is written: no new tasks, and no changes to "
+            "your wording or dates."
+        )
     shape = ("task notes" if vault["create_format"] == "tasknotes"
              else "checklist lines" if vault["create_format"] == "inline"
              else "the format this vault is set up for")
+    where = vault["create_note"] or "the folder the plugin uses"
     return True, (
-        f"Task Hub can now write into \u201c{name}\u201d ({where}), as {shape}. "
-        f"It stops after 20 changes in one pass and never deletes a line."
+        f"Tasks from your collections are now written into \u201c{name}\u201d as "
+        f"{shape}, in {where}, and completions sync both ways. Task Hub stops "
+        "after 20 changes in one pass and never deletes a line."
     )
 
 
-@router.post("/{slot}/write-back")
-def set_write_back(
+@router.post("/{slot}/sync-level")
+def set_sync_level(
     slot: int,
     request: Request,
-    enabled: str = Form(""),
+    level: str = Form("read"),
     confirm: str = Form(""),
-    folders: list[str] = Form(default=[]),
     create_format: str = Form("auto"),
     create_note: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    """Turn writing on or off for one vault.
+    """Choose how much of one vault Task Hub may change.
 
-    The mapping table is where this is normally done -- one tick beside the
-    collection it applies to. This endpoint remains because the setting is a
-    real thing that can be addressed on its own, and because turning writing
-    *off* should not require finding the row it was turned on from.
+    Three levels, and the top one is advanced. The middle one is not, because
+    "a task I tick off in Todoist should be ticked off in my notes" is an
+    ordinary thing to want and hiding it behind an advanced switch made it look
+    like Task Hub could not do it at all.
     """
-    # Gated here as well as in the template. Hiding a control that still works
-    # is not a safeguard, and this one writes into somebody's notes.
-    if not settings_store.is_advanced(db):
-        deps.flash(
-            request,
-            "Writing into a vault is an advanced setting. Turn on "
-            "\u201cAdvanced mode\u201d in Settings first.",
-            "error",
-        )
-        return deps.redirect(BACK)
+    from app.connectors.obsidian import LEVEL_FULL, LEVEL_READ, normalise_level
 
     account = account_for_slot(db, slot)
     if account is None:
         return deps.redirect(BACK)
 
-    want = enabled == "1"
-    if want and confirm != "1":
-        deps.flash(request, "Tick the box confirming you understand, first.", "error")
+    wanted = normalise_level(level)
+
+    # Writing whole tasks into somebody's notes is the advanced step, and the
+    # gate is here as well as in the template: hiding a control that still
+    # works is not a safeguard.
+    if wanted == LEVEL_FULL and not settings_store.is_advanced(db):
+        deps.flash(
+            request,
+            "Writing tasks into a vault is an advanced setting. Turn on "
+            "\u201cAdvanced mode\u201d in Settings first.",
+            "error",
+        )
         return deps.redirect(BACK)
 
-    ok, message = apply_write_back(
-        db, account, want=want, folders=folders,
+    current = linked_vault(account).get("sync_level")
+    if wanted != LEVEL_READ and normalise_level(current) == LEVEL_READ and confirm != "1":
+        deps.flash(
+            request,
+            "Tick the box confirming you understand before Task Hub changes "
+            "anything in your notes.",
+            "error",
+        )
+        return deps.redirect(BACK)
+
+    ok, message = apply_sync_level(
+        db, account, level=wanted,
         create_format=create_format, create_note=create_note,
     )
-    deps.flash(request, message, "warning" if ok and want else
-               "success" if ok else "error")
+    deps.flash(request, message, "success" if ok else "error")
     return deps.redirect(BACK)
 
 

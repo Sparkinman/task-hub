@@ -225,7 +225,7 @@ try:
         def root(self) -> Path:
             return vault
 
-    conn = Bound(account_id=1, credentials={"name": "V", "write_back": True})
+    conn = Bound(account_id=1, credentials={"name": "V", "sync_level": "full"})
     check("with TaskNotes installed, that is the format chosen",
           conn.writes_format() == "tasknotes", conn.writes_format())
     check("and creation needs no destination setting",
@@ -264,7 +264,7 @@ try:
           (vault / "TaskNotes/Tasks/Master task.md").is_file())
 
     chosen = Bound(account_id=1, credentials={
-        "name": "V", "write_back": True, "create_note": "Work/Inbox"})
+        "name": "V", "sync_level": "full", "create_note": "Work/Inbox"})
     picked = chosen.create("vault:", CanonicalRecord(
         uid="w", kind=CollectionKind.TASKS, title="Somewhere else"),
         CollectionKind.TASKS)
@@ -287,7 +287,9 @@ try:
     text = note_path.read_text(encoding="utf-8")
     check("its status becomes the vault's own finished word",
           "status: done" in text, text)
-    check("and the completion date is recorded", "2026-09-16" in text, text)
+    front, _ = parse_frontmatter(text)
+    check("and the completion date is recorded",
+          str(front.get("completedDate")) == "2026-09-16", str(front))
 
     state = {i.remote_id: i.record.status for i in
              conn.pull("vault:", CollectionKind.TASKS, None).items}
@@ -297,24 +299,55 @@ try:
 
     reopened = CanonicalRecord(uid="p", kind=CollectionKind.TASKS, title="Master task")
     conn.update("vault:", parent.remote_id, reopened, CollectionKind.TASKS)
-    text = note_path.read_text(encoding="utf-8")
+    # Checked as a field rather than as a string in the file: dateCreated
+    # carries today's date, so looking for the date anywhere in the text passes
+    # or fails depending on what day the suite is run.
+    front, _ = parse_frontmatter(note_path.read_text(encoding="utf-8"))
     check("un-completing it takes the completion date away too",
-          "status: open" in text and "2026-09-16" not in text, text)
+          front.get("status") == "open" and "completedDate" not in front,
+          str(front))
 
-    off = Bound(account_id=1, credentials={"name": "V", "write_back": False})
-    check("nothing is written with write-back off",
+    off = Bound(account_id=1, credentials={"name": "V", "sync_level": "read"})
+    check("nothing is written when the vault is read-only",
           off.create("vault:", CanonicalRecord(uid="x", kind=CollectionKind.TASKS,
                                                title="No"), CollectionKind.TASKS).error
           is not None)
 
     forced = Bound(account_id=1, credentials={
-        "name": "V", "write_back": True, "create_format": "inline"})
+        "name": "V", "sync_level": "full", "create_format": "inline"})
     check("an explicit choice of inline is obeyed even with TaskNotes installed",
           forced.writes_format() == "inline")
     check("and inline then needs a note to write into",
           not forced.capabilities(CollectionKind.TASKS).can_create)
 finally:
     shutil.rmtree(raw, ignore_errors=True)
+
+print("\nThe three levels")
+
+from app.connectors.obsidian import LEVELS, ObsidianConnector, normalise_level
+
+expected = {
+    "read":        (False, False),   # (completions written, tasks created)
+    "completions": (True,  False),
+    "full":        (True,  True),
+}
+for lvl in LEVELS:
+    c = ObsidianConnector(account_id=1,
+                          credentials={"name": "V", "sync_level": lvl,
+                                       "create_note": "X", "create_format": "inline"})
+    caps = c.capabilities(CollectionKind.TASKS)
+    ticks, creates = expected[lvl]
+    check(f"{lvl}: completions written = {ticks}",
+          ("status" in caps.writable_fields) == ticks)
+    check(f"{lvl}: tasks created = {creates}", caps.can_create == creates)
+    check(f"{lvl}: never deletes", not caps.can_delete)
+
+check("a vault set up before the levels existed becomes 'completions', not 'full'",
+      normalise_level(None, True) == "completions")
+check("and one that was off becomes 'read'", normalise_level(None, False) == "read")
+check("an unknown value is read as read-only, never as writing",
+      normalise_level("something else") == "read")
+
 
 print()
 if _failures:

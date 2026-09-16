@@ -4,12 +4,13 @@ Task Hub reads tasks out of your Obsidian vault and syncs them to every other
 service you have connected. A task you write in a daily note appears in Todoist,
 Google Tasks and your calendar, carrying a link back to the note it came from.
 
-**Obsidian is read-only unless you turn writing on.** Out of the box Task Hub
-never writes into your vault, and that is enforced by Obsidian's own client
-rather than by Task Hub promising to behave — see
-[Why read-only](#why-read-only) below. Writing back is an advanced setting you
-switch on per vault, and switching it on changes the client's mode, so the
-guarantee is either really in force or really lifted, never half of each. See
+**Obsidian is read-only unless you change that, per vault.** Out of the box
+Task Hub never writes into your vault, and that is enforced by Obsidian's own
+client rather than by Task Hub promising to behave — see
+[Why read-only](#why-read-only) below. Each vault can then be moved up one of
+two levels: completions syncing both ways, or tasks from your collections being
+written in as well. Moving a vault changes the client's mode, so the guarantee
+is either really in force or really lifted, never half of each. See
 [Writing tasks into your vault](#writing-tasks-into-your-vault).
 
 ---
@@ -269,17 +270,24 @@ Obsidian.
 
 ## Writing tasks into your vault
 
-Off by default. Turning it on takes three deliberate acts, and short of all
-three the vault stays read-only:
+Each vault is set to one of three levels, on **Services → Obsidian**. The
+first is the default, and a vault stays there until you deliberately move it.
 
-1. Turn on **Advanced mode** in Settings.
-2. On **Services → Obsidian**, tick **“Allow read & write”** on the row for the
-   collections you want mirrored.
-3. Tick the confirmation beside it.
+| | What Task Hub does | Needs advanced mode |
+| --- | --- | --- |
+| **Read tasks only** | Tasks in the vault appear in the services you sync it with. Nothing is ever written into your notes. | — |
+| **Read tasks, and sync completions both ways** | Ticking a task off in any service ticks it off in your notes, and the other way round. A tick and its date is the only thing written. | No |
+| **Also write tasks from your collections into this vault** | Every task in the collections the vault is mapped to appears in your notes, from whichever service it came. | **Yes** |
 
-The tick sits next to the collections it applies to, because that is the
-question being asked: should *this collection* mirror into my notes. Beside it
-are the format tasks are written in and where they are stored.
+The middle level is deliberately not advanced. "A task I tick off in Todoist
+should be ticked off in my notes, but I do not want Todoist's tasks appearing in
+them" is an ordinary thing to want, and a single on/off switch could not
+express it.
+
+At the first level, Obsidian's own client stays in `mirror-remote` mode, which
+reverts local changes — so that level is enforced rather than promised. Moving
+above it switches the client to `bidirectional`, and moving back switches it
+returns.
 
 Turning it on changes Obsidian's own client from `mirror-remote` to
 `bidirectional`, which is the real switch: while the client is in mirror-remote
