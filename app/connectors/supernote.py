@@ -86,6 +86,32 @@ LIST_GROUPS = "/file/schedule/group/all"
 #: their titles instead, which creates nothing that can be mistaken for a
 #: deletion.
 LIST_TASKS = "/file/schedule/task/all"
+
+#: How many rows to ask for, on every read.
+#:
+#: **These endpoints default to twenty rows and say nothing about it.** They
+#: answer with ``nextPageToken`` set and the rows come back oldest first, so
+#: what they silently omit is the *newest* to-dos -- a to-do created today on a
+#: busy account simply never arrives. This connector read a truncated account
+#: from the day it was written and nothing surfaced it, because the failure mode
+#: is silence rather than an error.
+#:
+#: The parameter was not guessable: the endpoint ignores unknown JSON keys
+#: without complaint, so about a hundred spellings of "page" -- in the body, the
+#: query string, as headers, in the path, as keyset cursors -- all returned the
+#: identical twenty rows. What found it was asking the server which fields it
+#: knows: a field sent with a deliberately wrong type answers "Request Parameter
+#: Serialisation Exception" when it is real and is ignored when it is not.
+#: ``/file/schedule/task/all`` admits to ``nextSyncToken`` and ``maxResults``;
+#: ``/file/schedule/group/all`` to ``pageToken`` and ``maxResults``. That is also
+#: why no page token ever worked for tasks -- that endpoint has none.
+#:
+#: Verified against a live account: ``maxResults: 3`` returns three rows with
+#: ``nextPageToken`` set, twenty or more returns the whole account with the
+#: token null, and 5000 is accepted without complaint.
+#:
+#: The name is Google Tasks', like the rest of this API's vocabulary.
+MAX_RESULTS = 1000
 #: One task. The verb decides the operation, and each has a trap of its own.
 #:
 #: ``POST`` inserts, and inserts *even when the body carries a taskId* -- it
@@ -471,7 +497,9 @@ class SupernoteConnector(Connector):
         """
         if remote_id in self._cache:
             return self._cache[remote_id]
-        for row in self._get(LIST_TASKS).get("scheduleTask") or []:
+        for row in self._get(LIST_TASKS, {"maxResults": MAX_RESULTS}).get(
+            "scheduleTask"
+        ) or []:
             task_id = str(row.get("taskId") or "").strip()
             if task_id:
                 self._cache[task_id] = row
@@ -479,7 +507,7 @@ class SupernoteConnector(Connector):
 
     def verify(self) -> str:
         """Confirm the session works, and say when it runs out."""
-        self._get(LIST_GROUPS)
+        self._get(LIST_GROUPS, {"maxResults": MAX_RESULTS})
         expires = self.expires_at()
         identity = self.credentials.get("email") or "Supernote"
         if expires:
@@ -490,7 +518,7 @@ class SupernoteConnector(Connector):
 
     def _live_list_ids(self) -> set[str]:
         """The ids of every list that currently exists and is not deleted."""
-        body = self._get(LIST_GROUPS)
+        body = self._get(LIST_GROUPS, {"maxResults": MAX_RESULTS})
         return {
             str(row.get("taskListId")).strip()
             for row in body.get("scheduleTaskGroup") or []
@@ -498,7 +526,7 @@ class SupernoteConnector(Connector):
         }
 
     def list_remote_lists(self) -> list[RemoteList]:
-        body = self._get(LIST_GROUPS)
+        body = self._get(LIST_GROUPS, {"maxResults": MAX_RESULTS})
         lists: list[RemoteList] = []
         for row in body.get("scheduleTaskGroup") or []:
             if yes(row.get("isDeleted")):
@@ -533,7 +561,7 @@ class SupernoteConnector(Connector):
 
     def _unfiled_count(self, known: list[RemoteList]) -> int:
         live = {entry.remote_id for entry in known}
-        body = self._get(LIST_TASKS)
+        body = self._get(LIST_TASKS, {"maxResults": MAX_RESULTS})
         return sum(
             1
             for row in body.get("scheduleTask") or []
@@ -564,15 +592,21 @@ class SupernoteConnector(Connector):
 
         The API returns all of an account's tasks at once and tags each with the
         list it belongs to, so this filters rather than making a request per
-        list. ``nextSyncToken`` comes back in the response and would allow a
-        delta read, but replaying it under the obvious parameter name returned
-        everything unchanged, so this asks for the full set and says so. A wrong
-        guess there would look like "nothing changed" forever.
+        list -- but only when asked for them all. See ``MAX_RESULTS``: without
+        it the answer is the oldest twenty rows and nothing says so.
+
+        ``nextSyncToken`` is a real delta cursor, and sending a stale one is
+        refused with "NextSyncToken timeout" rather than quietly returning
+        nothing. It is deliberately not used: a delta read that silently fell
+        back to "nothing changed" would be indistinguishable from an account
+        where nothing had, and this connector has already been bitten once by a
+        truncation that announced itself the same way. The full set is asked for
+        and reported as non-incremental.
         """
         if kind != CollectionKind.TASKS:
             return PullResult(items=[], incremental=False)
 
-        body = self._get(LIST_TASKS)
+        body = self._get(LIST_TASKS, {"maxResults": MAX_RESULTS})
         items: list[RemoteItem] = []
         present = self.capabilities(kind).fields
 
